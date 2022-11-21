@@ -92,8 +92,6 @@
             qemuUefi
             uefi-run
             rust-nightly
-            pkgs.pev
-            add-sections
           ];
         };
       };
