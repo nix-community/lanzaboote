@@ -16,11 +16,12 @@
         ];
       };
 
-      rust = pkgs.rust-bin.fromRustupToolchainFile ./rust/rust-toolchain.toml;
+      rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/rust-toolchain.toml;
 
-      naersk' = pkgs.callPackage naersk {
-        cargo = rust;
-        rustc = rust;
+      naersk-stable = pkgs.callPackage naersk {};
+      naersk-nightly = pkgs.callPackage naersk {
+        cargo = rust-nightly;
+        rustc = rust-nightly;
       };
 
       qemuUefi = pkgs.writeShellScriptBin "qemu-uefi" ''
@@ -29,21 +30,8 @@
               -m 4096 -serial stdio "$@"
           '';
 
-      uefi-run = naersk'.buildPackage {
-        src = pkgs.fetchFromGitHub {
-          owner = "Richard-W";
-          repo = "uefi-run";
-
-          rev = "8ba33c934525458a784a6620705bcf46c3ca91d2";
-          sha256 = "fwzWdOinW/ECVI/65pPB1shxPdl2nZThAqlg8wlWg/g=";
-        };
-
-        nativeBuildInputs = [ pkgs.makeWrapper ];
-
-        postInstall = ''
-          wrapProgram "$out/bin/uefi-run" \
-            --add-flags '--bios-path ${pkgs.OVMF.fd}/FV/OVMF.fd --qemu-path ${pkgs.qemu}/bin/qemu-system-x86_64'
-        '';
+      uefi-run = pkgs.callPackage ./nix/uefi-run.nix {
+        naersk = naersk-stable;
       };
 
       systemd-boot-run = pkgs.writeShellScriptBin "systemd-boot-run" ''
@@ -69,7 +57,7 @@
            "$IN" "$OUT"
       '';
       
-      lanzaboote = naersk'.buildPackage {
+      lanzaboote = naersk-nightly.buildPackage {
         src = ./rust;
         cargoBuildOptions = old: old ++ [
           "--target x86_64-unknown-uefi"
@@ -103,7 +91,7 @@
           nativeBuildInputs = [
             qemuUefi
             uefi-run
-            rust
+            rust-nightly
             pkgs.pev
             add-sections
           ];
