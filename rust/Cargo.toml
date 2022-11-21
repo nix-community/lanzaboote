@@ -1,0 +1,9 @@
+[package]
+name = "lanzaboote"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+uefi = { version = "0.18.0", features = ["alloc"] }
+uefi-services = "0.15.0"
