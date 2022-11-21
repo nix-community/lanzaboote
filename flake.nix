@@ -80,19 +80,18 @@
         mkdir -p $out/bin
         add-sections ${lanzaboote}/bin/lanzaboote.efi ${osrel} ${cmdline} $out/bin/lanzaboote.efi
       '';
-    in
-      rec {
-        packages.x86_64-linux = {
-          inherit qemuUefi uefi-run lanzaboote lanzaboote-uki;
-          default = lanzaboote-uki;
-        };
-
-        devShells.x86_64-linux.default = pkgs.mkShell {
-          nativeBuildInputs = [
-            qemuUefi
-            uefi-run
-            rust-nightly
-          ];
-        };
+    in {
+      packages.x86_64-linux = {
+        inherit qemuUefi uefi-run lanzaboote lanzaboote-uki;
+        default = lanzaboote-uki;
       };
+
+      devShells.x86_64-linux.default = pkgs.mkShell {
+        nativeBuildInputs = [
+          qemuUefi
+          uefi-run
+          rust-nightly
+        ];
+      };
+    };
 }
