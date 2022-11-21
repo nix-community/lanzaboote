@@ -21,9 +21,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "ed25519-compact"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f2d21333b679bbbac680b3eb45c86937e42f69277028f4e97b599b80b86c253"
+
+[[package]]
 name = "lanzaboote"
 version = "0.1.0"
 dependencies = [
+ "ed25519-compact",
  "log",
  "uefi",
  "uefi-services",

@@ -8,4 +8,5 @@ publish = false
 uefi = { version = "0.18.0", features = [ "alloc", "logger" ] }
 uefi-services = "0.15.0"
 log = "0.4.17"
+ed25519-compact = { version = "2.0.2", default-features = false, features = [] }
 

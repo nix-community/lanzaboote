@@ -81,7 +81,7 @@
         VERSION="0"
       '';
 
-      cmdline = pkgs.writeText "lanzaboote-cmdline" " ";
+      cmdline = pkgs.writeText "lanzaboote-cmdline" "";
 
       lanzaboote-uki = pkgs.runCommand "lanzboote-uki" {
         nativeBuildInputs = [
