@@ -110,17 +110,26 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     debug!("Found root");
 
     let mut file = root
-        .open(cstr16!("foo.txt"), FileMode::Read, FileAttribute::empty())
+        .open(cstr16!("linux.efi"), FileMode::Read, FileAttribute::empty())
         .unwrap()
         .into_regular_file()
         .unwrap();
 
     debug!("Opened file");
 
-    debug!(
-        "Data: {}",
-        alloc::str::from_utf8(&read_all(&mut file).unwrap()).unwrap()
-    );
+    let kernel = read_all(&mut file).unwrap();
+
+    let kernel_image = boot_services
+        .load_image(
+            handle,
+            uefi::table::boot::LoadImageSource::FromBuffer {
+                buffer: &kernel,
+                file_path: None,
+            },
+        )
+        .unwrap();
+
+    boot_services.start_image(kernel_image).unwrap();
 
     Status::SUCCESS
 }
