@@ -16,7 +16,7 @@
         ];
       };
 
-      rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/rust-toolchain.toml;
+      rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
 
       naersk-stable = pkgs.callPackage naersk {};
       naersk-nightly = pkgs.callPackage naersk {
@@ -58,14 +58,14 @@
       '';
       
       lanzaboote = naersk-nightly.buildPackage {
-        src = ./rust;
+        src = ./rust/lanzaboote;
         cargoBuildOptions = old: old ++ [
           "--target x86_64-unknown-uefi"
         ];
       };
 
       lanzatool = naersk-stable.buildPackage {
-        src = ./lanzatool;
+        src = ./rust/lanzatool;
       };
 
       osrel = pkgs.writeText "lanzaboote-osrel" ''
