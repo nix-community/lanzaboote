@@ -64,6 +64,10 @@
         ];
       };
 
+      lanzatool = naersk-stable.buildPackage {
+        src = ./lanzatool;
+      };
+
       osrel = pkgs.writeText "lanzaboote-osrel" ''
         NAME=Lanzaboote
         VERSION="${lanzaboote.version}"
@@ -82,7 +86,7 @@
       '';
     in {
       packages.x86_64-linux = {
-        inherit qemuUefi uefi-run lanzaboote lanzaboote-uki;
+        inherit qemuUefi uefi-run lanzaboote lanzaboote-uki lanzatool;
         default = lanzaboote-uki;
       };
 
@@ -91,6 +95,7 @@
           qemuUefi
           uefi-run
           rust-nightly
+          lanzatool
         ];
       };
     };
