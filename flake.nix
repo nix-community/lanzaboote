@@ -96,6 +96,7 @@
           uefi-run
           rust-nightly
           lanzatool
+          pkgs.openssl
         ];
       };
     };
