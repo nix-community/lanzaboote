@@ -9,4 +9,5 @@ uefi = { version = "0.18.0", features = [ "alloc", "logger", "exts" ] }
 uefi-services = "0.15.0"
 log = "0.4.17"
 ed25519-compact = { version = "2.0.2", default-features = false, features = [] }
+pem-rfc7468 = "0.6.0"
 
