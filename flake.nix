@@ -18,7 +18,6 @@
 
       rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
 
-      naersk-stable = pkgs.callPackage naersk {};
       naersk-nightly = pkgs.callPackage naersk {
         cargo = rust-nightly;
         rustc = rust-nightly;
@@ -31,7 +30,7 @@
           '';
 
       uefi-run = pkgs.callPackage ./nix/uefi-run.nix {
-        naersk = naersk-stable;
+        naersk = naersk-nightly;
       };
 
       systemd-boot-run = pkgs.writeShellScriptBin "systemd-boot-run" ''
@@ -64,7 +63,7 @@
         ];
       };
 
-      lanzatool = naersk-stable.buildPackage {
+      lanzatool = naersk-nightly.buildPackage {
         src = ./rust/lanzatool;
       };
 
