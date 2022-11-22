@@ -1,4 +1,4 @@
-/rust/target
 /result
 /result-*
 /.direnv
+target
