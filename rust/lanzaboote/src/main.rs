@@ -10,9 +10,18 @@ use uefi::{
     prelude::*,
     proto::{
         console::text::Output,
-        media::file::{File, FileAttribute, FileMode, RegularFile},
+        device_path::{
+            text::{AllowShortcuts, DevicePathToText, DisplayOnly},
+            DevicePath,
+        },
+        loaded_image::{self, LoadedImage},
+        media::{
+            file::{File, FileAttribute, FileMode, RegularFile},
+            fs::SimpleFileSystem,
+        },
     },
-    Result,
+    table::boot::{OpenProtocolAttributes, OpenProtocolParams},
+    Error, Result,
 };
 
 fn print_logo(output: &mut Output) {
@@ -50,6 +59,42 @@ fn read_all(image: &mut RegularFile) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
+fn image_file(boot_services: &BootServices, image: Handle) -> Result<RegularFile> {
+    let mut file_system = boot_services.get_image_file_system(image)?;
+    let mut root = file_system.open_volume()?;
+
+    let loaded_image = unsafe {
+        // XXX This gives ACCESS_DENIED if we use open_protocol_exclusive?
+        boot_services.open_protocol::<LoadedImage>(
+            OpenProtocolParams {
+                handle: image,
+                agent: image,
+                controller: None,
+            },
+            OpenProtocolAttributes::Exclusive,
+        )
+    }?;
+
+    let file_path = loaded_image.file_path().ok_or(Status::NOT_FOUND)?;
+
+    let to_text = boot_services.open_protocol_exclusive::<DevicePathToText>(
+        boot_services.get_handle_for_protocol::<DevicePathToText>()?,
+    )?;
+
+    let file_path = to_text.convert_device_path_to_text(
+        boot_services,
+        file_path,
+        DisplayOnly(false),
+        AllowShortcuts(false),
+    )?;
+
+    let our_image = root.open(&file_path, FileMode::Read, FileAttribute::empty())?;
+
+    Ok(our_image
+        .into_regular_file()
+        .ok_or(Status::INVALID_PARAMETER)?)
+}
+
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
@@ -57,6 +102,9 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     print_logo(system_table.stdout());
 
     let boot_services = system_table.boot_services();
+
+    let image_file = image_file(boot_services, handle).unwrap();
+
     let mut file_system = boot_services.get_image_file_system(handle).unwrap();
     let mut root = file_system.open_volume().unwrap();
 
