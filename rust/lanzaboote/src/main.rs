@@ -5,8 +5,8 @@
 extern crate alloc;
 
 mod pe_section;
+mod uefi_helpers;
 
-use alloc::vec::Vec;
 use log::{debug, info};
 use uefi::{
     prelude::*,
@@ -20,7 +20,7 @@ use uefi::{
     Result,
 };
 
-use crate::pe_section::pe_section;
+use crate::{pe_section::pe_section, uefi_helpers::read_all};
 
 fn print_logo(output: &mut Output) {
     output.clear().unwrap();
@@ -38,24 +38,6 @@ fn print_logo(output: &mut Output) {
 "
         ))
         .unwrap();
-}
-
-fn read_all(image: &mut RegularFile) -> Result<Vec<u8>> {
-    let mut buf = Vec::new();
-
-    // TODO Can we do this nicer?
-    loop {
-        let mut chunk = [0; 512];
-        let read_bytes = image.read(&mut chunk).map_err(|e| e.status())?;
-
-        if read_bytes == 0 {
-            break;
-        }
-
-        buf.extend_from_slice(&chunk[0..read_bytes]);
-    }
-
-    Ok(buf)
 }
 
 fn image_file(boot_services: &BootServices, image: Handle) -> Result<RegularFile> {
@@ -103,8 +85,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let boot_services = system_table.boot_services();
 
     {
-        let mut image_file = image_file(boot_services, handle).unwrap();
-        let image_data = read_all(&mut image_file).unwrap();
+        let image_data = read_all(&mut image_file(boot_services, handle).unwrap()).unwrap();
 
         if let Some(data) = pe_section(&image_data, ".osrel") {
             info!("osrel = {}", core::str::from_utf8(data).unwrap_or("???"))
