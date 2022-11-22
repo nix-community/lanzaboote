@@ -91,12 +91,16 @@
       };
 
       devShells.x86_64-linux.default = pkgs.mkShell {
-        nativeBuildInputs = [
+        packages = [
           qemuUefi
           uefi-run
-          rust-nightly
           lanzatool
           pkgs.openssl
+        ];
+
+        inputsFrom = [
+          lanzatool
+          lanzaboote
         ];
       };
     };
