@@ -38,6 +38,8 @@ fn print_logo(output: &mut Output) {
         .unwrap();
 }
 
+// Find the root directory of the given image.
+//
 // # Safety
 //
 // TODO Need to find out whether we can open the protocols in safe code.
@@ -65,7 +67,7 @@ unsafe fn root_directory(image: Handle, boot_services: &BootServices) -> Result<
     let mut device_path: &DevicePath = device_path.deref();
     let fs_handle = boot_services.locate_device_path::<SimpleFileSystem>(&mut device_path)?;
 
-    let mut file_system_raw = boot_services.open_protocol::<SimpleFileSystem>(
+    let mut file_system = boot_services.open_protocol::<SimpleFileSystem>(
         OpenProtocolParams {
             handle: fs_handle,
             agent: image,
@@ -74,10 +76,7 @@ unsafe fn root_directory(image: Handle, boot_services: &BootServices) -> Result<
         OpenProtocolAttributes::Exclusive,
     )?;
 
-    let file_system: &mut SimpleFileSystem = &mut file_system_raw;
-    let root = file_system.open_volume()?;
-
-    Ok(root)
+    file_system.open_volume()
 }
 
 #[entry]
@@ -104,7 +103,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let bytes_read = file.read(&mut buf).unwrap();
     let data = &buf[0..bytes_read];
 
-    debug!("Data: {}", alloc::str::from_utf8(&data).unwrap());
+    debug!("Data: {}", alloc::str::from_utf8(data).unwrap());
 
     Status::SUCCESS
 }
