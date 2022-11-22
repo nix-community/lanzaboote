@@ -1,17 +1,17 @@
 //! This module implements the protocols to hand an initrd to the
 //! Linux kernel.
 
-use core::{ffi::c_void, pin::Pin};
+use core::{ffi::c_void, pin::Pin, ptr::slice_from_raw_parts_mut};
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec};
 use uefi::{
     prelude::BootServices,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
-        media::file::RegularFile,
+        media::file::{File, FileInfo, RegularFile},
         Protocol,
     },
-    unsafe_guid, Handle, Identify, Result, Status,
+    unsafe_guid, Handle, Identify, Result, ResultExt, Status,
 };
 
 /// The Linux kernel's initrd loading device path.
@@ -58,15 +58,47 @@ struct LoadFile2Protocol {
     file: RegularFile,
 }
 
-unsafe extern "efiapi" fn linux_initrd_load_file(
-    _this: &mut LoadFile2Protocol,
-    _file_path: *const FfiDevicePath,
-    _boot_policy: bool,
-    _buffer_size: *mut usize,
-    _buffer: *mut c_void,
+impl LoadFile2Protocol {
+    fn load_file(
+        &mut self,
+        _file_path: *const FfiDevicePath,
+        _boot_policy: bool,
+        buffer_size: *mut usize,
+        buffer: *mut c_void,
+    ) -> Result<()> {
+        let mut fs_info_buf = vec![0; 128];
+        let fs_info = self
+            .file
+            .get_info::<FileInfo>(&mut fs_info_buf)
+            .map_err(|_| Status::INVALID_PARAMETER)?;
+        let fs_size = usize::try_from(fs_info.file_size()).unwrap();
+
+        if buffer.is_null() || unsafe { *buffer_size } < fs_size {
+            unsafe {
+                *buffer_size = fs_size;
+            }
+            return Err(Status::BUFFER_TOO_SMALL.into());
+        };
+
+        let output_slice: &mut [u8] =
+            unsafe { &mut *slice_from_raw_parts_mut(buffer as *mut u8, *buffer_size) };
+
+        let read_bytes = self.file.read(output_slice).map_err(|e| e.status())?;
+        assert_eq!(read_bytes, unsafe { *buffer_size });
+
+        Ok(())
+    }
+}
+
+unsafe extern "efiapi" fn raw_load_file(
+    this: &mut LoadFile2Protocol,
+    file_path: *const FfiDevicePath,
+    boot_policy: bool,
+    buffer_size: *mut usize,
+    buffer: *mut c_void,
 ) -> Status {
-    // Linux doesn't like that.
-    Status::NOT_FOUND
+    this.load_file(file_path, boot_policy, buffer_size, buffer)
+        .status()
 }
 
 pub struct InitrdLoader {
@@ -78,7 +110,7 @@ pub struct InitrdLoader {
 impl InitrdLoader {
     pub fn new(boot_services: &BootServices, handle: Handle, file: RegularFile) -> Result<Self> {
         let mut proto = Box::pin(LoadFile2Protocol {
-            load_file: linux_initrd_load_file,
+            load_file: raw_load_file,
             file,
         });
 
