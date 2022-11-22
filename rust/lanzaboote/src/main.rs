@@ -5,20 +5,13 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::ops::Deref;
 use log::debug;
 use uefi::{
     prelude::*,
     proto::{
         console::text::Output,
-        device_path::DevicePath,
-        loaded_image::LoadedImage,
-        media::{
-            file::{Directory, File, FileAttribute, FileMode, RegularFile},
-            fs::SimpleFileSystem,
-        },
+        media::file::{File, FileAttribute, FileMode, RegularFile},
     },
-    table::boot::{OpenProtocolAttributes, OpenProtocolParams},
     Result,
 };
 
