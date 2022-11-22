@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+use alloc::vec::Vec;
 use core::ops::Deref;
 use log::debug;
 use uefi::{
@@ -13,7 +14,7 @@ use uefi::{
         device_path::DevicePath,
         loaded_image::LoadedImage,
         media::{
-            file::{Directory, File, FileAttribute, FileMode},
+            file::{Directory, File, FileAttribute, FileMode, RegularFile},
             fs::SimpleFileSystem,
         },
     },
@@ -79,6 +80,24 @@ unsafe fn root_directory(image: Handle, boot_services: &BootServices) -> Result<
     file_system.open_volume()
 }
 
+fn read_all(image: &mut RegularFile) -> Result<Vec<u8>> {
+    let mut buf = Vec::new();
+
+    // TODO Can we do this nicer?
+    loop {
+        let mut chunk = [0; 512];
+        let read_bytes = image.read(&mut chunk).map_err(|e| e.status())?;
+
+        if read_bytes == 0 {
+            break;
+        }
+
+        buf.extend_from_slice(&chunk[0..read_bytes]);
+    }
+
+    Ok(buf)
+}
+
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
@@ -98,12 +117,10 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     debug!("Opened file");
 
-    let mut buf = [0; 512];
-
-    let bytes_read = file.read(&mut buf).unwrap();
-    let data = &buf[0..bytes_read];
-
-    debug!("Data: {}", alloc::str::from_utf8(data).unwrap());
+    debug!(
+        "Data: {}",
+        alloc::str::from_utf8(&read_all(&mut file).unwrap()).unwrap()
+    );
 
     Status::SUCCESS
 }
