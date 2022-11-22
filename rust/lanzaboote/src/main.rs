@@ -4,25 +4,23 @@
 
 extern crate alloc;
 
+mod pe_section;
+
 use alloc::vec::Vec;
-use log::debug;
+use log::{debug, info};
 use uefi::{
     prelude::*,
     proto::{
         console::text::Output,
-        device_path::{
-            text::{AllowShortcuts, DevicePathToText, DisplayOnly},
-            DevicePath,
-        },
-        loaded_image::{self, LoadedImage},
-        media::{
-            file::{File, FileAttribute, FileMode, RegularFile},
-            fs::SimpleFileSystem,
-        },
+        device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly},
+        loaded_image::LoadedImage,
+        media::file::{File, FileAttribute, FileMode, RegularFile},
     },
     table::boot::{OpenProtocolAttributes, OpenProtocolParams},
-    Error, Result,
+    Result,
 };
+
+use crate::pe_section::pe_section;
 
 fn print_logo(output: &mut Output) {
     output.clear().unwrap();
@@ -36,6 +34,7 @@ fn print_logo(output: &mut Output) {
  | |/ _` | '_ \\|_  / _` | '_ \\ / _ \\ / _ \\| __|\r
  | | (_| | | | |/ / (_| | |_) | (_) | (_) | |_ \r
  |_|\\__,_|_| |_/___\\__,_|_.__/ \\___/ \\___/ \\__|\r
+\r
 "
         ))
         .unwrap();
@@ -103,12 +102,17 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     let boot_services = system_table.boot_services();
 
-    let image_file = image_file(boot_services, handle).unwrap();
+    {
+        let mut image_file = image_file(boot_services, handle).unwrap();
+        let image_data = read_all(&mut image_file).unwrap();
+
+        if let Some(data) = pe_section(&image_data, ".osrel") {
+            info!("osrel = {}", core::str::from_utf8(data).unwrap_or("???"))
+        }
+    }
 
     let mut file_system = boot_services.get_image_file_system(handle).unwrap();
     let mut root = file_system.open_volume().unwrap();
-
-    debug!("Found root");
 
     let mut file = root
         .open(cstr16!("linux.efi"), FileMode::Read, FileAttribute::empty())

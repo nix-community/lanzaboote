@@ -5,10 +5,11 @@ edition = "2021"
 publish = false
 
 [dependencies]
-uefi = { version = "0.18.0", features = [ "alloc", "logger", "exts" ] }
-uefi-services = "0.15.0"
+uefi = { version = "0.18.0", default-features = false, features = [ "alloc", "exts" ] }
+uefi-services = { version = "0.15.0", default-features = false, features = [ "panic_handler" ] }
 log = "0.4.17"
 ed25519-compact = { version = "2.0.2", default-features = false, features = [] }
+goblin = { version = "0.6.0", default-features = false, features = [ "pe64", "alloc" ]}
 
 [profile.release]
 opt-level = "s"
