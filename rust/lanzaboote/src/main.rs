@@ -39,47 +39,6 @@ fn print_logo(output: &mut Output) {
         .unwrap();
 }
 
-// Find the root directory of the given image.
-//
-// # Safety
-//
-// TODO Need to find out whether we can open the protocols in safe code.
-unsafe fn root_directory(image: Handle, boot_services: &BootServices) -> Result<Directory> {
-    let loaded_image = boot_services.open_protocol::<LoadedImage>(
-        OpenProtocolParams {
-            handle: image,
-            agent: image,
-            controller: None,
-        },
-        OpenProtocolAttributes::Exclusive,
-    )?;
-
-    let device_handle = loaded_image.device();
-
-    let device_path = boot_services.open_protocol::<DevicePath>(
-        OpenProtocolParams {
-            handle: device_handle,
-            agent: image,
-            controller: None,
-        },
-        OpenProtocolAttributes::Exclusive,
-    )?;
-
-    let mut device_path: &DevicePath = device_path.deref();
-    let fs_handle = boot_services.locate_device_path::<SimpleFileSystem>(&mut device_path)?;
-
-    let mut file_system = boot_services.open_protocol::<SimpleFileSystem>(
-        OpenProtocolParams {
-            handle: fs_handle,
-            agent: image,
-            controller: None,
-        },
-        OpenProtocolAttributes::Exclusive,
-    )?;
-
-    file_system.open_volume()
-}
-
 fn read_all(image: &mut RegularFile) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
 
@@ -105,7 +64,8 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     print_logo(system_table.stdout());
 
     let boot_services = system_table.boot_services();
-    let mut root = unsafe { root_directory(handle, boot_services).unwrap() };
+    let mut file_system = boot_services.get_image_file_system(handle).unwrap();
+    let mut root = file_system.open_volume().unwrap();
 
     debug!("Found root");
 
