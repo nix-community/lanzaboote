@@ -1,9 +1,11 @@
 #![no_main]
 #![no_std]
 #![feature(abi_efiapi)]
+#![feature(negative_impls)]
 
 extern crate alloc;
 
+mod linux_loader;
 mod pe_section;
 mod uefi_helpers;
 
@@ -20,7 +22,7 @@ use uefi::{
     Result,
 };
 
-use crate::{pe_section::pe_section, uefi_helpers::read_all};
+use crate::{linux_loader::InitrdLoader, pe_section::pe_section, uefi_helpers::read_all};
 
 fn print_logo(output: &mut Output) {
     output.clear().unwrap();
@@ -101,6 +103,12 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         .into_regular_file()
         .unwrap();
 
+    let initrd = root
+        .open(cstr16!("initrd"), FileMode::Read, FileAttribute::empty())
+        .unwrap()
+        .into_regular_file()
+        .unwrap();
+
     debug!("Opened file");
 
     let kernel = read_all(&mut file).unwrap();
@@ -115,7 +123,9 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         )
         .unwrap();
 
-    boot_services.start_image(kernel_image).unwrap();
+    let mut initrd_loader = InitrdLoader::new(&boot_services, handle, initrd).unwrap();
+    let status = boot_services.start_image(kernel_image).status();
 
-    Status::SUCCESS
+    initrd_loader.uninstall(&boot_services).unwrap();
+    status
 }
