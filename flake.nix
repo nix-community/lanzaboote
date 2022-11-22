@@ -66,7 +66,7 @@
 
       osrel = pkgs.writeText "lanzaboote-osrel" ''
         NAME=Lanzaboote
-        VERSION="0"
+        VERSION="${lanzaboote.version}"
       '';
 
       cmdline = pkgs.writeText "lanzaboote-cmdline" "";
