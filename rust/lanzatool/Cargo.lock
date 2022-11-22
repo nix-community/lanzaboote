@@ -111,7 +111,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lanzasign"
+name = "lanztool"
 version = "0.1.0"
 dependencies = [
  "anyhow",
