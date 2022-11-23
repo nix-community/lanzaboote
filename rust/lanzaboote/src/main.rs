@@ -42,21 +42,14 @@ fn print_logo(output: &mut Output) {
         .unwrap();
 }
 
-fn image_file(boot_services: &BootServices, image: Handle) -> Result<RegularFile> {
-    let mut file_system = boot_services.get_image_file_system(image)?;
+fn image_file(boot_services: &BootServices) -> Result<RegularFile> {
+    let mut file_system = boot_services.get_image_file_system(boot_services.image_handle())?;
+
+    // The root directory of the volume where our binary lies.
     let mut root = file_system.open_volume()?;
 
-    let loaded_image = unsafe {
-        // XXX This gives ACCESS_DENIED if we use open_protocol_exclusive?
-        boot_services.open_protocol::<LoadedImage>(
-            OpenProtocolParams {
-                handle: image,
-                agent: image,
-                controller: None,
-            },
-            OpenProtocolAttributes::Exclusive,
-        )
-    }?;
+    let loaded_image =
+        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
 
     let file_path = loaded_image.file_path().ok_or(Status::NOT_FOUND)?;
 
@@ -87,7 +80,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let boot_services = system_table.boot_services();
 
     {
-        let image_data = read_all(&mut image_file(boot_services, handle).unwrap()).unwrap();
+        let image_data = read_all(&mut image_file(boot_services).unwrap()).unwrap();
 
         if let Some(data) = pe_section(&image_data, ".osrel") {
             info!("osrel = {}", core::str::from_utf8(data).unwrap_or("???"))
