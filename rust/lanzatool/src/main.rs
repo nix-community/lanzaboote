@@ -2,7 +2,7 @@ mod bootspec;
 mod cli;
 mod esp;
 mod install;
-mod stub;
+mod pe;
 
 use std::process;
 
