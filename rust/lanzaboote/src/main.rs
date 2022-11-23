@@ -22,7 +22,11 @@ use uefi::{
     Result,
 };
 
-use crate::{linux_loader::InitrdLoader, pe_section::pe_section, uefi_helpers::read_all};
+use crate::{
+    linux_loader::InitrdLoader,
+    pe_section::pe_section,
+    uefi_helpers::{booted_image_file, read_all},
+};
 
 fn print_logo(output: &mut Output) {
     output.clear().unwrap();
@@ -42,35 +46,6 @@ fn print_logo(output: &mut Output) {
         .unwrap();
 }
 
-fn image_file(boot_services: &BootServices) -> Result<RegularFile> {
-    let mut file_system = boot_services.get_image_file_system(boot_services.image_handle())?;
-
-    // The root directory of the volume where our binary lies.
-    let mut root = file_system.open_volume()?;
-
-    let loaded_image =
-        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
-
-    let file_path = loaded_image.file_path().ok_or(Status::NOT_FOUND)?;
-
-    let to_text = boot_services.open_protocol_exclusive::<DevicePathToText>(
-        boot_services.get_handle_for_protocol::<DevicePathToText>()?,
-    )?;
-
-    let file_path = to_text.convert_device_path_to_text(
-        boot_services,
-        file_path,
-        DisplayOnly(false),
-        AllowShortcuts(false),
-    )?;
-
-    let our_image = root.open(&file_path, FileMode::Read, FileAttribute::empty())?;
-
-    Ok(our_image
-        .into_regular_file()
-        .ok_or(Status::INVALID_PARAMETER)?)
-}
-
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
@@ -80,7 +55,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let boot_services = system_table.boot_services();
 
     {
-        let image_data = read_all(&mut image_file(boot_services).unwrap()).unwrap();
+        let image_data = read_all(&mut booted_image_file(boot_services).unwrap()).unwrap();
 
         if let Some(data) = pe_section(&image_data, ".osrel") {
             info!("osrel = {}", core::str::from_utf8(data).unwrap_or("???"))
