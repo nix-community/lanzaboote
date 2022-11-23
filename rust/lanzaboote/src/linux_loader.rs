@@ -176,9 +176,9 @@ impl InitrdLoader {
         handle: Handle,
         mut file: RegularFile,
     ) -> Result<Self> {
-        initrd_verify(boot_services, &mut file).unwrap();
+        initrd_verify(boot_services, &mut file)?;
 
-        let range = initrd_location(&mut file).unwrap();
+        let range = initrd_location(&mut file)?;
         let mut proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             file,
