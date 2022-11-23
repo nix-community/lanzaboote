@@ -11,6 +11,7 @@ use uefi::{
         media::file::RegularFile,
         Protocol,
     },
+    table::boot::LoadImageSource,
     unsafe_guid, Handle, Identify, Result, ResultExt, Status,
 };
 
@@ -123,6 +124,8 @@ pub struct InitrdLoader {
 
 /// Returns the data range of the initrd in the PE binary.
 fn initrd_location(initrd_efi: &mut RegularFile) -> Result<Range<usize>> {
+    initrd_efi.set_position(0)?;
+
     let file_data = read_all(initrd_efi)?;
     let pe_binary = goblin::pe::PE::parse(&file_data).map_err(|_| Status::INVALID_PARAMETER)?;
 
@@ -142,13 +145,36 @@ fn initrd_location(initrd_efi: &mut RegularFile) -> Result<Range<usize>> {
         .ok_or(Status::END_OF_FILE.into())
 }
 
+fn initrd_verify(boot_services: &BootServices, initrd_efi: &mut RegularFile) -> Result<()> {
+    initrd_efi.set_position(0)?;
+    let file_data = read_all(initrd_efi)?;
+
+    let initrd_handle = boot_services.load_image(
+        boot_services.image_handle(),
+        LoadImageSource::FromBuffer {
+            buffer: &file_data,
+            file_path: None,
+        },
+    )?;
+
+    // If we get here, the security policy allowed loading the
+    // image. This means that it was signed with an acceptable key in
+    // the Secure Boot scenario.
+
+    boot_services.unload_image(initrd_handle)?;
+
+    Ok(())
+}
+
 impl InitrdLoader {
     pub fn new(
         boot_services: &BootServices,
         handle: Handle,
         mut file: RegularFile,
     ) -> Result<Self> {
-        let range = initrd_location(&mut file)?;
+        initrd_verify(boot_services, &mut file).unwrap();
+
+        let range = initrd_location(&mut file).unwrap();
         let mut proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             file,
