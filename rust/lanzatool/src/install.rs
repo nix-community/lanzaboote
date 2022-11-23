@@ -14,7 +14,7 @@ pub fn install(_: &Path, bootspec: &Path, lanzaboote_bin: &Path) -> Result<()> {
 
     let esp_paths = EspPaths::new(&bootspec_doc.v1.extension.esp);
 
-    stub::assemble(
+    let lanzaboote_image = stub::assemble(
         lanzaboote_bin,
         &bootspec_doc.v1.extension.os_release,
         &bootspec_doc.v1.kernel_params,
@@ -27,6 +27,9 @@ pub fn install(_: &Path, bootspec: &Path, lanzaboote_bin: &Path) -> Result<()> {
     fs::create_dir_all(&esp_paths.nixos)?;
     fs::copy(bootspec_doc.v1.kernel, esp_paths.kernel)?;
     fs::copy(bootspec_doc.v1.initrd, esp_paths.initrd)?;
+
+    fs::create_dir_all(&esp_paths.linux)?;
+    fs::copy(lanzaboote_image, esp_paths.lanzaboote_image)?;
     // install_systemd_boot(bootctl, &esp)?;
 
     Ok(())

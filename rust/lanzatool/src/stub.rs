@@ -1,6 +1,6 @@
 use std::fs;
 use std::os::unix::fs::MetadataExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::Result;
@@ -12,7 +12,7 @@ pub fn assemble(
     kernel_cmdline: &[String],
     kernel_path: &Path,
     initrd_path: &Path,
-) -> Result<()> {
+) -> Result<PathBuf> {
     // objcopy copies files into the PE binary. That's why we have to write the contents
     // of some bootspec properties to disk
     let kernel_cmdline_file = Path::new("/tmp/kernel_cmdline");
@@ -46,6 +46,8 @@ pub fn assemble(
     let initrd_path_offs = kernel_cmdline_offs + file_size(kernel_cmdline_file)?;
     let kernel_path_offs = initrd_path_offs + file_size(initrd_path_file)?;
 
+    let lanzaboote_image = PathBuf::from("/tmp/lanzaboote-image.efi");
+
     let args = vec![
         String::from("--add-section"),
         format!(".osrel={}", path_to_string(os_release)),
@@ -64,7 +66,7 @@ pub fn assemble(
         String::from("--change-section-vma"),
         format!(".kernelp={:#x}", kernel_path_offs),
         path_to_string(lanzaboote_bin),
-        String::from("lanzaboote-image.efi"),
+        path_to_string(&lanzaboote_image),
     ];
 
     let status = Command::new("objcopy").args(&args).status()?;
@@ -72,7 +74,7 @@ pub fn assemble(
         return Err(anyhow::anyhow!("Failed to build stub with args `{:?}`", &args).into());
     }
 
-    Ok(())
+    Ok(lanzaboote_image)
 }
 
 // All Linux file paths should be convertable to strings
