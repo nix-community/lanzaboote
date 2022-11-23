@@ -9,7 +9,6 @@ mod linux_loader;
 mod pe_section;
 mod uefi_helpers;
 
-use log::{debug, info};
 use uefi::{
     prelude::*,
     proto::{
@@ -21,8 +20,7 @@ use uefi::{
 
 use crate::{
     linux_loader::InitrdLoader,
-    pe_section::pe_section,
-    uefi_helpers::{booted_image_cmdline, booted_image_file, read_all},
+    uefi_helpers::{booted_image_cmdline, read_all},
 };
 
 fn print_logo(output: &mut Output) {
@@ -49,15 +47,6 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     print_logo(system_table.stdout());
 
-    {
-        let image_data =
-            read_all(&mut booted_image_file(system_table.boot_services()).unwrap()).unwrap();
-
-        if let Some(data) = pe_section(&image_data, ".osrel") {
-            info!("osrel = {}", core::str::from_utf8(data).unwrap_or("???"))
-        }
-    }
-
     let mut file_system = system_table
         .boot_services()
         .get_image_file_system(handle)
@@ -71,7 +60,11 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         .unwrap();
 
     let initrd = root
-        .open(cstr16!("initrd"), FileMode::Read, FileAttribute::empty())
+        .open(
+            cstr16!("initrd.efi"),
+            FileMode::Read,
+            FileAttribute::empty(),
+        )
         .unwrap()
         .into_regular_file()
         .unwrap();
@@ -79,8 +72,6 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // We need to manually drop those to be able to touch the system_table again.
     drop(root);
     drop(file_system);
-
-    debug!("Opened file");
 
     let kernel_cmdline = booted_image_cmdline(system_table.boot_services()).unwrap();
 
