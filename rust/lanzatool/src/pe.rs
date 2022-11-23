@@ -60,6 +60,19 @@ pub fn assemble_image(
     Ok(lanzaboote_image)
 }
 
+fn efi_relative_path_string(path: &Path) -> String {
+    let relative_path = path
+        .strip_prefix("esp")
+        .expect("Failed to make path relative to esp")
+        .to_owned();
+    let relative_path_string = relative_path
+        .into_os_string()
+        .into_string()
+        .expect("Failed to convert path '{}' to a relative string path")
+        .replace("/", "\\");
+    format!("\\{}", &relative_path_string)
+}
+
 pub fn wrap_initrd(initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
     let initrd_offs = stub_offset(initrd_stub)?;
 
