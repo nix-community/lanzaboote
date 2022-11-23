@@ -72,7 +72,7 @@
         VERSION="${lanzaboote.version}"
       '';
 
-      cmdline = pkgs.writeText "lanzaboote-cmdline" "";
+      cmdline = pkgs.writeText "lanzaboote-cmdline" "console=ttyS0";
 
       lanzaboote-uki = pkgs.runCommand "lanzboote-uki" {
         nativeBuildInputs = [
