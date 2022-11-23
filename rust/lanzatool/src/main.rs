@@ -3,6 +3,7 @@ mod cli;
 mod esp;
 mod install;
 mod pe;
+mod signer;
 
 use anyhow::Result;
 use clap::Parser;
