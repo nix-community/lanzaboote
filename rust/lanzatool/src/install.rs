@@ -32,7 +32,7 @@ pub fn install(_: &Path, bootspec: &Path, lanzaboote_bin: &Path) -> Result<()> {
     Ok(())
 }
 
-fn install_systemd_boot(bootctl: &Path, esp: &Path) -> Result<()> {
+fn _install_systemd_boot(bootctl: &Path, esp: &Path) -> Result<()> {
     let args = vec![
         String::from("install"),
         String::from("--path"),
