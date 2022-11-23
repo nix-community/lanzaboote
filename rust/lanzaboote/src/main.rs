@@ -109,14 +109,14 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     }
 
     let mut initrd_loader =
-        InitrdLoader::new(&system_table.boot_services(), handle, initrd).unwrap();
+        InitrdLoader::new(system_table.boot_services(), handle, initrd).unwrap();
     let status = system_table
         .boot_services()
         .start_image(kernel_handle)
         .status();
 
     initrd_loader
-        .uninstall(&system_table.boot_services())
+        .uninstall(system_table.boot_services())
         .unwrap();
     status
 }

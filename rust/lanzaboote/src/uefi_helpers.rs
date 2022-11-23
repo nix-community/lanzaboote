@@ -66,5 +66,5 @@ pub fn booted_image_cmdline(boot_services: &BootServices) -> Result<Vec<u8>> {
         // If this fails, we have no load options and we return an empty string.
         .load_options_as_bytes()
         .map(|b| b.to_vec())
-        .unwrap_or_else(|| Vec::new()))
+        .unwrap_or_default())
 }
