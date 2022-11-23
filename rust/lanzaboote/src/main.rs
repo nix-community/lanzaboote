@@ -13,11 +13,11 @@ use pe_section::pe_section_as_string;
 use uefi::{
     prelude::*,
     proto::{
-        console::text::Output,
+        console::text::{self, Output},
         loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
-    CString16,
+    CString16, Error,
 };
 
 use crate::{
@@ -48,10 +48,8 @@ struct EmbeddedConfiguration {
     initrd_filename: CString16,
 }
 
-impl TryFrom<&mut RegularFile> for EmbeddedConfiguration {
-    type Error = uefi::Error;
-
-    fn try_from(file: &mut RegularFile) -> Result<Self, Self::Error> {
+impl EmbeddedConfiguration {
+    fn new(file: &mut RegularFile) -> Result<Self, Error> {
         file.set_position(0)?;
         let file_data = read_all(file)?;
 
@@ -73,11 +71,9 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     print_logo(system_table.stdout());
 
-    let config: EmbeddedConfiguration = {
-        let mut booted_image = booted_image_file(system_table.boot_services()).unwrap();
-
-        (&mut booted_image).try_into().unwrap()
-    };
+    let config: EmbeddedConfiguration =
+        EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
+            .unwrap();
 
     let mut file_system = system_table
         .boot_services()
