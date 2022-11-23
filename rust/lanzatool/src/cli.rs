@@ -37,6 +37,12 @@ impl Commands {
 }
 
 fn install(public_key: &Path, bootspec: &Path) -> Result<()> {
-    let lanzaboote_bin = std::env::var("LANZABOOTE")?;
-    install::install(public_key, bootspec, Path::new(&lanzaboote_bin))
+    let lanzaboote_stub = std::env::var("LANZABOOTE_STUB")?;
+    let initrd_stub = std::env::var("LANZABOOTE_INITRD_STUB")?;
+    install::install(
+        public_key,
+        bootspec,
+        Path::new(&lanzaboote_stub),
+        Path::new(&initrd_stub),
+    )
 }
