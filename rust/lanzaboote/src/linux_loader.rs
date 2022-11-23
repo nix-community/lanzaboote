@@ -1,18 +1,20 @@
 //! This module implements the protocols to hand an initrd to the
 //! Linux kernel.
 
-use core::{ffi::c_void, pin::Pin, ptr::slice_from_raw_parts_mut};
+use core::{ffi::c_void, ops::Range, pin::Pin, ptr::slice_from_raw_parts_mut};
 
-use alloc::{boxed::Box, vec};
+use alloc::boxed::Box;
 use uefi::{
     prelude::BootServices,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
-        media::file::{File, FileInfo, RegularFile},
+        media::file::RegularFile,
         Protocol,
     },
     unsafe_guid, Handle, Identify, Result, ResultExt, Status,
 };
+
+use crate::uefi_helpers::read_all;
 
 /// The Linux kernel's initrd loading device path.
 ///
@@ -56,9 +58,22 @@ struct LoadFile2Protocol {
 
     // This is not part of the official protocol struct.
     file: RegularFile,
+    range: Range<usize>,
 }
 
 impl LoadFile2Protocol {
+    fn initrd_start(&self) -> usize {
+        self.range.start
+    }
+
+    fn initrd_size(&self) -> usize {
+        if self.range.is_empty() {
+            0
+        } else {
+            self.range.end - self.range.start
+        }
+    }
+
     fn load_file(
         &mut self,
         _file_path: *const FfiDevicePath,
@@ -66,19 +81,18 @@ impl LoadFile2Protocol {
         buffer_size: *mut usize,
         buffer: *mut c_void,
     ) -> Result<()> {
-        let mut fs_info_buf = vec![0; 128];
-        let fs_info = self
-            .file
-            .get_info::<FileInfo>(&mut fs_info_buf)
-            .map_err(|_| Status::INVALID_PARAMETER)?;
-        let fs_size = usize::try_from(fs_info.file_size()).unwrap();
-
-        if buffer.is_null() || unsafe { *buffer_size } < fs_size {
+        if buffer.is_null() || unsafe { *buffer_size } < self.initrd_size() {
             unsafe {
-                *buffer_size = fs_size;
+                *buffer_size = self.initrd_size();
             }
             return Err(Status::BUFFER_TOO_SMALL.into());
         };
+
+        self.file
+            .set_position(self.initrd_start().try_into().unwrap())?;
+        unsafe {
+            *buffer_size = self.initrd_size();
+        }
 
         let output_slice: &mut [u8] =
             unsafe { &mut *slice_from_raw_parts_mut(buffer as *mut u8, *buffer_size) };
@@ -107,11 +121,38 @@ pub struct InitrdLoader {
     registered: bool,
 }
 
+/// Returns the data range of the initrd in the PE binary.
+fn initrd_location(initrd_efi: &mut RegularFile) -> Result<Range<usize>> {
+    let file_data = read_all(initrd_efi)?;
+    let pe_binary = goblin::pe::PE::parse(&file_data).map_err(|_| Status::INVALID_PARAMETER)?;
+
+    pe_binary
+        .sections
+        .iter()
+        .find(|s| s.name().unwrap() == ".initrd")
+        .and_then(|s| {
+            let section_start: usize = s.pointer_to_raw_data.try_into().unwrap();
+            let section_size: usize = s.size_of_raw_data.try_into().unwrap();
+
+            Some(Range {
+                start: section_start,
+                end: section_start + section_size,
+            })
+        })
+        .ok_or(Status::END_OF_FILE.into())
+}
+
 impl InitrdLoader {
-    pub fn new(boot_services: &BootServices, handle: Handle, file: RegularFile) -> Result<Self> {
+    pub fn new(
+        boot_services: &BootServices,
+        handle: Handle,
+        mut file: RegularFile,
+    ) -> Result<Self> {
+        let range = initrd_location(&mut file)?;
         let mut proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             file,
+            range,
         });
 
         unsafe {
