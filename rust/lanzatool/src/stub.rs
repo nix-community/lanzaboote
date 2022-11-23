@@ -16,11 +16,12 @@ pub fn assemble(
     // objcopy copies files into the PE binary. That's why we have to write the contents
     // of some bootspec properties to disk
     let kernel_cmdline_file = Path::new("/tmp/kernel_cmdline");
-    fs::write(kernel_cmdline_file, kernel_cmdline.join(" "))?;
     let kernel_path_file = Path::new("/tmp/kernel_path");
-    fs::write(kernel_path_file, path_to_string(kernel_path))?;
     let initrd_path_file = Path::new("/tmp/initrd_path");
-    fs::write(initrd_path_file, path_to_string(initrd_path))?;
+
+    fs::write(kernel_cmdline_file, kernel_cmdline.join(" "))?;
+    fs::write(kernel_path_file, efi_relative_path_string(kernel_path))?;
+    fs::write(initrd_path_file, efi_relative_path_string(initrd_path))?;
 
     let pe_binary = fs::read(lanzaboote_bin)?;
     let pe = goblin::pe::PE::parse(&pe_binary)?;
@@ -75,6 +76,19 @@ pub fn assemble(
     }
 
     Ok(lanzaboote_image)
+}
+
+fn efi_relative_path_string(path: &Path) -> String {
+    let relative_path = path
+        .strip_prefix("esp")
+        .expect("Failed to make path relative to esp")
+        .to_owned();
+    let relative_path_string = relative_path
+        .into_os_string()
+        .into_string()
+        .expect("Failed to convert path '{}' to a relative string path")
+        .replace("/", "\\");
+    format!("\\{}", &relative_path_string)
 }
 
 // All Linux file paths should be convertable to strings
