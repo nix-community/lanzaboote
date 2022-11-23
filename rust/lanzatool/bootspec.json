@@ -1,0 +1,24 @@
+{
+  "v1": {
+    "init": "/nix/store/7zrsjhxi0c93m2l89rj8jdp9khm8fc6s-nixos-system-tuxedo-22.11.20221115.85d6b39/init",
+    "initrd": "/nix/store/7a4plccwni1sldhyra75f7m44xgsgiqw-initrd-linux-6.0.8/initrd",
+    "kernel": "/nix/store/nsw0422iwp4linayqx727pi4fdyja0wv-linux-6.0.8/bzImage",
+    "kernelParams": [
+      "amd_iommu=on",
+      "amd_iommu=pt",
+      "iommu=pt",
+      "kvm.ignore_msrs=1",
+      "kvm.report_ignored_msrs=0",
+      "udev.log_priority=3",
+      "systemd.unified_cgroup_hierarchy=1",
+      "loglevel=4"
+    ],
+    "label": "NixOS 21.11.20210810.dirty (Linux 5.15.30)",
+    "toplevel": "/nix/store/7zrsjhxi0c93m2l89rj8jdp9khm8fc6s-nixos-system-tuxedo-22.11.20221115.85d6b39",
+    "extension": {
+      "esp": "test",
+      "bootctl": "/nix/store/89366aivz6v8a34yyni2m04ca9hwrl92-systemd-250.4/bin/bootctl",
+      "osRelease": "/nix/store/734vglb01ssz73wlihad7xa9yzvwlvx6-etc-os-release"
+    }
+  }
+}
