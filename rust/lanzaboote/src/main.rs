@@ -9,18 +9,20 @@ mod linux_loader;
 mod pe_section;
 mod uefi_helpers;
 
+use pe_section::pe_section_as_string;
 use uefi::{
     prelude::*,
     proto::{
         console::text::Output,
         loaded_image::LoadedImage,
-        media::file::{File, FileAttribute, FileMode},
+        media::file::{File, FileAttribute, FileMode, RegularFile},
     },
+    CString16,
 };
 
 use crate::{
     linux_loader::InitrdLoader,
-    uefi_helpers::{booted_image_cmdline, read_all},
+    uefi_helpers::{booted_image_cmdline, booted_image_file, read_all},
 };
 
 fn print_logo(output: &mut Output) {
@@ -41,11 +43,41 @@ fn print_logo(output: &mut Output) {
         .unwrap();
 }
 
+struct EmbeddedConfiguration {
+    kernel_filename: CString16,
+    initrd_filename: CString16,
+}
+
+impl TryFrom<&mut RegularFile> for EmbeddedConfiguration {
+    type Error = uefi::Error;
+
+    fn try_from(file: &mut RegularFile) -> Result<Self, Self::Error> {
+        file.set_position(0)?;
+        let file_data = read_all(file)?;
+
+        let kernel_filename =
+            pe_section_as_string(&file_data, ".kernelp").ok_or(Status::INVALID_PARAMETER)?;
+        let initrd_filename =
+            pe_section_as_string(&file_data, ".initrdp").ok_or(Status::INVALID_PARAMETER)?;
+
+        Ok(Self {
+            kernel_filename: CString16::try_from(kernel_filename.as_str()).unwrap(),
+            initrd_filename: CString16::try_from(initrd_filename.as_str()).unwrap(),
+        })
+    }
+}
+
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
 
     print_logo(system_table.stdout());
+
+    let config: EmbeddedConfiguration = {
+        let mut booted_image = booted_image_file(system_table.boot_services()).unwrap();
+
+        (&mut booted_image).try_into().unwrap()
+    };
 
     let mut file_system = system_table
         .boot_services()
@@ -53,15 +85,19 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         .unwrap();
     let mut root = file_system.open_volume().unwrap();
 
-    let mut file = root
-        .open(cstr16!("linux.efi"), FileMode::Read, FileAttribute::empty())
+    let mut kernel_file = root
+        .open(
+            &config.kernel_filename,
+            FileMode::Read,
+            FileAttribute::empty(),
+        )
         .unwrap()
         .into_regular_file()
         .unwrap();
 
     let initrd = root
         .open(
-            cstr16!("initrd.efi"),
+            &config.initrd_filename,
             FileMode::Read,
             FileAttribute::empty(),
         )
@@ -75,7 +111,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     let kernel_cmdline = booted_image_cmdline(system_table.boot_services()).unwrap();
 
-    let kernel_data = read_all(&mut file).unwrap();
+    let kernel_data = read_all(&mut kernel_file).unwrap();
     let kernel_handle = system_table
         .boot_services()
         .load_image(
