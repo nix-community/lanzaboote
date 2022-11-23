@@ -21,7 +21,7 @@ pub fn install(_: &Path, bootspec: &Path, lanzaboote_bin: &Path) -> Result<()> {
         &esp_paths.kernel,
         &esp_paths.initrd,
     )
-    .unwrap();
+    .expect("Failed to assemble stub");
 
     // Copy the files to the ESP
     fs::create_dir_all(&esp_paths.nixos)?;
