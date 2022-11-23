@@ -15,7 +15,7 @@ impl EspPaths {
         Self {
             esp: esp.to_owned(),
             nixos: esp_nixos.clone(),
-            kernel: esp_nixos.join("EFI/nixos"),
+            kernel: esp_nixos.join("kernel"),
             initrd: esp_nixos.join("initrd"),
         }
     }
