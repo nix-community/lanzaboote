@@ -1,5 +1,9 @@
+mod bootspec;
 mod cli;
 mod crypto;
+mod esp;
+mod install;
+mod stub;
 
 use std::process;
 
