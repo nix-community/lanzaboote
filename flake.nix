@@ -55,17 +55,25 @@
           --change-section-vma .cmdline=$(printf 0x%x $cmdline_offs) \
            "$IN" "$OUT"
       '';
-      
-      lanzaboote = naersk-nightly.buildPackage {
-        src = ./rust/lanzaboote;
+
+      buildRustEfiApp = src: naersk-nightly.buildPackage {
+        inherit src;
         cargoBuildOptions = old: old ++ [
           "--target x86_64-unknown-uefi"
         ];
       };
 
-      lanzatool = naersk-nightly.buildPackage {
-        src = ./rust/lanzatool;
+      buildRustLinuxApp = src: naersk-nightly.buildPackage {
+        inherit src;
       };
+
+      # This is basically an empty EFI application that we use as a
+      # carrier for the initrd.
+      initrd-stub = buildRustEfiApp ./rust-nightly/initrd-stub;
+
+      lanzaboote = buildRustEfiApp ./rust/lanzaboote;
+
+      lanzatool = buildRustLinuxApp ./rust/lanzatool;
 
       osrel = pkgs.writeText "lanzaboote-osrel" ''
         NAME=Lanzaboote
