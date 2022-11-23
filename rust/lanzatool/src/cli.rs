@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use crate::crypto;
+use crate::{crypto, install};
 
 #[derive(Parser)]
 pub struct Cli {
@@ -20,6 +20,10 @@ pub enum Commands {
     Sign { file: PathBuf, private_key: PathBuf },
     /// Sign
     Verify { file: PathBuf, public_key: PathBuf },
+    Install {
+        public_key: PathBuf,
+        bootspec: PathBuf,
+    },
 }
 
 impl Cli {
@@ -34,6 +38,10 @@ impl Commands {
             Commands::Generate => generate(),
             Commands::Sign { file, private_key } => sign(&file, &private_key),
             Commands::Verify { file, public_key } => verify(&file, &public_key),
+            Commands::Install {
+                public_key,
+                bootspec,
+            } => install(&public_key, &bootspec),
         }
     }
 }
@@ -76,4 +84,9 @@ fn with_extension(path: &Path, extension: &str) -> PathBuf {
     let mut file_path = path.to_path_buf().into_os_string();
     file_path.push(extension);
     PathBuf::from(file_path)
+}
+
+fn install(public_key: &Path, bootspec: &Path) -> Result<()> {
+    let lanzaboote_bin = std::env::var("LANZABOOTE")?;
+    install::install(public_key, bootspec, Path::new(&lanzaboote_bin))
 }
