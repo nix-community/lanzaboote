@@ -90,8 +90,10 @@
         # tell lanzatool where to find our UEFI binaries.
         makeWrapper ${lanzatoolBin}/bin/lanzatool $out/bin/lanzatool \
           --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped ]} \
+          --set RUST_BACKTRACE full \
           --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
-          --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi
+          --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi \
+          --set SBSIGNTOOL "${pkgs.sbsigntool}/bin/sbsign"
       '';
 
       # A script that takes an initrd and turns it into a PE image.
@@ -129,7 +131,8 @@
       '';
     in {
       overlays.default = final: prev: {
-        inherit lanzaboote lanzatool;
+        inherit lanzaboote;
+        lanzatool = lanzatoolBin;
       };
 
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
@@ -146,6 +149,10 @@
           lanzatool
           pkgs.openssl
           wrapInitrd
+          (pkgs.sbctl.override {
+            databasePath = "pki";
+          })
+          pkgs.sbsigntool
         ];
 
         inputsFrom = [
@@ -165,10 +172,26 @@
             imports = [ self.nixosModules.lanzaboote ];
             nixpkgs.overlays = [ self.overlays.default ];
 
-            boot.lanzaboote.enable = true;
+            virtualisation = {
+              useBootLoader = true;
+              useEFIBoot = true;
+              # useSecureBoot = true;
+            };
+
+            boot.loader.efi = {
+              enable = true;
+              canTouchEfiVariables = true;
+            };
+            boot.lanzaboote = {
+              enable = true;
+              enrollKeys = true;
+              pkiBundle = ./pki/keys;
+              package = lanzatool;
+            };
           };
           testScript = ''
-            start_all()
+            machine.start()
+            machine.shutdown()
           '';
         };
       };
