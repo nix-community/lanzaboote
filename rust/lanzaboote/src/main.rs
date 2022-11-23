@@ -14,18 +14,15 @@ use uefi::{
     prelude::*,
     proto::{
         console::text::Output,
-        device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly},
         loaded_image::LoadedImage,
-        media::file::{File, FileAttribute, FileMode, RegularFile},
+        media::file::{File, FileAttribute, FileMode},
     },
-    table::boot::{OpenProtocolAttributes, OpenProtocolParams},
-    Result,
 };
 
 use crate::{
     linux_loader::InitrdLoader,
     pe_section::pe_section,
-    uefi_helpers::{booted_image_file, read_all},
+    uefi_helpers::{booted_image_cmdline, booted_image_file, read_all},
 };
 
 fn print_logo(output: &mut Output) {
@@ -52,17 +49,19 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     print_logo(system_table.stdout());
 
-    let boot_services = system_table.boot_services();
-
     {
-        let image_data = read_all(&mut booted_image_file(boot_services).unwrap()).unwrap();
+        let image_data =
+            read_all(&mut booted_image_file(system_table.boot_services()).unwrap()).unwrap();
 
         if let Some(data) = pe_section(&image_data, ".osrel") {
             info!("osrel = {}", core::str::from_utf8(data).unwrap_or("???"))
         }
     }
 
-    let mut file_system = boot_services.get_image_file_system(handle).unwrap();
+    let mut file_system = system_table
+        .boot_services()
+        .get_image_file_system(handle)
+        .unwrap();
     let mut root = file_system.open_volume().unwrap();
 
     let mut file = root
@@ -77,23 +76,47 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         .into_regular_file()
         .unwrap();
 
+    // We need to manually drop those to be able to touch the system_table again.
+    drop(root);
+    drop(file_system);
+
     debug!("Opened file");
 
-    let kernel = read_all(&mut file).unwrap();
+    let kernel_cmdline = booted_image_cmdline(system_table.boot_services()).unwrap();
 
-    let kernel_image = boot_services
+    let kernel_data = read_all(&mut file).unwrap();
+    let kernel_handle = system_table
+        .boot_services()
         .load_image(
             handle,
             uefi::table::boot::LoadImageSource::FromBuffer {
-                buffer: &kernel,
+                buffer: &kernel_data,
                 file_path: None,
             },
         )
         .unwrap();
 
-    let mut initrd_loader = InitrdLoader::new(&boot_services, handle, initrd).unwrap();
-    let status = boot_services.start_image(kernel_image).status();
+    let mut kernel_image = system_table
+        .boot_services()
+        .open_protocol_exclusive::<LoadedImage>(kernel_handle)
+        .unwrap();
 
-    initrd_loader.uninstall(&boot_services).unwrap();
+    unsafe {
+        kernel_image.set_load_options(
+            kernel_cmdline.as_ptr() as *const u8,
+            u32::try_from(kernel_cmdline.len()).unwrap(),
+        );
+    }
+
+    let mut initrd_loader =
+        InitrdLoader::new(&system_table.boot_services(), handle, initrd).unwrap();
+    let status = system_table
+        .boot_services()
+        .start_image(kernel_handle)
+        .status();
+
+    initrd_loader
+        .uninstall(&system_table.boot_services())
+        .unwrap();
     status
 }
