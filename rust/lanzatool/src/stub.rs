@@ -18,20 +18,29 @@ pub fn assemble(
     let kernel_cmdline_file = Path::new("/tmp/kernel_cmdline");
     fs::write(kernel_cmdline_file, kernel_cmdline.join(" "))?;
     let kernel_path_file = Path::new("/tmp/kernel_path");
-    fs::write(kernel_path_file, kernel_path.to_str().unwrap())?;
+    fs::write(kernel_path_file, path_to_string(kernel_path))?;
     let initrd_path_file = Path::new("/tmp/initrd_path");
-    fs::write(initrd_path_file, initrd_path.to_str().unwrap())?;
+    fs::write(initrd_path_file, path_to_string(initrd_path))?;
 
     let pe_binary = fs::read(lanzaboote_bin)?;
     let pe = goblin::pe::PE::parse(&pe_binary)?;
 
+    let image_base = pe
+        .header
+        .optional_header
+        .expect("Failed to find optional header, you're fucked")
+        .windows_fields
+        .image_base;
+
     let os_release_offs = u64::from(
         pe.sections
-            .iter()
-            .find(|s| s.name().unwrap() == ".sdmagic")
-            .and_then(|s| Some(s.size_of_raw_data + s.virtual_address))
-            .unwrap(),
+            .last()
+            .and_then(|s| Some(s.virtual_size + s.virtual_address))
+            .expect("Failed to find the offset"),
     );
+    // The Virtual Memory Addresss (VMA) is relative ot the image base, aka the image base
+    // needs to be added to the virtual address to get the actual (but still virtual address)
+    let os_release_offs = os_release_offs + image_base;
 
     let kernel_cmdline_offs = os_release_offs + file_size(os_release)?;
     let initrd_path_offs = kernel_cmdline_offs + file_size(kernel_cmdline_file)?;
@@ -54,8 +63,8 @@ pub fn assemble(
         format!(".kernelp={}", path_to_string(kernel_path_file)),
         String::from("--change-section-vma"),
         format!(".kernelp={:#x}", kernel_path_offs),
-        lanzaboote_bin.to_str().unwrap().to_owned(),
-        String::from("stub.efi"),
+        path_to_string(lanzaboote_bin),
+        String::from("lanzaboote-image.efi"),
     ];
 
     let status = Command::new("objcopy").args(&args).status()?;
@@ -68,7 +77,13 @@ pub fn assemble(
 
 // All Linux file paths should be convertable to strings
 fn path_to_string(path: &Path) -> String {
-    path.to_owned().into_os_string().into_string().unwrap()
+    path.to_owned()
+        .into_os_string()
+        .into_string()
+        .expect(&format!(
+            "Failed to convert path '{}' to a string",
+            path.display()
+        ))
 }
 
 fn file_size(path: &Path) -> Result<u64> {
