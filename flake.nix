@@ -75,6 +75,23 @@
 
       lanzatool = buildRustLinuxApp ./rust/lanzatool;
 
+      # A script that takes an initrd and turns it into a PE image.
+      wrapInitrd = pkgs.writeShellScriptBin "wrap-initrd" ''
+        set -eu
+
+        STUB=${initrd-stub}/bin/initrd-stub.efi
+        INITRD=$1
+        OUT=$2
+
+        stub_line=$(objdump -h "$STUB" | tail -2 | head -1)
+        stub_size=0x$(echo "$stub_line" | awk '{print $3}')
+        stub_offs=0x$(echo "$stub_line" | awk '{print $4}')
+        initrd_offs=$((stub_size + stub_offs))
+
+        objcopy --add-section .initrd="$INITRD" --change-section-vma .initrd=$(printf 0x%x $initrd_offs) \
+          "$STUB" "$OUT"
+      '';
+
       osrel = pkgs.writeText "lanzaboote-osrel" ''
         NAME=Lanzaboote
         VERSION="${lanzaboote.version}"
@@ -93,7 +110,7 @@
       '';
     in {
       packages.x86_64-linux = {
-        inherit qemuUefi uefi-run lanzaboote lanzaboote-uki lanzatool;
+        inherit qemuUefi uefi-run initrd-stub lanzaboote lanzaboote-uki lanzatool wrapInitrd;
         default = lanzaboote-uki;
       };
 
@@ -104,6 +121,7 @@
           rust-nightly
           lanzatool
           pkgs.openssl
+          wrapInitrd
         ];
       };
     };
