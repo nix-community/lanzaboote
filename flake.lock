@@ -47,6 +47,22 @@
         "type": "indirect"
       }
     },
+    "nixpkgs-test": {
+      "locked": {
+        "lastModified": 1669200924,
+        "narHash": "sha256-NUPT9VMQHnFRqqd/ILcfMSbOvPTLbVBXGO7SWj0N7Dg=",
+        "owner": "RaitoBezarius",
+        "repo": "nixpkgs",
+        "rev": "542f657a93ae903e07d6274de413142c4b99d6ed",
+        "type": "github"
+      },
+      "original": {
+        "owner": "RaitoBezarius",
+        "ref": "experimental-secureboot",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs_2": {
       "locked": {
         "lastModified": 1669001258,
@@ -83,6 +99,7 @@
       "inputs": {
         "naersk": "naersk",
         "nixpkgs": "nixpkgs_2",
+        "nixpkgs-test": "nixpkgs-test",
         "rust-overlay": "rust-overlay"
       }
     },
