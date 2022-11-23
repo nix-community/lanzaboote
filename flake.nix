@@ -69,7 +69,7 @@
 
       # This is basically an empty EFI application that we use as a
       # carrier for the initrd.
-      initrd-stub = buildRustEfiApp ./rust-nightly/initrd-stub;
+      initrd-stub = buildRustEfiApp ./rust/initrd-stub;
 
       lanzaboote = buildRustEfiApp ./rust/lanzaboote;
 
