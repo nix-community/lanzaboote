@@ -25,11 +25,17 @@ pub fn install(
     let esp_paths = EspPaths::new(&bootspec_doc.extension.esp);
 
     println!("Assembling lanzaboote image...");
+    let mut kernel_cmdline: Vec<String> = vec![bootspec_doc
+        .init
+        .into_os_string()
+        .into_string()
+        .expect("Failed to convert init to string")];
+    kernel_cmdline.extend(bootspec_doc.kernel_params);
 
     let lanzaboote_image = pe::assemble_image(
         lanzaboote_stub,
         &bootspec_doc.extension.os_release,
-        &bootspec_doc.kernel_params,
+        &kernel_cmdline,
         &esp_paths.kernel,
         &esp_paths.initrd,
     )
