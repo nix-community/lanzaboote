@@ -8,7 +8,10 @@ use crate::esp::EspPaths;
 use crate::pe;
 
 pub fn install(
-    _: &Path,
+    _public_key: &Path,
+    _private_key: &Path,
+    _pki_bundle: &Path,
+    _auto_enroll: bool,
     bootspec: &Path,
     lanzaboote_stub: &Path,
     initrd_stub: &Path,
