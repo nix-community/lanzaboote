@@ -1,5 +1,4 @@
 use std::fs;
-use std::str::from_utf8;
 
 use std::path::Path;
 
@@ -31,11 +30,12 @@ pub fn install(
     let signer = Signer::new(&sbsigntool, &public_key, &private_key);
 
     println!("Assembling lanzaboote image...");
-    let mut kernel_cmdline: Vec<String> = vec![bootspec_doc
+    let init_string = bootspec_doc
         .init
         .into_os_string()
         .into_string()
-        .expect("Failed to convert init to string")];
+        .expect("Failed to convert init to string");
+    let mut kernel_cmdline: Vec<String> = vec![format!("init={}", init_string)];
     kernel_cmdline.extend(bootspec_doc.kernel_params);
 
     let lanzaboote_image = pe::assemble_image(
@@ -44,7 +44,7 @@ pub fn install(
         &kernel_cmdline,
         &esp_paths.kernel,
         &esp_paths.initrd,
-        &esp_paths.esp
+        &esp_paths.esp,
     )
     .context("Failed to assemble stub")?;
 
