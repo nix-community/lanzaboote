@@ -3,7 +3,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use goblin::pe::PE;
 
 pub fn assemble_image(
@@ -52,7 +52,10 @@ pub fn assemble_image(
         path_to_string(&lanzaboote_image),
     ];
 
-    let status = Command::new("objcopy").args(&args).status()?;
+    let status = Command::new("objcopy")
+        .args(&args)
+        .status()
+        .context("Failed to run objcopy command")?;
     if !status.success() {
         return Err(anyhow::anyhow!("Failed to build stub with args `{:?}`", &args).into());
     }
@@ -100,8 +103,8 @@ pub fn wrap_initrd(initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
 }
 
 fn stub_offset(binary: &Path) -> Result<u64> {
-    let pe_binary = fs::read(binary)?;
-    let pe = PE::parse(&pe_binary)?;
+    let pe_binary = fs::read(binary).context("Failed to read PE binary file")?;
+    let pe = PE::parse(&pe_binary).context("Failed to parse PE binary file")?;
 
     let image_base = image_base(&pe);
 
