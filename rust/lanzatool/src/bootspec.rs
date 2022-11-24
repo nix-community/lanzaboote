@@ -3,13 +3,8 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Bootspec {
-    pub v1: GenerationV1,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct GenerationV1 {
+pub struct Bootspec {
     /// Label for the system closure
     pub label: String,
     /// Path to kernel (bzImage) -- $toplevel/kernel
