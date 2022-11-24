@@ -176,7 +176,7 @@
             virtualisation = {
               useBootLoader = true;
               useEFIBoot = true;
-              useSecureBoot = true;
+              useSecureBoot = false;
             };
 
             boot.loader.efi = {
