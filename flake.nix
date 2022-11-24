@@ -73,7 +73,19 @@
 
       lanzaboote = buildRustEfiApp ./rust/lanzaboote;
 
-      lanzatool = buildRustLinuxApp ./rust/lanzatool;
+      lanzatoolBin = naersk-nightly.buildPackage {
+        src = ./rust/lanzatool;
+        buildInputs = [ pkgs.binutils ];
+      };
+
+      lanzatool = pkgs.writeShellScriptBin "lanzatool" ''
+        set -euo pipefail
+
+        export LANZABOOTE_STUB=${lanzaboote}/bin/lanzaboote.efi
+        export LANZABOOTE_INITRD_STUB=${initrd-stub}/bin/initrd-stub.efi
+
+        ${lanzatoolBin}/bin/lanzatool "$@"
+      '';
 
       # A script that takes an initrd and turns it into a PE image.
       wrapInitrd = pkgs.writeShellScriptBin "wrap-initrd" ''
