@@ -1,5 +1,5 @@
 {
-  description = "A very basic flake";
+  description = "Lanzaboot Secure Boot Madness";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
