@@ -153,6 +153,7 @@
             databasePath = "pki";
           })
           pkgs.sbsigntool
+          pkgs.efitools
         ];
 
         inputsFrom = [
@@ -175,7 +176,7 @@
             virtualisation = {
               useBootLoader = true;
               useEFIBoot = true;
-              # useSecureBoot = true;
+              useSecureBoot = true;
             };
 
             boot.loader.efi = {
@@ -185,7 +186,7 @@
             boot.lanzaboote = {
               enable = true;
               enrollKeys = true;
-              pkiBundle = ./pki/keys;
+              pkiBundle = ./pki;
               package = lanzatool;
             };
           };
