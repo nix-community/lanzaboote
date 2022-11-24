@@ -49,6 +49,9 @@ static mut DEVICE_PATH_PROTOCOL: [u8; 24] = [
     0x52, 0x31, 0xcc, 0x68, 0x7f, 0xff, 0x04, 0x00,
 ];
 
+/// The UEFI LoadFile2 protocol.
+///
+/// This protocol has a single method to load a file.
 #[repr(C)]
 #[unsafe_guid("4006c0c1-fcb3-403e-996d-4a6c8724e06d")]
 #[derive(Protocol)]
@@ -120,6 +123,11 @@ unsafe extern "efiapi" fn raw_load_file(
         .status()
 }
 
+/// A RAII wrapper to install and uninstall the Linux initrd loading
+/// protocol.
+///
+/// **Note:** You need to call [`InitrdLoader::uninstall`], before
+/// this is dropped.
 pub struct InitrdLoader {
     proto: Pin<Box<LoadFile2Protocol>>,
     handle: Handle,
@@ -127,6 +135,8 @@ pub struct InitrdLoader {
 }
 
 /// Returns the data range of the initrd in the PE binary.
+///
+/// The initrd has to be embedded in the file as a .initrd PE section.
 fn initrd_location(initrd_efi: &mut RegularFile) -> Result<Range<usize>> {
     initrd_efi.set_position(0)?;
 
@@ -149,6 +159,10 @@ fn initrd_location(initrd_efi: &mut RegularFile) -> Result<Range<usize>> {
         .ok_or(Status::END_OF_FILE.into())
 }
 
+/// Check the signature of the initrd.
+///
+/// For this to work, the initrd needs to be a PE binary. We misuse
+/// [`BootServices::load_image`] for this.
 fn initrd_verify(boot_services: &BootServices, initrd_efi: &mut RegularFile) -> Result<()> {
     initrd_efi.set_position(0)?;
     let file_data = read_all(initrd_efi)?;
