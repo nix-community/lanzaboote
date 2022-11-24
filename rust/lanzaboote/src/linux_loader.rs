@@ -185,6 +185,10 @@ fn initrd_verify(boot_services: &BootServices, initrd_efi: &mut RegularFile) -> 
 }
 
 impl InitrdLoader {
+    /// Create a new [`InitrdLoader`].
+    ///
+    /// `handle` is the handle where the protocols are registered
+    /// on. `file` is the file that is served to Linux.
     pub fn new(
         boot_services: &BootServices,
         handle: Handle,
@@ -199,8 +203,11 @@ impl InitrdLoader {
             range,
         });
 
+        // Linux finds the right handle by looking for something that
+        // implements the device path protocol for the specific device
+        // path.
         unsafe {
-            let dp_proto: *mut u8 = &mut DEVICE_PATH_PROTOCOL[0];
+            let dp_proto: *mut u8 = DEVICE_PATH_PROTOCOL.as_mut_ptr();
 
             boot_services.install_protocol_interface(
                 Some(handle),

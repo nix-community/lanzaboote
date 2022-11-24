@@ -13,7 +13,7 @@ use pe_section::pe_section_as_string;
 use uefi::{
     prelude::*,
     proto::{
-        console::text::{self, Output},
+        console::text::Output,
         loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
