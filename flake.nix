@@ -16,6 +16,8 @@
         ];
       };
 
+      lib = pkgs.lib;
+
       rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
 
       naersk-nightly = pkgs.callPackage naersk {
@@ -78,13 +80,17 @@
         buildInputs = [ pkgs.binutils ];
       };
 
-      lanzatool = pkgs.writeShellScriptBin "lanzatool" ''
-        set -euo pipefail
+      lanzatool = pkgs.runCommand "lanzatool" {
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+      } ''
+        mkdir -p $out/bin
 
-        export LANZABOOTE_STUB=${lanzaboote}/bin/lanzaboote.efi
-        export LANZABOOTE_INITRD_STUB=${initrd-stub}/bin/initrd-stub.efi
-
-        ${lanzatoolBin}/bin/lanzatool "$@"
+        # Clean PATH to only contain what we need to do objcopy. Also
+        # tell lanzatool where to find our UEFI binaries.
+        makeWrapper ${lanzatoolBin}/bin/lanzatool $out/bin/lanzatool \
+          --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped ]} \
+          --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
+          --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi
       '';
 
       # A script that takes an initrd and turns it into a PE image.
