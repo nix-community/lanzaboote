@@ -2,7 +2,7 @@
 
 ![GitHub branch checks state](https://img.shields.io/github/checks-status/blitz/lanzaboote/master)
 [![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
-[![GitHub license](https://img.shields.io/github/license/blitz/lanzaboot.svg)](https://github.com/Naereen/StrapDown.js/blob/master/LICENSE)
+[![GitHub license](https://img.shields.io/github/license/blitz/lanzaboot.svg)](https://github.com/blitz/lanzaboote/blob/master/LICENSE)
 
 🚧🚧🚧 **This is not working yet. Come back later.*** 🚧🚧🚧
 
