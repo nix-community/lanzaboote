@@ -33,4 +33,5 @@ pub struct Extension {
     pub esp: String,
     pub bootctl: PathBuf,
     pub os_release: PathBuf,
+    pub systemd: PathBuf,
 }
