@@ -1,7 +1,6 @@
 use std::fs;
 
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::Result;
 
@@ -38,26 +37,18 @@ pub fn install(
 
     fs::create_dir_all(&esp_paths.linux)?;
     fs::copy(lanzaboote_image, esp_paths.lanzaboote_image)?;
-    // install_systemd_boot(bootctl, &esp)?;
 
-    Ok(())
-}
+    let systemd_boot = bootspec_doc
+        .v1
+        .extension
+        .systemd
+        .join("lib/systemd/boot/efi/systemd-bootx64.efi");
 
-fn _install_systemd_boot(bootctl: &Path, esp: &Path) -> Result<()> {
-    let args = vec![
-        String::from("install"),
-        String::from("--path"),
-        esp.display().to_string(),
-    ];
+    fs::create_dir_all(esp_paths.efi_fallback_dir)?;
+    fs::copy(&systemd_boot, esp_paths.efi_fallback)?;
 
-    let status = Command::new(&bootctl).args(&args).status()?;
-    if !status.success() {
-        return Err(anyhow::anyhow!(
-            "Failed success run `{}` with args `{:?}`",
-            &bootctl.display(),
-            &args
-        )
-        .into());
-    }
+    fs::create_dir_all(&esp_paths.systemd)?;
+    fs::copy(&systemd_boot, esp_paths.systemd_boot)?;
+
     Ok(())
 }
