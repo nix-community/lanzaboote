@@ -130,8 +130,7 @@
       '';
     in {
       overlays.default = final: prev: {
-        inherit lanzaboote;
-        lanzatool = lanzatoolBin;
+        inherit lanzatool;
       };
 
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
@@ -158,7 +157,7 @@
         ];
 
         inputsFrom = [
-          lanzatool
+          lanzatoolBin
           lanzaboote
         ];
       };
@@ -188,7 +187,6 @@
               enable = true;
               enrollKeys = lib.mkDefault true;
               pkiBundle = ./pki;
-              package = lanzatool;
             };
           };
         };
