@@ -13,8 +13,8 @@ impl<'a> Signer<'a> {
     pub fn new(signer: &Path, public_key: &'a Path, private_key: &'a Path) -> Self {
         Self {
             sbsigntool: signer.to_path_buf(),
-            public_key: public_key,
-            private_key: private_key
+            public_key,
+            private_key
         }
     }
 
@@ -24,6 +24,8 @@ impl<'a> Signer<'a> {
             String::from(self.private_key.to_str().unwrap()),
             String::from("--cert"),
             String::from(self.public_key.to_str().unwrap()),
+            String::from(filepath.to_str().unwrap()),
+            String::from("--output"),
             String::from(filepath.to_str().unwrap())
         ];
 

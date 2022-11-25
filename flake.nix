@@ -154,6 +154,8 @@
           })
           pkgs.sbsigntool
           pkgs.efitools
+          pkgs.python39Packages.ovmfvartool
+          pkgs.qemu
         ];
 
         inputsFrom = [
@@ -176,7 +178,7 @@
             virtualisation = {
               useBootLoader = true;
               useEFIBoot = true;
-              useSecureBoot = false;
+              useSecureBoot = true;
             };
 
             boot.loader.efi = {
@@ -192,7 +194,7 @@
           };
           testScript = ''
             machine.start()
-            machine.shutdown()
+            print(machine.succeed("bootctl status"))
           '';
         };
       };
