@@ -70,6 +70,7 @@ fn install(
 ) -> Result<()> {
     let lanzaboote_stub = std::env::var("LANZABOOTE_STUB")?;
     let initrd_stub = std::env::var("LANZABOOTE_INITRD_STUB")?;
+    let sbsigntool = std::env::var("SBSIGNTOOL")?;
 
     install::install(
         public_key,
@@ -77,7 +78,8 @@ fn install(
         pki_bundle,
         auto_enroll,
         bootspec,
+        Path::new(&sbsigntool),
         Path::new(&lanzaboote_stub),
-        Path::new(&initrd_stub),
+        Path::new(&initrd_stub)
     )
 }
