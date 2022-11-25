@@ -196,7 +196,15 @@
             dst = "convert_to_esp(extract_bspec_attr('kernel'))";
           };
         };
-
+        specialisation-works = mkSecureBootTest {
+          name = "specialisation-still-boot-under-secureboot";
+          machine = {
+            specialisation.variant = {
+            };
+          };
+          testScript = ''
+          '';
+        };
       };
     };
 }
