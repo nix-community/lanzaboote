@@ -12,6 +12,7 @@ pub fn assemble_image(
     kernel_cmdline: &[String],
     kernel_path: &Path,
     initrd_path: &Path,
+    esp_mountpoint: &Path
 ) -> Result<PathBuf> {
     // objcopy copies files into the PE binary. That's why we have to write the contents
     // of some bootspec properties to disk
@@ -20,8 +21,8 @@ pub fn assemble_image(
     let initrd_path_file = Path::new("/tmp/initrd_path");
 
     fs::write(kernel_cmdline_file, kernel_cmdline.join(" "))?;
-    fs::write(kernel_path_file, efi_relative_path_string(kernel_path))?;
-    fs::write(initrd_path_file, efi_relative_path_string(initrd_path))?;
+    fs::write(kernel_path_file, efi_relative_path_string(esp_mountpoint, kernel_path))?;
+    fs::write(initrd_path_file, efi_relative_path_string(esp_mountpoint, initrd_path))?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
 
@@ -63,9 +64,9 @@ pub fn assemble_image(
     Ok(lanzaboote_image)
 }
 
-fn efi_relative_path_string(path: &Path) -> String {
+fn efi_relative_path_string(esp_mountpoint: &Path, path: &Path) -> String {
     let relative_path = path
-        .strip_prefix("esp")
+        .strip_prefix(esp_mountpoint)
         .expect("Failed to make path relative to esp")
         .to_owned();
     let relative_path_string = relative_path

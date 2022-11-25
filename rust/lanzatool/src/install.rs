@@ -1,4 +1,5 @@
 use std::fs;
+
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -7,12 +8,15 @@ use crate::bootspec::Bootspec;
 use crate::esp::EspPaths;
 use crate::pe;
 
+use crate::signer::Signer;
+
 pub fn install(
-    _public_key: &Path,
-    _private_key: &Path,
+    public_key: &Path,
+    private_key: &Path,
     _pki_bundle: &Path,
     _auto_enroll: bool,
     bootspec: &Path,
+    sbsigntool: &Path,
     lanzaboote_stub: &Path,
     initrd_stub: &Path,
 ) -> Result<()> {
@@ -23,13 +27,15 @@ pub fn install(
             .context("Failed to parse bootspec json")?;
 
     let esp_paths = EspPaths::new(&bootspec_doc.extension.esp);
+    let signer = Signer::new(&sbsigntool, &public_key, &private_key);
 
     println!("Assembling lanzaboote image...");
-    let mut kernel_cmdline: Vec<String> = vec![bootspec_doc
+    let init_string = bootspec_doc
         .init
         .into_os_string()
         .into_string()
-        .expect("Failed to convert init to string")];
+        .expect("Failed to convert init to string");
+    let mut kernel_cmdline: Vec<String> = vec![format!("init={}", init_string)];
     kernel_cmdline.extend(bootspec_doc.kernel_params);
 
     let lanzaboote_image = pe::assemble_image(
@@ -38,6 +44,7 @@ pub fn install(
         &kernel_cmdline,
         &esp_paths.kernel,
         &esp_paths.initrd,
+        &esp_paths.esp,
     )
     .context("Failed to assemble stub")?;
 
@@ -54,16 +61,27 @@ pub fn install(
         .join("lib/systemd/boot/efi/systemd-bootx64.efi");
 
     let files_to_copy = [
-        (bootspec_doc.kernel, esp_paths.kernel),
-        (wrapped_initrd, esp_paths.initrd),
-        (lanzaboote_image, esp_paths.lanzaboote_image),
-        (systemd_boot.clone(), esp_paths.efi_fallback),
-        (systemd_boot, esp_paths.systemd_boot),
+        (bootspec_doc.kernel, &esp_paths.kernel),
+        (wrapped_initrd, &esp_paths.initrd),
+        (lanzaboote_image, &esp_paths.lanzaboote_image),
+        (systemd_boot.clone(), &esp_paths.efi_fallback),
+        (systemd_boot, &esp_paths.systemd_boot),
     ];
 
     for (source, target) in files_to_copy {
         copy(&source, &target)?;
     }
+
+    // Sign:
+    //  - systemd-boot & fallback EFI
+    //  - stub
+    //  - kernel
+    //  - initrd
+    signer.sign_file(&esp_paths.efi_fallback)?;
+    signer.sign_file(&esp_paths.systemd_boot)?;
+    signer.sign_file(&esp_paths.lanzaboote_image)?;
+    signer.sign_file(&esp_paths.kernel)?;
+    signer.sign_file(&esp_paths.initrd)?;
 
     println!(
         "Succesfully installed lanzaboote to '{}'",

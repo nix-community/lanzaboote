@@ -1,0 +1,50 @@
+{ lib, config, pkgs, ... }: 
+with lib;
+let
+  cfg = config.boot.lanzaboote;
+  sbctlWithPki = pkgs.sbctl.override {
+    databasePath = "/tmp/pki";
+  };
+in
+{
+  options.boot.lanzaboote = {
+    enable = mkEnableOption "Enable the LANZABOOTE";
+    enrollKeys = mkEnableOption "Automatic enrollment of the keys using sbctl";
+    pkiBundle = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = "PKI bundle containg db, PK, KEK";
+    };
+    publicKeyFile = mkOption {
+      type = types.path;
+      default = if cfg.pkiBundle != null then "${cfg.pkiBundle}/keys/db/db.pem" else null;
+      description = "Public key to sign your boot files";
+    };
+    privateKeyFile = mkOption {
+      type = types.path;
+      default = if cfg.pkiBundle != null then "${cfg.pkiBundle}/keys/db/db.key" else null;
+      description = "Private key to sign your boot files";
+    };
+    package = mkOption {
+      type = types.package;
+      default = pkgs.lanzatool;
+      description = "Lanzatool package";
+    };
+  };
+
+  config = mkIf cfg.enable {
+    boot.loader.external = {
+      enable = true;
+      passBootspec = true;
+      installHook = "${pkgs.writeShellScriptBin "bootinstall" ''
+          ${optionalString cfg.enrollKeys ''
+            mkdir -p /tmp/pki
+            cp -r ${cfg.pkiBundle}/* /tmp/pki
+            ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
+          ''}
+        ${cfg.package}/bin/lanzatool install --pki-bundle ${cfg.pkiBundle} --public-key ${cfg.publicKeyFile} --private-key ${cfg.privateKeyFile} "$@"
+      ''}/bin/bootinstall";
+      # ${cfg.package}/bin/lanzatool install ${optionalString cfg.enrollKeys "--auto-enroll"} --pki-bundle ${cfg.pkiBundle}
+    };
+  };
+}
