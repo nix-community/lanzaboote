@@ -157,7 +157,6 @@
         ];
 
         inputsFrom = [
-          lanzatoolBin
           lanzaboote
         ];
       };
