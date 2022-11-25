@@ -15,6 +15,7 @@ pub fn install(
     _pki_bundle: Option<PathBuf>,
     _auto_enroll: bool,
     bootspec: &Path,
+    sbsigntool: &Path,
     lanzaboote_stub: &Path,
     initrd_stub: &Path,
 ) -> Result<()> {
