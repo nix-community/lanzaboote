@@ -163,12 +163,15 @@
         ];
       };
 
-      checks.x86_64-linux = {
-        lanzaboote-boot = nixpkgs-test.legacyPackages.x86_64-linux.nixosTest
-        {
-          name = "stub-boot";
-          nodes.machine = { ... }: {
-            imports = [ self.nixosModules.lanzaboote ];
+      checks.x86_64-linux = let
+        mkSecureBootTest = { name, machine ? {}, testScript }: nixpkgs-test.legacyPackages.x86_64-linux.nixosTest {
+          inherit name testScript;
+          nodes.machine = { lib, ... }: {
+            imports = [
+              self.nixosModules.lanzaboote
+              machine
+            ];
+
             nixpkgs.overlays = [ self.overlays.default ];
 
             virtualisation = {
@@ -183,16 +186,63 @@
             };
             boot.lanzaboote = {
               enable = true;
-              enrollKeys = true;
+              enrollKeys = lib.mkDefault true;
               pkiBundle = ./pki;
               package = lanzatool;
             };
           };
+        };
+        mkUnsignedTest = { name, path }: mkSecureBootTest {
+          inherit name;
           testScript = ''
+            import json
+            import os.path
+            bootspec = None
+            def extract_bspec_attr(attr):
+                return bootspec.get(attr)
+            def convert_to_esp(store_file_path):
+                store_dir = os.path.basename(os.path.dirname(store_file_path))
+                filename = os.path.basename(store_file_path)
+                return f'/boot/EFI/nixos/{store_dir}-{filename}.efi'
+
             machine.start()
-            print(machine.succeed("bootctl status"))
+            bootspec = json.loads(machine.succeed("cat /run/current-system/bootspec/boot.v1.json"))
+            print(machine.succeed("ls /boot/EFI/nixos"))
+            src_path = ${path.src}
+            dst_path = ${path.dst}
+            machine.succeed(f"cp -rf {src_path} {dst_path}")
+            machine.succeed("sync")
+            machine.crash()
+            machine.start()
+            machine.wait_for_console_text("panicked")
           '';
         };
+      in
+      {
+        # TODO: user mode: OK
+        # TODO: how to get in: {deployed, audited} mode ?
+        lanzaboote-boot = mkSecureBootTest {
+          name = "signed-files-boot-under-secureboot";
+          testScript = ''
+            machine.start()
+            assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+          '';
+        };
+        is-initrd-secured = mkUnsignedTest {
+          name = "unsigned-initrd-do-not-boot-under-secureboot";
+          path = {
+            src = "extract_bspec_attr('initrd')";
+            dst = "\"/boot/EFI/nixos/initrd\"";
+          };
+        };
+        is-kernel-secured = mkUnsignedTest {
+          name = "unsigned-kernel-do-not-boot-under-secureboot";
+          path = {
+            src = "extract_bspec_attr('kernel')";
+            dst = "\"/boot/EFI/nixos/kernel\"";
+          };
+        };
+
       };
     };
 }
