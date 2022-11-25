@@ -43,8 +43,18 @@ fn print_logo(output: &mut Output) {
         .unwrap();
 }
 
+/// The configuration that is embedded at build time.
+///
+/// After lanzaboote is built, lanzatool needs to embed configuration
+/// into the binary. This struct represents that information.
 struct EmbeddedConfiguration {
+    /// The filename of the kernel to be booted. This filename is
+    /// relative to the root of the volume that contains the
+    /// lanzaboote binary.
     kernel_filename: CString16,
+
+    /// The filename of the initrd to be passed to the kernel. See
+    /// `kernel_filename` for how to interpret these filenames.
     initrd_filename: CString16,
 }
 
