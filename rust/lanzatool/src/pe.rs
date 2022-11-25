@@ -1,72 +1,108 @@
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use goblin::pe::PE;
+use tempfile::NamedTempFile;
 
-pub fn assemble_image(
+pub fn lanzaboote_image(
     lanzaboote_stub: &Path,
     os_release: &Path,
     kernel_cmdline: &[String],
     kernel_path: &Path,
     initrd_path: &Path,
-    esp_mountpoint: &Path
+    esp: &Path,
 ) -> Result<PathBuf> {
     // objcopy copies files into the PE binary. That's why we have to write the contents
-    // of some bootspec properties to disk
-    let kernel_cmdline_file = Path::new("/tmp/kernel_cmdline");
-    let kernel_path_file = Path::new("/tmp/kernel_path");
-    let initrd_path_file = Path::new("/tmp/initrd_path");
-
-    fs::write(kernel_cmdline_file, kernel_cmdline.join(" "))?;
-    fs::write(kernel_path_file, efi_relative_path_string(esp_mountpoint, kernel_path))?;
-    fs::write(initrd_path_file, efi_relative_path_string(esp_mountpoint, initrd_path))?;
+    // of some bootspec properties to disks
+    let kernel_cmdline_file = write_to_tmp(kernel_cmdline.join(" "))?;
+    let kernel_path_file = write_to_tmp(esp_relative_path_string(esp, kernel_path))?;
+    let initrd_path_file = write_to_tmp(esp_relative_path_string(esp, initrd_path))?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
+    let kernel_cmdline_offs = os_release_offs + file_size(&os_release)?;
+    let initrd_path_offs = kernel_cmdline_offs + file_size(&kernel_cmdline_file)?;
+    let kernel_path_offs = initrd_path_offs + file_size(&initrd_path_file)?;
 
-    let kernel_cmdline_offs = os_release_offs + file_size(os_release)?;
-    let initrd_path_offs = kernel_cmdline_offs + file_size(kernel_cmdline_file)?;
-    let kernel_path_offs = initrd_path_offs + file_size(initrd_path_file)?;
-
-    let lanzaboote_image = PathBuf::from("/tmp/lanzaboote-image.efi");
-
-    let args = vec![
-        String::from("--add-section"),
-        format!(".osrel={}", path_to_string(os_release)),
-        String::from("--change-section-vma"),
-        format!(".osrel={:#x}", os_release_offs),
-        String::from("--add-section"),
-        format!(".cmdline={}", path_to_string(kernel_cmdline_file)),
-        String::from("--change-section-vma"),
-        format!(".cmdline={:#x}", kernel_cmdline_offs),
-        String::from("--add-section"),
-        format!(".initrdp={}", path_to_string(initrd_path_file)),
-        String::from("--change-section-vma"),
-        format!(".initrdp={:#x}", initrd_path_offs),
-        String::from("--add-section"),
-        format!(".kernelp={}", path_to_string(kernel_path_file)),
-        String::from("--change-section-vma"),
-        format!(".kernelp={:#x}", kernel_path_offs),
-        path_to_string(lanzaboote_stub),
-        path_to_string(&lanzaboote_image),
+    let sections = vec![
+        s(".osrel", os_release, os_release_offs),
+        s(".cmdline", kernel_cmdline_file, kernel_cmdline_offs),
+        s(".initrdp", initrd_path_file, initrd_path_offs),
+        s(".kernelp", kernel_path_file, kernel_path_offs),
     ];
+
+    wrap_in_pe(&lanzaboote_stub, sections)
+}
+
+pub fn wrap_initrd(initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
+    let initrd_offs = stub_offset(initrd_stub)?;
+    let sections = vec![s(".initrd", initrd, initrd_offs)];
+    wrap_in_pe(initrd_stub, sections)
+}
+
+fn wrap_in_pe(stub: &Path, sections: Vec<Section>) -> Result<PathBuf> {
+    let image = NamedTempFile::new().context("Failed to generate named temp file")?;
+
+    let mut args: Vec<String> = sections.iter().flat_map(Section::to_objcopy).collect();
+    let extra_args = vec![path_to_string(stub), path_to_string(&image)];
+    args.extend(extra_args);
 
     let status = Command::new("objcopy")
         .args(&args)
         .status()
         .context("Failed to run objcopy command")?;
     if !status.success() {
-        return Err(anyhow::anyhow!("Failed to build stub with args `{:?}`", &args).into());
+        return Err(anyhow::anyhow!("Failed to wrap in pe with args `{:?}`", &args).into());
     }
 
-    Ok(lanzaboote_image)
+    let (_, persistent_image) = image.keep().with_context(|| {
+        format!(
+            "Failed to persist image with stub: {} from temporary file",
+            stub.display()
+        )
+    })?;
+    Ok(persistent_image)
 }
 
-fn efi_relative_path_string(esp_mountpoint: &Path, path: &Path) -> String {
+struct Section {
+    name: &'static str,
+    file_path: PathBuf,
+    offset: u64,
+}
+
+impl Section {
+    fn to_objcopy(&self) -> Vec<String> {
+        vec![
+            String::from("--add-section"),
+            format!("{}={}", self.name, path_to_string(&self.file_path)),
+            String::from("--change-section-vma"),
+            format!("{}={:#x}", self.name, self.offset),
+        ]
+    }
+}
+
+fn s(name: &'static str, file_path: impl AsRef<Path>, offset: u64) -> Section {
+    Section {
+        name,
+        file_path: file_path.as_ref().into(),
+        offset,
+    }
+}
+
+fn write_to_tmp(contents: impl AsRef<[u8]>) -> Result<PathBuf> {
+    let mut tmpfile = NamedTempFile::new().context("Failed to create tempfile")?;
+    tmpfile
+        .write_all(contents.as_ref())
+        .context("Failed to write to tempfile")?;
+    Ok(tmpfile.keep()?.1)
+}
+
+fn esp_relative_path_string(esp: &Path, path: &Path) -> String {
     let relative_path = path
-        .strip_prefix(esp_mountpoint)
+        .strip_prefix(esp)
         .expect("Failed to make path relative to esp")
         .to_owned();
     let relative_path_string = relative_path
@@ -75,32 +111,6 @@ fn efi_relative_path_string(esp_mountpoint: &Path, path: &Path) -> String {
         .expect("Failed to convert path '{}' to a relative string path")
         .replace("/", "\\");
     format!("\\{}", &relative_path_string)
-}
-
-pub fn wrap_initrd(initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
-    let initrd_offs = stub_offset(initrd_stub)?;
-
-    let wrapped_initrd = PathBuf::from("/tmp/initrd.efi");
-
-    let args = vec![
-        String::from("--add-section"),
-        format!(".initrd={}", path_to_string(initrd)),
-        String::from("--change-section-vma"),
-        format!(".initrd={:#x}", initrd_offs),
-        path_to_string(initrd_stub),
-        path_to_string(&wrapped_initrd),
-    ];
-
-    let status = Command::new("objcopy").args(&args).status()?;
-    if !status.success() {
-        return Err(anyhow::anyhow!(
-            "Failed to wrap initrd into a PE binary with args `{:?}`",
-            &args
-        )
-        .into());
-    }
-
-    Ok(wrapped_initrd)
 }
 
 fn stub_offset(binary: &Path) -> Result<u64> {
@@ -128,16 +138,17 @@ fn image_base(pe: &PE) -> u64 {
 }
 
 // All Linux file paths should be convertable to strings
-fn path_to_string(path: &Path) -> String {
-    path.to_owned()
+fn path_to_string(path: impl AsRef<Path>) -> String {
+    path.as_ref()
+        .to_owned()
         .into_os_string()
         .into_string()
         .expect(&format!(
             "Failed to convert path '{}' to a string",
-            path.display()
+            path.as_ref().display()
         ))
 }
 
-fn file_size(path: &Path) -> Result<u64> {
+fn file_size(path: impl AsRef<Path>) -> Result<u64> {
     Ok(fs::File::open(path)?.metadata()?.size())
 }
