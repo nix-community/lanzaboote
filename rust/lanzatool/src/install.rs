@@ -1,13 +1,11 @@
 use std::fs;
-
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
 use crate::bootspec::Bootspec;
 use crate::esp::EspPaths;
 use crate::pe;
-
 use crate::signer::Signer;
 
 pub fn install(
@@ -16,7 +14,6 @@ pub fn install(
     _pki_bundle: &Path,
     _auto_enroll: bool,
     bootspec: &Path,
-    sbsigntool: &Path,
     lanzaboote_stub: &Path,
     initrd_stub: &Path,
 ) -> Result<()> {
@@ -27,16 +24,10 @@ pub fn install(
             .context("Failed to parse bootspec json")?;
 
     let esp_paths = EspPaths::new(&bootspec_doc.extension.esp);
-    let signer = Signer::new(&sbsigntool, &public_key, &private_key);
 
     println!("Assembling lanzaboote image...");
-    let init_string = bootspec_doc
-        .init
-        .into_os_string()
-        .into_string()
-        .expect("Failed to convert init to string");
-    let mut kernel_cmdline: Vec<String> = vec![format!("init={}", init_string)];
-    kernel_cmdline.extend(bootspec_doc.kernel_params);
+
+    let kernel_cmdline = assemble_kernel_cmdline(bootspec_doc.init, bootspec_doc.kernel_params);
 
     let lanzaboote_image = pe::assemble_image(
         lanzaboote_stub,
@@ -72,22 +63,40 @@ pub fn install(
         copy(&source, &target)?;
     }
 
-    // Sign:
-    //  - systemd-boot & fallback EFI
-    //  - stub
-    //  - kernel
-    //  - initrd
-    signer.sign_file(&esp_paths.efi_fallback)?;
-    signer.sign_file(&esp_paths.systemd_boot)?;
-    signer.sign_file(&esp_paths.lanzaboote_image)?;
-    signer.sign_file(&esp_paths.kernel)?;
-    signer.sign_file(&esp_paths.initrd)?;
+    println!("Signing files...");
+
+    let signer = Signer::new(&public_key, &private_key);
+
+    let files_to_sign = [
+        &esp_paths.efi_fallback,
+        &esp_paths.systemd_boot,
+        &esp_paths.lanzaboote_image,
+        &esp_paths.kernel,
+        &esp_paths.initrd,
+    ];
+
+    for file in files_to_sign {
+        signer
+            .sign_file(&file)
+            .with_context(|| format!("Failed to sign file {}", &file.display()))?;
+    }
 
     println!(
         "Succesfully installed lanzaboote to '{}'",
         esp_paths.esp.display()
     );
+
     Ok(())
+}
+
+fn assemble_kernel_cmdline(init: PathBuf, kernel_params: Vec<String>) -> Vec<String> {
+    let init_string = init
+        .into_os_string()
+        .into_string()
+        .expect("Failed to convert init path to string");
+    let mut kernel_cmdline: Vec<String> = vec![format!("init={}", init_string)];
+    kernel_cmdline.extend(kernel_params);
+    kernel_cmdline
 }
 
 fn copy(from: &Path, to: &Path) -> Result<()> {

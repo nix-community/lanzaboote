@@ -1,20 +1,18 @@
 use anyhow::Result;
 
-use std::process::Command;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
-pub struct Signer<'a> {
-    pub sbsigntool: PathBuf,
-    pub private_key: &'a Path,
-    pub public_key: &'a Path
+pub struct Signer {
+    pub private_key: PathBuf,
+    pub public_key: PathBuf,
 }
 
-impl<'a> Signer<'a> {
-    pub fn new(signer: &Path, public_key: &'a Path, private_key: &'a Path) -> Self {
+impl Signer {
+    pub fn new(public_key: &Path, private_key: &Path) -> Self {
         Self {
-            sbsigntool: signer.to_path_buf(),
-            public_key,
-            private_key
+            public_key: public_key.into(),
+            private_key: private_key.into(),
         }
     }
 
@@ -26,19 +24,15 @@ impl<'a> Signer<'a> {
             String::from(self.public_key.to_str().unwrap()),
             String::from(filepath.to_str().unwrap()),
             String::from("--output"),
-            String::from(filepath.to_str().unwrap())
+            String::from(filepath.to_str().unwrap()),
         ];
 
-        let status = Command::new(&self.sbsigntool)
-            .args(&args)
-            .status()?;
+        let status = Command::new("sbsign").args(&args).status()?;
 
         if !status.success() {
-            return Err(anyhow::anyhow!(
-                    "Failed success run `{}` with args `{:?}`",
-                    &self.sbsigntool.display(),
-                    &args
-            ).into());
+            return Err(
+                anyhow::anyhow!("Failed to sign with  sbsign with args `{:?}`", &args).into(),
+            );
         }
 
         Ok(())

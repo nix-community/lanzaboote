@@ -89,11 +89,10 @@
         # Clean PATH to only contain what we need to do objcopy. Also
         # tell lanzatool where to find our UEFI binaries.
         makeWrapper ${lanzatoolBin}/bin/lanzatool $out/bin/lanzatool \
-          --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped ]} \
+          --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
           --set RUST_BACKTRACE full \
           --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
           --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi \
-          --set SBSIGNTOOL "${pkgs.sbsigntool}/bin/sbsign"
       '';
 
       # A script that takes an initrd and turns it into a PE image.
