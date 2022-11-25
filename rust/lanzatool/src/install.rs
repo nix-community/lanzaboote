@@ -1,6 +1,7 @@
 use std::fs;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
+use nix::unistd::sync;
 
 use anyhow::{Context, Result};
 
@@ -81,10 +82,11 @@ pub fn install(
         signer
             .sign_file(&file)
             .with_context(|| format!("Failed to sign file {}", &file.display()))?;
+        sync();
     }
 
     println!(
-        "Succesfully installed lanzaboote to '{}'",
+        "Successfully installed lanzaboote to '{}'",
         esp_paths.esp.display()
     );
 
