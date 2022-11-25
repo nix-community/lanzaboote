@@ -37,9 +37,11 @@ in
       enable = true;
       passBootspec = true;
       installHook = "${pkgs.writeShellScriptBin "bootinstall" ''
-        mkdir -p /tmp/pki
-        cp -r ${cfg.pkiBundle}/* /tmp/pki
-        ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
+          ${optionalString cfg.enrollKeys ''
+            mkdir -p /tmp/pki
+            cp -r ${cfg.pkiBundle}/* /tmp/pki
+            ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
+          ''}
         ${cfg.package}/bin/lanzatool install --pki-bundle ${cfg.pkiBundle} --public-key ${cfg.publicKeyFile} --private-key ${cfg.privateKeyFile} "$@"
       ''}/bin/bootinstall";
       # ${cfg.package}/bin/lanzatool install ${optionalString cfg.enrollKeys "--auto-enroll"} --pki-bundle ${cfg.pkiBundle}
