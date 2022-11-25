@@ -164,10 +164,7 @@
       };
 
       checks.x86_64-linux = {
-        lanzaboote-boot = 
-        let test = import ("${nixpkgs-test}/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
-        in
-        test.makeTest
+        lanzaboote-boot = nixpkgs-test.legacyPackages.x86_64-linux.nixosTest
         {
           name = "stub-boot";
           nodes.machine = { ... }: {
