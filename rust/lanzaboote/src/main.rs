@@ -17,7 +17,7 @@ use uefi::{
         loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
-    CString16, Error,
+    CString16, Result,
 };
 
 use crate::{
@@ -25,12 +25,12 @@ use crate::{
     uefi_helpers::{booted_image_cmdline, booted_image_file, read_all},
 };
 
-fn print_logo(output: &mut Output) {
-    output.clear().unwrap();
+/// Print the startup logo on boot.
+fn print_logo(output: &mut Output) -> Result<()> {
+    output.clear()?;
 
-    output
-        .output_string(cstr16!(
-            "
+    output.output_string(cstr16!(
+        "
   _                      _                 _\r
  | |                    | |               | |\r
  | | __ _ _ __  ______ _| |__   ___   ___ | |_ ___\r
@@ -39,8 +39,7 @@ fn print_logo(output: &mut Output) {
  |_|\\__,_|_| |_/___\\__,_|_.__/ \\___/ \\___/ \\__\\___|\r
 \r
 "
-        ))
-        .unwrap();
+    ))
 }
 
 /// The configuration that is embedded at build time.
@@ -59,7 +58,7 @@ struct EmbeddedConfiguration {
 }
 
 impl EmbeddedConfiguration {
-    fn new(file: &mut RegularFile) -> Result<Self, Error> {
+    fn new(file: &mut RegularFile) -> Result<Self> {
         file.set_position(0)?;
         let file_data = read_all(file)?;
 
@@ -79,7 +78,7 @@ impl EmbeddedConfiguration {
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
 
-    print_logo(system_table.stdout());
+    print_logo(system_table.stdout()).unwrap();
 
     let config: EmbeddedConfiguration =
         EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
