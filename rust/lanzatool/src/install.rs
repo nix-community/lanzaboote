@@ -11,7 +11,7 @@ use crate::signer::Signer;
 pub fn install(
     public_key: &Path,
     private_key: &Path,
-    _pki_bundle: &Path,
+    _pki_bundle: Option<PathBuf>,
     _auto_enroll: bool,
     bootspec: &Path,
     lanzaboote_stub: &Path,

@@ -24,7 +24,7 @@ pub enum Commands {
 
         // Secure Boot PKI Bundle for auto enrolling key
         #[clap(long)]
-        pki_bundle: PathBuf,
+        pki_bundle: Option<PathBuf>,
 
         // Enable auto enrolling your keys in UEFI
         // Be aware that this might irrevocably brick your device
@@ -53,7 +53,7 @@ impl Commands {
             } => install(
                 &public_key,
                 &private_key,
-                &pki_bundle,
+                pki_bundle,
                 auto_enroll,
                 &bootspec,
             ),
@@ -64,7 +64,7 @@ impl Commands {
 fn install(
     public_key: &Path,
     private_key: &Path,
-    pki_bundle: &Path,
+    pki_bundle: Option<PathBuf>,
     auto_enroll: bool,
     bootspec: &Path,
 ) -> Result<()> {
