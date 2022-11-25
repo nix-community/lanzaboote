@@ -30,9 +30,11 @@ impl Signer {
         let status = Command::new("sbsign").args(&args).status()?;
 
         if !status.success() {
-            return Err(
-                anyhow::anyhow!("Failed to sign with  sbsign with args `{:?}`", &args).into(),
-            );
+            return Err(anyhow::anyhow!(
+                "Failed to sign file using sbsign with args `{:?}`",
+                &args
+            )
+            .into());
         }
 
         Ok(())

@@ -29,7 +29,7 @@ pub fn install(
 
     let kernel_cmdline = assemble_kernel_cmdline(bootspec_doc.init, bootspec_doc.kernel_params);
 
-    let lanzaboote_image = pe::assemble_image(
+    let lanzaboote_image = pe::lanzaboote_image(
         lanzaboote_stub,
         &bootspec_doc.extension.os_release,
         &kernel_cmdline,
