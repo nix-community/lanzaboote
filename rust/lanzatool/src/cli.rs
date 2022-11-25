@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use crate::install;
@@ -68,8 +68,10 @@ fn install(
     auto_enroll: bool,
     bootspec: &Path,
 ) -> Result<()> {
-    let lanzaboote_stub = std::env::var("LANZABOOTE_STUB")?;
-    let initrd_stub = std::env::var("LANZABOOTE_INITRD_STUB")?;
+    let lanzaboote_stub =
+        std::env::var("LANZABOOTE_STUB").context("Failed to read LANZABOOTE_STUB env variable")?;
+    let initrd_stub = std::env::var("LANZABOOTE_INITRD_STUB")
+        .context("Failed to read LANZABOOTE_INITRD_STUB env variable")?;
 
     install::install(
         public_key,
