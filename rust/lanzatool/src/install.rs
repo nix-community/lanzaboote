@@ -76,6 +76,7 @@ pub fn install(
     ];
 
     for file in files_to_sign {
+        println!("Signing {}...", file.display());
         signer
             .sign_file(&file)
             .with_context(|| format!("Failed to sign file {}", &file.display()))?;

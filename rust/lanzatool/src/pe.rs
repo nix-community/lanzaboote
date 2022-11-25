@@ -8,6 +8,8 @@ use anyhow::{Context, Result};
 use goblin::pe::PE;
 use tempfile::NamedTempFile;
 
+use crate::utils;
+
 pub fn lanzaboote_image(
     lanzaboote_stub: &Path,
     os_release: &Path,
@@ -47,7 +49,7 @@ fn wrap_in_pe(stub: &Path, sections: Vec<Section>) -> Result<PathBuf> {
     let image = NamedTempFile::new().context("Failed to generate named temp file")?;
 
     let mut args: Vec<String> = sections.iter().flat_map(Section::to_objcopy).collect();
-    let extra_args = vec![path_to_string(stub), path_to_string(&image)];
+    let extra_args = vec![utils::path_to_string(stub), utils::path_to_string(&image)];
     args.extend(extra_args);
 
     let status = Command::new("objcopy")
@@ -77,7 +79,7 @@ impl Section {
     fn to_objcopy(&self) -> Vec<String> {
         vec![
             String::from("--add-section"),
-            format!("{}={}", self.name, path_to_string(&self.file_path)),
+            format!("{}={}", self.name, utils::path_to_string(&self.file_path)),
             String::from("--change-section-vma"),
             format!("{}={:#x}", self.name, self.offset),
         ]
@@ -135,18 +137,6 @@ fn image_base(pe: &PE) -> u64 {
         .expect("Failed to find optional header, you're fucked")
         .windows_fields
         .image_base
-}
-
-// All Linux file paths should be convertable to strings
-fn path_to_string(path: impl AsRef<Path>) -> String {
-    path.as_ref()
-        .to_owned()
-        .into_os_string()
-        .into_string()
-        .expect(&format!(
-            "Failed to convert path '{}' to a string",
-            path.as_ref().display()
-        ))
 }
 
 fn file_size(path: impl AsRef<Path>) -> Result<u64> {
