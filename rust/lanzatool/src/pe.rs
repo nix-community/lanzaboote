@@ -19,7 +19,7 @@ pub fn lanzaboote_image(
     esp: &Path,
 ) -> Result<PathBuf> {
     // objcopy copies files into the PE binary. That's why we have to write the contents
-    // of some bootspec properties to disks
+    // of some bootspec properties to disk
     let kernel_cmdline_file = write_to_tmp(kernel_cmdline.join(" "))?;
     let kernel_path_file = write_to_tmp(esp_relative_path_string(esp, kernel_path))?;
     let initrd_path_file = write_to_tmp(esp_relative_path_string(esp, initrd_path))?;

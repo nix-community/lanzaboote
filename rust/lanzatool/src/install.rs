@@ -1,4 +1,5 @@
 use std::fs;
+use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -107,5 +108,14 @@ fn copy(from: &Path, to: &Path) -> Result<()> {
     };
     fs::copy(from, to)
         .with_context(|| format!("Failed to copy from {} to {}", from.display(), to.display()))?;
+
+    // Set permission of all files copied to 0o755
+    let mut perms = fs::metadata(to)
+        .with_context(|| format!("File {} doesn't have metadata", to.display()))?
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(to, perms)
+        .with_context(|| format!("Failed to set permissions to: {}", to.display()))?;
+
     Ok(())
 }
