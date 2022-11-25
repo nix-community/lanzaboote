@@ -3,11 +3,12 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs-test.url = "github:RaitoBezarius/nixpkgs/experimental-secureboot";
     rust-overlay.url = "github:oxalica/rust-overlay";
     naersk.url = "github:nix-community/naersk";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, naersk }:
+  outputs = { self, nixpkgs, nixpkgs-test, rust-overlay, naersk }:
     let
       pkgs = import nixpkgs {
         system = "x86_64-linux";
@@ -89,8 +90,10 @@
         # tell lanzatool where to find our UEFI binaries.
         makeWrapper ${lanzatoolBin}/bin/lanzatool $out/bin/lanzatool \
           --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped ]} \
+          --set RUST_BACKTRACE full \
           --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
-          --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi
+          --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi \
+          --set SBSIGNTOOL "${pkgs.sbsigntool}/bin/sbsign"
       '';
 
       # A script that takes an initrd and turns it into a PE image.
@@ -127,6 +130,13 @@
         add-sections ${lanzaboote}/bin/lanzaboote.efi ${osrel} ${cmdline} $out/bin/lanzaboote.efi
       '';
     in {
+      overlays.default = final: prev: {
+        inherit lanzaboote;
+        lanzatool = lanzatoolBin;
+      };
+
+      nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
+
       packages.x86_64-linux = {
         inherit qemuUefi uefi-run initrd-stub lanzaboote lanzaboote-uki lanzatool wrapInitrd;
         default = lanzaboote-uki;
@@ -139,12 +149,54 @@
           lanzatool
           pkgs.openssl
           wrapInitrd
+          (pkgs.sbctl.override {
+            databasePath = "pki";
+          })
+          pkgs.sbsigntool
+          pkgs.efitools
+          pkgs.python39Packages.ovmfvartool
+          pkgs.qemu
         ];
 
         inputsFrom = [
           lanzatool
           lanzaboote
         ];
+      };
+
+      checks.x86_64-linux = {
+        lanzaboote-boot = 
+        let test = import ("${nixpkgs-test}/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+        in
+        test.makeTest
+        {
+          name = "stub-boot";
+          nodes.machine = { ... }: {
+            imports = [ self.nixosModules.lanzaboote ];
+            nixpkgs.overlays = [ self.overlays.default ];
+
+            virtualisation = {
+              useBootLoader = true;
+              useEFIBoot = true;
+              useSecureBoot = true;
+            };
+
+            boot.loader.efi = {
+              enable = true;
+              canTouchEfiVariables = true;
+            };
+            boot.lanzaboote = {
+              enable = true;
+              enrollKeys = true;
+              pkiBundle = ./pki;
+              package = lanzatool;
+            };
+          };
+          testScript = ''
+            machine.start()
+            print(machine.succeed("bootctl status"))
+          '';
+        };
       };
     };
 }
