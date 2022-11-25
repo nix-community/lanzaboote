@@ -1,7 +1,9 @@
-use anyhow::Result;
-
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+use anyhow::Result;
+
+use crate::utils;
 
 pub struct Signer {
     pub private_key: PathBuf,
@@ -19,12 +21,12 @@ impl Signer {
     pub fn sign_file(&self, filepath: &Path) -> Result<()> {
         let args = vec![
             String::from("--key"),
-            String::from(self.private_key.to_str().unwrap()),
+            utils::path_to_string(&self.private_key),
             String::from("--cert"),
-            String::from(self.public_key.to_str().unwrap()),
-            String::from(filepath.to_str().unwrap()),
+            utils::path_to_string(&self.public_key),
+            utils::path_to_string(filepath),
             String::from("--output"),
-            String::from(filepath.to_str().unwrap()),
+            utils::path_to_string(filepath),
         ];
 
         let status = Command::new("sbsign").args(&args).status()?;
