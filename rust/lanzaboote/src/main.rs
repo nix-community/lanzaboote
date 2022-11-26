@@ -84,35 +84,33 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
             .unwrap();
 
-    let mut file_system = system_table
-        .boot_services()
-        .get_image_file_system(handle)
-        .unwrap();
-    let mut root = file_system.open_volume().unwrap();
+    let mut kernel_file;
+    let initrd = {
+        let mut file_system = system_table
+            .boot_services()
+            .get_image_file_system(handle)
+            .unwrap();
+        let mut root = file_system.open_volume().unwrap();
 
-    let mut kernel_file = root
-        .open(
-            &config.kernel_filename,
-            FileMode::Read,
-            FileAttribute::empty(),
-        )
-        .unwrap()
-        .into_regular_file()
-        .unwrap();
+        kernel_file = root
+            .open(
+                &config.kernel_filename,
+                FileMode::Read,
+                FileAttribute::empty(),
+            )
+            .unwrap()
+            .into_regular_file()
+            .unwrap();
 
-    let initrd = root
-        .open(
+        root.open(
             &config.initrd_filename,
             FileMode::Read,
             FileAttribute::empty(),
         )
         .unwrap()
         .into_regular_file()
-        .unwrap();
-
-    // We need to manually drop those to be able to touch the system_table again.
-    drop(root);
-    drop(file_system);
+        .unwrap()
+    };
 
     let kernel_cmdline = booted_image_cmdline(system_table.boot_services()).unwrap();
 
