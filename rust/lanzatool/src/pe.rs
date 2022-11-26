@@ -19,7 +19,6 @@ pub fn lanzaboote_image(
     kernel_cmdline: &[String],
     kernel_path: &Path,
     initrd_path: &Path,
-    append_initrd_secrets_path: &Option<PathBuf>,
     esp: &Path,
 ) -> Result<PathBuf> {
     // objcopy copies files into the PE binary. That's why we have to write the contents
@@ -28,15 +27,11 @@ pub fn lanzaboote_image(
         "kernel-cmdline",
         kernel_cmdline.join(" "))?;
     let (kernel_path_file, _) = write_to_tmp(&target_dir, 
-        "kernel",
+        "kernel-esp-path",
         esp_relative_path_string(esp, kernel_path))?;
     let (initrd_path_file, _) = write_to_tmp(&target_dir, 
-        "initrd",
+        "initrd-esp-path",
         esp_relative_path_string(esp, initrd_path))?;
-
-    if let Some(initrd_secret_script) = append_initrd_secrets_path {
-        append_initrd_secrets(&initrd_secret_script, &initrd_path_file)?;
-    }
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
     let kernel_cmdline_offs = os_release_offs + file_size(&os_release)?;
@@ -51,20 +46,6 @@ pub fn lanzaboote_image(
     ];
 
     wrap_in_pe(&target_dir, "lanzaboote-stub.efi", &lanzaboote_stub, sections)
-}
-
-pub fn append_initrd_secrets(append_initrd_secrets_path: &Path, initrd_path: &PathBuf) -> Result<()> {
-    let status = Command::new(append_initrd_secrets_path)
-        .args(vec![
-            initrd_path
-        ])
-        .status()
-        .context("Failed to append initrd secrets")?;
-    if !status.success() {
-        return Err(anyhow::anyhow!("Failed to append initrd secrets with args `{:?}`", vec![append_initrd_secrets_path, initrd_path]).into());
-    }
-
-    Ok(())
 }
 
 pub fn wrap_initrd(target_dir: &TempDir, initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {

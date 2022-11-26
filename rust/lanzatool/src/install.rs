@@ -12,6 +12,8 @@ use crate::signer::Signer;
 
 use tempfile::tempdir;
 
+use std::process::Command;
+
 pub fn install(
     public_key: &Path,
     private_key: &Path,
@@ -48,15 +50,20 @@ pub fn install(
         &kernel_cmdline,
         &esp_paths.kernel,
         &esp_paths.initrd,
-        &bootspec_doc.initrd_secrets,
         &esp_paths.esp,
     )
     .context("Failed to assemble stub")?;
 
     println!("Wrapping initrd into a PE binary...");
 
+    let initrd_location = secure_temp_dir.path().join("initrd");
+    copy(&bootspec_doc.initrd, &initrd_location)?;
+    if let Some(initrd_secrets_script) = bootspec_doc.initrd_secrets {
+        append_initrd_secrets(&initrd_secrets_script,
+            &initrd_location)?;
+    }
     let wrapped_initrd =
-        pe::wrap_initrd(&secure_temp_dir, initrd_stub, &bootspec_doc.initrd).context("Failed to assemble stub")?;
+        pe::wrap_initrd(&secure_temp_dir, initrd_stub, &initrd_location).context("Failed to assemble stub")?;
 
     println!("Copy files to EFI system partition...");
 
@@ -104,6 +111,20 @@ pub fn install(
         "Successfully installed lanzaboote to '{}'",
         esp_paths.esp.display()
     );
+
+    Ok(())
+}
+
+pub fn append_initrd_secrets(append_initrd_secrets_path: &Path, initrd_path: &PathBuf) -> Result<()> {
+    let status = Command::new(append_initrd_secrets_path)
+        .args(vec![
+            initrd_path
+        ])
+        .status()
+        .context("Failed to append initrd secrets")?;
+    if !status.success() {
+        return Err(anyhow::anyhow!("Failed to append initrd secrets with args `{:?}`", vec![append_initrd_secrets_path, initrd_path]).into());
+    }
 
     Ok(())
 }
