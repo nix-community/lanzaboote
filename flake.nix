@@ -160,6 +160,14 @@
         };
       in
         {
+          # TODO Will be enabled by nikstur.
+          #
+          # lanzatool-unwrapped-clippy = craneLib.cargoClippy {
+          #   src = lanzatool-unwrapped-src;
+          #   cargoArtifacts = lanzatool-unwrapped-deps;
+          #   cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+          # };
+
           # TODO: user mode: OK
           # TODO: how to get in: {deployed, audited} mode ?
           lanzaboote-boot = mkSecureBootTest {
