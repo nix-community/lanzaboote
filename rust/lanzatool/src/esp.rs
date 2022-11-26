@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
 use crate::bootspec::Bootspec;
+use crate::generation::Generation;
 
 pub struct EspPaths {
     pub esp: PathBuf,
@@ -17,7 +18,7 @@ pub struct EspPaths {
 }
 
 impl EspPaths {
-    pub fn new(esp: &str, generation: u64, bootspec: &Bootspec) -> Result<Self> {
+    pub fn new(esp: &str, generation: Generation, bootspec: &Bootspec) -> Result<Self> {
         let esp = Path::new(esp);
         let esp_nixos = esp.join("EFI/nixos");
         let esp_linux = esp.join("EFI/Linux");
@@ -59,6 +60,6 @@ fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(nixos_filename))
 }
 
-fn generation_path(generation: u64) -> PathBuf {
+fn generation_path(generation: Generation) -> PathBuf {
     PathBuf::from(format!("nixos-generation-{}.efi", generation))
 }

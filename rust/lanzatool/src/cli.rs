@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -8,33 +8,36 @@ use crate::install;
 #[derive(Parser)]
 pub struct Cli {
     #[clap(subcommand)]
-    pub commands: Commands,
+    commands: Commands,
 }
 
 #[derive(Subcommand)]
-pub enum Commands {
-    Install {
-        // Secure Boot Public Key
-        #[clap(long)]
-        public_key: PathBuf,
+enum Commands {
+    Install(InstallCommand),
+}
 
-        // Secure Boot Private Key
-        #[clap(long)]
-        private_key: PathBuf,
+#[derive(Parser)]
+struct InstallCommand {
+    // Secure Boot Public Key
+    #[arg(long)]
+    public_key: PathBuf,
 
-        // Secure Boot PKI Bundle for auto enrolling key
-        #[clap(long)]
-        pki_bundle: Option<PathBuf>,
+    // Secure Boot Private Key
+    #[arg(long)]
+    private_key: PathBuf,
 
-        // Enable auto enrolling your keys in UEFI
-        // Be aware that this might irrevocably brick your device
-        #[clap(long, default_value = "false")]
-        auto_enroll: bool,
+    // Secure Boot PKI Bundle for auto enrolling key
+    #[arg(long)]
+    pki_bundle: Option<PathBuf>,
 
-        bootspec: PathBuf,
+    // Enable auto enrolling your keys in UEFI
+    // Be aware that this might irrevocably brick your device
+    #[arg(long, default_value = "false")]
+    auto_enroll: bool,
 
-        generations: Vec<PathBuf>,
-    },
+    bootspec: PathBuf,
+
+    generations: Vec<PathBuf>,
 }
 
 impl Cli {
@@ -46,46 +49,26 @@ impl Cli {
 impl Commands {
     pub fn call(self) -> Result<()> {
         match self {
-            Commands::Install {
-                public_key,
-                private_key,
-                pki_bundle,
-                auto_enroll,
-                bootspec,
-                generations,
-            } => install(
-                &public_key,
-                &private_key,
-                &pki_bundle,
-                auto_enroll,
-                &bootspec,
-                generations,
-            ),
+            Commands::Install(args) => install(args),
         }
     }
 }
 
-fn install(
-    public_key: &Path,
-    private_key: &Path,
-    pki_bundle: &Option<PathBuf>,
-    auto_enroll: bool,
-    bootspec: &Path,
-    generations: Vec<PathBuf>,
-) -> Result<()> {
+fn install(args: InstallCommand) -> Result<()> {
     let lanzaboote_stub =
         std::env::var("LANZABOOTE_STUB").context("Failed to read LANZABOOTE_STUB env variable")?;
     let initrd_stub = std::env::var("LANZABOOTE_INITRD_STUB")
         .context("Failed to read LANZABOOTE_INITRD_STUB env variable")?;
 
-    install::install(
-        public_key,
-        private_key,
-        pki_bundle,
-        auto_enroll,
-        bootspec,
-        generations,
-        Path::new(&lanzaboote_stub),
-        Path::new(&initrd_stub),
+    install::Installer::new(
+        PathBuf::from(lanzaboote_stub),
+        PathBuf::from(initrd_stub),
+        args.public_key,
+        args.private_key,
+        args.pki_bundle,
+        args.auto_enroll,
+        args.bootspec,
+        args.generations,
     )
+    .install()
 }
