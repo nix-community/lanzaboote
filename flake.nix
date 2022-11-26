@@ -89,23 +89,6 @@
           --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi \
       '';
 
-      # A script that takes an initrd and turns it into a PE image.
-      wrapInitrd = pkgs.writeShellScriptBin "wrap-initrd" ''
-        set -eu
-
-        STUB=${initrd-stub}/bin/initrd-stub.efi
-        INITRD=$1
-        OUT=$2
-
-        stub_line=$(objdump -h "$STUB" | tail -2 | head -1)
-        stub_size=0x$(echo "$stub_line" | awk '{print $3}')
-        stub_offs=0x$(echo "$stub_line" | awk '{print $4}')
-        initrd_offs=$((stub_size + stub_offs))
-
-        objcopy --add-section .initrd="$INITRD" --change-section-vma .initrd=$(printf 0x%x $initrd_offs) \
-          "$STUB" "$OUT"
-      '';
-
       osrel = pkgs.writeText "lanzaboote-osrel" ''
         NAME=Lanzaboote
         VERSION="${lanzaboote.version}"
@@ -130,7 +113,7 @@
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
 
       packages.x86_64-linux = {
-        inherit uefi-run initrd-stub lanzaboote lanzaboote-uki lanzatool wrapInitrd;
+        inherit uefi-run initrd-stub lanzaboote lanzaboote-uki lanzatool;
         default = lanzaboote-uki;
       };
 
@@ -139,7 +122,6 @@
           uefi-run
           lanzatool
           pkgs.openssl
-          wrapInitrd
           (pkgs.sbctl.override {
             databasePath = "pki";
           })
