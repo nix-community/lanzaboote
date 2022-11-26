@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-use crate::bootspec::Bootspec;
 use crate::generation::Generation;
 
 pub struct EspPaths {
@@ -18,20 +17,22 @@ pub struct EspPaths {
 }
 
 impl EspPaths {
-    pub fn new(esp: &str, generation: Generation, bootspec: &Bootspec) -> Result<Self> {
-        let esp = Path::new(esp);
+    pub fn new(esp: impl AsRef<Path>, generation: &Generation) -> Result<Self> {
+        let esp = esp.as_ref();
         let esp_nixos = esp.join("EFI/nixos");
         let esp_linux = esp.join("EFI/Linux");
         let esp_systemd = esp.join("EFI/systemd");
         let esp_efi_fallback_dir = esp.join("EFI/BOOT");
 
+        let bootspec = &generation.bootspec;
+
         Ok(Self {
-            esp: esp.to_owned(),
+            esp: esp.to_path_buf(),
             nixos: esp_nixos.clone(),
             kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
             initrd: esp_nixos.join(nixos_path(&bootspec.initrd, "initrd")?),
             linux: esp_linux.clone(),
-            lanzaboote_image: esp_linux.join(generation_path(generation)),
+            lanzaboote_image: esp_linux.join(generation_path(&generation)),
             efi_fallback_dir: esp_efi_fallback_dir.clone(),
             efi_fallback: esp_efi_fallback_dir.join("BOOTX64.EFI"),
             systemd: esp_systemd.clone(),
@@ -60,6 +61,6 @@ fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(nixos_filename))
 }
 
-fn generation_path(generation: Generation) -> PathBuf {
+fn generation_path(generation: &Generation) -> PathBuf {
     PathBuf::from(format!("nixos-generation-{}.efi", generation))
 }

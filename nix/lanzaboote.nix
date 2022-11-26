@@ -38,16 +38,20 @@ in
     boot.loader.supportsInitrdSecrets = mkForce true;
     boot.loader.external = {
       enable = true;
-      passBootspec = true;
-      installHook = "${pkgs.writeShellScriptBin "bootinstall" ''
-          ${optionalString cfg.enrollKeys ''
-            mkdir -p /tmp/pki
-            cp -r ${cfg.pkiBundle}/* /tmp/pki
-            ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
-          ''}
-        ${cfg.package}/bin/lanzatool install --pki-bundle ${cfg.pkiBundle} --public-key ${cfg.publicKeyFile} --private-key ${cfg.privateKeyFile} "$@" /nix/var/nix/profiles/system-*-link
-      ''}/bin/bootinstall";
-      # ${cfg.package}/bin/lanzatool install ${optionalString cfg.enrollKeys "--auto-enroll"} --pki-bundle ${cfg.pkiBundle}
+      installHook = pkgs.writeShellScript "bootinstall" ''
+        ${optionalString cfg.enrollKeys ''
+          mkdir -p /tmp/pki
+          cp -r ${cfg.pkiBundle}/* /tmp/pki
+          ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
+        ''}
+  
+        ${cfg.package}/bin/lanzatool install \
+          --pki-bundle ${cfg.pkiBundle} \
+          --public-key ${cfg.publicKeyFile} \
+          --private-key ${cfg.privateKeyFile} \
+          ${config.boot.loader.efi.efiSysMountPoint} \
+          /nix/var/nix/profiles/system-*-link
+      '';
     };
   };
 }
