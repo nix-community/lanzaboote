@@ -19,25 +19,26 @@ enum Commands {
 
 #[derive(Parser)]
 struct InstallCommand {
-    // Secure Boot Public Key
+    /// sbsign Public Key
     #[arg(long)]
     public_key: PathBuf,
 
-    // Secure Boot Private Key
+    /// sbsign Private Key
     #[arg(long)]
     private_key: PathBuf,
 
-    // Secure Boot PKI Bundle for auto enrolling key
+    /// sbctl PKI bundle for auto enrolling key
     #[arg(long)]
     pki_bundle: Option<PathBuf>,
 
-    // Enable auto enrolling your keys in UEFI
-    // Be aware that this might irrevocably brick your device
+    /// Auto enroll your keys. This might brick your device
     #[arg(long, default_value = "false")]
     auto_enroll: bool,
 
+    /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
+    /// List of generations (e.g. /nix/var/nix/profiles/system-*-link)
     generations: Vec<PathBuf>,
 }
 
