@@ -15,9 +15,6 @@
   "label": "LanzaOS",
   "toplevel": "/run/current-system",
   "extension": {
-    "esp": "esp",
-    "systemd": "/run/current-system/systemd",
-    "bootctl": "/run/current-system/sw/bin/bootctl",
     "osRelease": "/etc/os-release"
   }
 }
