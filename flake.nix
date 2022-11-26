@@ -3,12 +3,18 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nixpkgs-test.url = "github:RaitoBezarius/nixpkgs/experimental-secureboot";
     rust-overlay.url = "github:oxalica/rust-overlay";
     naersk.url = "github:nix-community/naersk";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-test, rust-overlay, naersk }:
+  outputs = { self, nixpkgs, crane, nixpkgs-test, rust-overlay, naersk }:
     let
       pkgs = import nixpkgs {
         system = "x86_64-linux";
@@ -20,6 +26,7 @@
       lib = pkgs.lib;
 
       rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
+      craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
 
       naersk-nightly = pkgs.callPackage naersk {
         cargo = rust-nightly;
@@ -47,9 +54,12 @@
 
       lanzaboote = buildRustEfiApp ./rust/lanzaboote;
 
-      lanzatool-unwrapped = naersk-nightly.buildPackage {
-        src = ./rust/lanzatool;
-        buildInputs = [ pkgs.binutils ];
+      lanzatool-unwrapped-src = craneLib.cleanCargoSource ./rust/lanzatool;
+      lanzatool-unwrapped-deps = craneLib.buildDepsOnly { src = lanzatool-unwrapped-src; };
+
+      lanzatool-unwrapped = craneLib.buildPackage {
+        src = lanzatool-unwrapped-src;
+        cargoArtifacts = lanzatool-unwrapped-deps;
       };
 
       lanzatool = pkgs.runCommand "lanzatool" {
