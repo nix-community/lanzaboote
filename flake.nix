@@ -26,12 +26,6 @@
         rustc = rust-nightly;
       };
 
-      qemuUefi = pkgs.writeShellScriptBin "qemu-uefi" ''
-            exec ${pkgs.qemu}/bin/qemu-system-x86_64 \
-              -machine q35,accel=kvm:tcg -bios ${pkgs.OVMF.fd}/FV/OVMF.fd \
-              -m 4096 -serial stdio "$@"
-          '';
-
       uefi-run = pkgs.callPackage ./nix/uefi-run.nix {
         naersk = naersk-nightly;
       };
@@ -136,13 +130,12 @@
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
 
       packages.x86_64-linux = {
-        inherit qemuUefi uefi-run initrd-stub lanzaboote lanzaboote-uki lanzatool wrapInitrd;
+        inherit uefi-run initrd-stub lanzaboote lanzaboote-uki lanzatool wrapInitrd;
         default = lanzaboote-uki;
       };
 
       devShells.x86_64-linux.default = pkgs.mkShell {
         packages = [
-          qemuUefi
           uefi-run
           lanzatool
           pkgs.openssl
