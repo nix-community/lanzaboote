@@ -35,7 +35,7 @@ struct InstallCommand {
     #[arg(long, default_value = "false")]
     auto_enroll: bool,
 
-    bootspec: PathBuf,
+    esp: PathBuf,
 
     generations: Vec<PathBuf>,
 }
@@ -67,7 +67,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.private_key,
         args.pki_bundle,
         args.auto_enroll,
-        args.bootspec,
+        args.esp,
         args.generations,
     )
     .install()

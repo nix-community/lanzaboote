@@ -25,8 +25,5 @@ pub struct Bootspec {
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Extension {
-    pub esp: String,
-    pub bootctl: PathBuf,
     pub os_release: PathBuf,
-    pub systemd: PathBuf,
 }
