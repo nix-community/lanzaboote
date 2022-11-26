@@ -1,35 +1,46 @@
-# Lanzaboote
+# Lanzaboote: Secure Boot for NixOS
 
+[![Chat on Matrix](https://matrix.to/img/matrix-badge.svg)](https://matrix.to/#/#nixos-secure-boot:ukvly.org)
 ![GitHub branch checks state](https://img.shields.io/github/checks-status/blitz/lanzaboote/master)
 [![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
-[![GitHub license](https://img.shields.io/github/license/blitz/lanzaboot.svg)](https://github.com/blitz/lanzaboote/blob/master/LICENSE)
+![GitHub](https://img.shields.io/github/license/blitz/lanzaboote)
 
-🚧🚧🚧 **This is not working yet. Come back later.** 🚧🚧🚧
+🚧🚧🚧 **This is not ready for non-developer usage.** 🚧🚧🚧
 
 This repository contains experimental tooling for Secure Boot on
 [NixOS](https://nixos.org/).
 
-Remaining high-level things to do:
+## 🪛 To Do 🪛
 
+There is a bunch of work to do. Please coordinate in the [Matrix
+room](https://matrix.to/#/#nixos-secure-boot:ukvly.org), if you want
+to take something up:
+
+- Overview documentation about the approach
 - Document a experimental setup for developers on how to use this repository
-- Coordinate with bootspec RFC stakeholders to communicate a experience report on the bootspec usage ;
-- Upstream as much as possible things: Rust unstable things on a stable compiler (?), etc. ;
-- Unit testing for `lanzatool` ;
-- Investigating how this can fit into systemd-boot theory about sysexts for initrds while keeping NixOS semantics ;
-- Threat modelling explanations: "bring your own PKI", "share your PKI with MSFT CA", "bring rhboot shim with MOK", etc. ;
-- Ensuring 99 % of the paths are "happy paths" : protecting user against bricking their machines, identifying sources of risk, communicating intent and detecting risks ;
-- Experimenting with `fwupd`
+- Coordinate with bootspec RFC stakeholders to communicate a experience report on the bootspec usage
+- Upstream nixpkgs work
+  - Lanzatool
+  - Lanzaboote (needs unstable Rust!)
+  - NixOS boot loader installation etc.
+- Unit testing for Lanzatool
+- Investigating how this can fit into systemd-boot theory about sysexts for initrds while keeping NixOS semantics
+- Threat modelling explanations: "bring your own PKI", "share your PKI with MSFT CA", "bring rhboot shim with MOK", etc.
+- Ensuring 99 % of the paths are "happy paths" : protecting user against bricking their machines, identifying sources of risk, communicating intent and detecting risks
+- Experimenting with `fwupd` / Green Checkmark in GNOME Device Security
+  - https://github.com/fwupd/fwupd/issues/5284
 - Experimenting with TPM2 measurements
 - Studying the initrd secrets feature in NixOS wrt SecureBoot & TPM2
+- ...
 
 ## High-Level Boot Flow
 
 ```mermaid
 flowchart LR
-    systemd[systemd-boot]
+	systemd[systemd-boot]
 	lanzaboote[lanzaboote]
 	kernel[Linux Kernel]
-	
+
 	systemd --> lanzaboote
 	lanzaboote --> kernel
 ```
