@@ -70,7 +70,7 @@
 
       lanzaboote = buildRustEfiApp ./rust/lanzaboote;
 
-      lanzatoolBin = naersk-nightly.buildPackage {
+      lanzatool-unwrapped = naersk-nightly.buildPackage {
         src = ./rust/lanzatool;
         buildInputs = [ pkgs.binutils ];
       };
@@ -82,7 +82,7 @@
 
         # Clean PATH to only contain what we need to do objcopy. Also
         # tell lanzatool where to find our UEFI binaries.
-        makeWrapper ${lanzatoolBin}/bin/lanzatool $out/bin/lanzatool \
+        makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
           --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
           --set RUST_BACKTRACE full \
           --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
