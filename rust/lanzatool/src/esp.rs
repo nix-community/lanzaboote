@@ -32,7 +32,7 @@ impl EspPaths {
             kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
             initrd: esp_nixos.join(nixos_path(&bootspec.initrd, "initrd")?),
             linux: esp_linux.clone(),
-            lanzaboote_image: esp_linux.join(generation_path(&generation)),
+            lanzaboote_image: esp_linux.join(generation_path(generation)),
             efi_fallback_dir: esp_efi_fallback_dir.clone(),
             efi_fallback: esp_efi_fallback_dir.join("BOOTX64.EFI"),
             systemd: esp_systemd.clone(),
@@ -42,12 +42,17 @@ impl EspPaths {
 }
 
 fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
-    let resolved = path.as_ref().read_link().unwrap_or(path.as_ref().into());
+    let resolved = path
+        .as_ref()
+        .read_link()
+        .unwrap_or_else(|_| path.as_ref().into());
 
-    let parent = resolved.parent().ok_or(anyhow::anyhow!(format!(
-        "Path: {} does not have a parent",
-        resolved.display()
-    )))?;
+    let parent = resolved.parent().ok_or_else(|| {
+        anyhow::anyhow!(format!(
+            "Path: {} does not have a parent",
+            resolved.display()
+        ))
+    })?;
 
     let without_store = parent.strip_prefix("/nix/store").with_context(|| {
         format!(

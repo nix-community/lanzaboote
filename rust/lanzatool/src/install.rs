@@ -10,13 +10,12 @@ use tempfile::tempdir;
 use crate::esp::EspPaths;
 use crate::generation::Generation;
 use crate::pe;
-use crate::signer::Signer;
+use crate::signature::KeyPair;
 
 pub struct Installer {
     lanzaboote_stub: PathBuf,
     initrd_stub: PathBuf,
-    public_key: PathBuf,
-    private_key: PathBuf,
+    key_pair: KeyPair,
     _pki_bundle: Option<PathBuf>,
     _auto_enroll: bool,
     esp: PathBuf,
@@ -27,8 +26,7 @@ impl Installer {
     pub fn new(
         lanzaboote_stub: PathBuf,
         initrd_stub: PathBuf,
-        public_key: PathBuf,
-        private_key: PathBuf,
+        key_pair: KeyPair,
         _pki_bundle: Option<PathBuf>,
         _auto_enroll: bool,
         esp: PathBuf,
@@ -37,8 +35,7 @@ impl Installer {
         Self {
             lanzaboote_stub,
             initrd_stub,
-            public_key,
-            private_key,
+            key_pair,
             _pki_bundle,
             _auto_enroll,
             esp,
@@ -96,14 +93,12 @@ impl Installer {
         let initrd_location = secure_temp_dir.path().join("initrd");
         copy(&bootspec.initrd, &initrd_location)?;
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
-            append_initrd_secrets(&initrd_secrets_script, &initrd_location)?;
+            append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
         let wrapped_initrd = pe::wrap_initrd(&secure_temp_dir, &self.initrd_stub, &initrd_location)
             .context("Failed to assemble stub")?;
 
         println!("Sign and copy files to EFI system partition...");
-
-        let signer = Signer::new(&self.public_key, &self.private_key);
 
         let systemd_boot = bootspec
             .toplevel
@@ -121,7 +116,7 @@ impl Installer {
             println!("Signing {}...", to.display());
 
             ensure_parent_dir(to);
-            signer.sign_and_copy(&from, &to).with_context(|| {
+            self.key_pair.sign_and_copy(from, to).with_context(|| {
                 format!("Failed to copy and sign file from {:?} to {:?}", from, to)
             })?;
             // Call sync to improve the likelihood that file is actually written to disk
@@ -149,8 +144,7 @@ pub fn append_initrd_secrets(
         return Err(anyhow::anyhow!(
             "Failed to append initrd secrets with args `{:?}`",
             vec![append_initrd_secrets_path, initrd_path]
-        )
-        .into());
+        ));
     }
 
     Ok(())

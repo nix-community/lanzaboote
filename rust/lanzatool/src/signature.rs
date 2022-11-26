@@ -5,12 +5,12 @@ use anyhow::Result;
 
 use crate::utils;
 
-pub struct Signer {
+pub struct KeyPair {
     pub private_key: PathBuf,
     pub public_key: PathBuf,
 }
 
-impl Signer {
+impl KeyPair {
     pub fn new(public_key: &Path, private_key: &Path) -> Self {
         Self {
             public_key: public_key.into(),
@@ -36,8 +36,7 @@ impl Signer {
             return Err(anyhow::anyhow!(
                 "Failed to sign file using sbsign with args `{:?}`",
                 &args
-            )
-            .into());
+            ));
         }
 
         Ok(())

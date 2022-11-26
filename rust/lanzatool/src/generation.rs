@@ -16,7 +16,7 @@ impl Generation {
     pub fn from_toplevel(toplevel: impl AsRef<Path>) -> Result<Self> {
         let bootspec_path = toplevel.as_ref().join("bootspec/boot.v1.json");
         let bootspec: Bootspec = serde_json::from_slice(
-            &fs::read(&bootspec_path).context("Failed to read bootspec file")?,
+            &fs::read(bootspec_path).context("Failed to read bootspec file")?,
         )
         .context("Failed to parse bootspec json")?;
 
@@ -34,18 +34,19 @@ impl fmt::Display for Generation {
 }
 
 fn parse_version(toplevel: impl AsRef<Path>) -> Result<u64> {
-    let file_name = toplevel.as_ref().file_name().ok_or(anyhow::anyhow!(
-        "Failed to extract file name from generation"
-    ))?;
+    let file_name = toplevel
+        .as_ref()
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("Failed to extract file name from generation"))?;
 
     let file_name_str = file_name
         .to_str()
         .with_context(|| "Failed to convert file name of generation to string")?;
 
     let generation_version = file_name_str
-        .split("-")
+        .split('-')
         .nth(1)
-        .ok_or(anyhow::anyhow!("Failed to extract version from generation"))?;
+        .ok_or_else(|| anyhow::anyhow!("Failed to extract version from generation"))?;
 
     let parsed_generation_version = generation_version
         .parse()

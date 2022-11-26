@@ -4,7 +4,7 @@ mod esp;
 mod generation;
 mod install;
 mod pe;
-mod signer;
+mod signature;
 mod utils;
 
 use anyhow::Result;
