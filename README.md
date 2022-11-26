@@ -19,6 +19,7 @@ to take something up:
 - Overview documentation about the approach
 - Document a experimental setup for developers on how to use this repository
 - Coordinate with bootspec RFC stakeholders to communicate a experience report on the bootspec usage
+- Cleaning up flakes.nix for AArch64
 - Upstream nixpkgs work
   - Lanzatool
   - Lanzaboote (needs unstable Rust!)
