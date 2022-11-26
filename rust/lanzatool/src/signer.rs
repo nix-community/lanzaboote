@@ -29,9 +29,10 @@ impl Signer {
             utils::path_to_string(to),
         ];
 
-        let status = Command::new("sbsign").args(&args).status()?;
+        let output = Command::new("sbsign").args(&args).output()?;
 
-        if !status.success() {
+        if !output.status.success() {
+            print!("{:?}", output.stderr);
             return Err(anyhow::anyhow!(
                 "Failed to sign file using sbsign with args `{:?}`",
                 &args
