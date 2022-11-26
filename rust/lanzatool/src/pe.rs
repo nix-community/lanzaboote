@@ -1,28 +1,42 @@
 use std::fs;
 use std::io::Write;
+use std::os::unix::prelude::OpenOptionsExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use goblin::pe::PE;
-use tempfile::NamedTempFile;
 
 use crate::utils;
 
+use tempfile::TempDir;
+
 pub fn lanzaboote_image(
+    target_dir: &TempDir,
     lanzaboote_stub: &Path,
     os_release: &Path,
     kernel_cmdline: &[String],
     kernel_path: &Path,
     initrd_path: &Path,
+    append_initrd_secrets_path: &Option<PathBuf>,
     esp: &Path,
 ) -> Result<PathBuf> {
     // objcopy copies files into the PE binary. That's why we have to write the contents
     // of some bootspec properties to disk
-    let kernel_cmdline_file = write_to_tmp(kernel_cmdline.join(" "))?;
-    let kernel_path_file = write_to_tmp(esp_relative_path_string(esp, kernel_path))?;
-    let initrd_path_file = write_to_tmp(esp_relative_path_string(esp, initrd_path))?;
+    let (kernel_cmdline_file, _) = write_to_tmp(&target_dir,
+        "kernel-cmdline",
+        kernel_cmdline.join(" "))?;
+    let (kernel_path_file, _) = write_to_tmp(&target_dir, 
+        "kernel",
+        esp_relative_path_string(esp, kernel_path))?;
+    let (initrd_path_file, _) = write_to_tmp(&target_dir, 
+        "initrd",
+        esp_relative_path_string(esp, initrd_path))?;
+
+    if let Some(initrd_secret_script) = append_initrd_secrets_path {
+        append_initrd_secrets(&initrd_secret_script, &initrd_path_file)?;
+    }
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
     let kernel_cmdline_offs = os_release_offs + file_size(&os_release)?;
@@ -36,20 +50,40 @@ pub fn lanzaboote_image(
         s(".kernelp", kernel_path_file, kernel_path_offs),
     ];
 
-    wrap_in_pe(&lanzaboote_stub, sections)
+    wrap_in_pe(&target_dir, "lanzaboote-stub.efi", &lanzaboote_stub, sections)
 }
 
-pub fn wrap_initrd(initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
+pub fn append_initrd_secrets(append_initrd_secrets_path: &Path, initrd_path: &PathBuf) -> Result<()> {
+    let status = Command::new(append_initrd_secrets_path)
+        .args(vec![
+            initrd_path
+        ])
+        .status()
+        .context("Failed to append initrd secrets")?;
+    if !status.success() {
+        return Err(anyhow::anyhow!("Failed to append initrd secrets with args `{:?}`", vec![append_initrd_secrets_path, initrd_path]).into());
+    }
+
+    Ok(())
+}
+
+pub fn wrap_initrd(target_dir: &TempDir, initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
     let initrd_offs = stub_offset(initrd_stub)?;
     let sections = vec![s(".initrd", initrd, initrd_offs)];
-    wrap_in_pe(initrd_stub, sections)
+    wrap_in_pe(target_dir, "wrapped-initrd.exe", initrd_stub, sections)
 }
 
-fn wrap_in_pe(stub: &Path, sections: Vec<Section>) -> Result<PathBuf> {
-    let image = NamedTempFile::new().context("Failed to generate named temp file")?;
+fn wrap_in_pe(target_dir: &TempDir, filename: &str, stub: &Path, sections: Vec<Section>) -> Result<PathBuf> {
+    let image_path = target_dir.path().join(filename);
+    let _ = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .mode(0o600)
+        .open(&image_path)
+        .context("Failed to generate named temp file")?;
 
     let mut args: Vec<String> = sections.iter().flat_map(Section::to_objcopy).collect();
-    let extra_args = vec![utils::path_to_string(stub), utils::path_to_string(&image)];
+    let extra_args = vec![utils::path_to_string(stub), utils::path_to_string(&image_path)];
     args.extend(extra_args);
 
     let status = Command::new("objcopy")
@@ -60,13 +94,7 @@ fn wrap_in_pe(stub: &Path, sections: Vec<Section>) -> Result<PathBuf> {
         return Err(anyhow::anyhow!("Failed to wrap in pe with args `{:?}`", &args).into());
     }
 
-    let (_, persistent_image) = image.keep().with_context(|| {
-        format!(
-            "Failed to persist image with stub: {} from temporary file",
-            stub.display()
-        )
-    })?;
-    Ok(persistent_image)
+    Ok(image_path)
 }
 
 struct Section {
@@ -94,12 +122,17 @@ fn s(name: &'static str, file_path: impl AsRef<Path>, offset: u64) -> Section {
     }
 }
 
-fn write_to_tmp(contents: impl AsRef<[u8]>) -> Result<PathBuf> {
-    let mut tmpfile = NamedTempFile::new().context("Failed to create tempfile")?;
+fn write_to_tmp(secure_temp: &TempDir, filename: &str, contents: impl AsRef<[u8]>) -> Result<(PathBuf, fs::File)> {
+    let mut tmpfile = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .mode(0o600)
+        .open(secure_temp.path().join(filename))
+        .context("Failed to create tempfile")?;
     tmpfile
         .write_all(contents.as_ref())
         .context("Failed to write to tempfile")?;
-    Ok(tmpfile.keep()?.1)
+    Ok((secure_temp.path().join(filename), tmpfile))
 }
 
 fn esp_relative_path_string(esp: &Path, path: &Path) -> String {
