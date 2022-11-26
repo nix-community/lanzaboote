@@ -82,15 +82,17 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     let config: EmbeddedConfiguration =
         EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
-            .unwrap();
+            .expect("Failed to extract configuration from binary. Did you run lanzatool?");
 
     let mut kernel_file;
     let initrd = {
         let mut file_system = system_table
             .boot_services()
             .get_image_file_system(handle)
-            .unwrap();
-        let mut root = file_system.open_volume().unwrap();
+            .expect("Failed to get file system handle");
+        let mut root = file_system
+            .open_volume()
+            .expect("Failed to find ESP root directory");
 
         kernel_file = root
             .open(
@@ -98,38 +100,43 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                 FileMode::Read,
                 FileAttribute::empty(),
             )
-            .unwrap()
+            .expect("Failed to open kernel file for reading")
             .into_regular_file()
-            .unwrap();
+            .expect("Kernel is not a regular file");
 
         root.open(
             &config.initrd_filename,
             FileMode::Read,
             FileAttribute::empty(),
         )
-        .unwrap()
+        .expect("Failed to open initrd for reading")
         .into_regular_file()
-        .unwrap()
+        .expect("Initrd is not a regular file")
     };
 
-    let kernel_cmdline = booted_image_cmdline(system_table.boot_services()).unwrap();
+    let kernel_cmdline =
+        booted_image_cmdline(system_table.boot_services()).expect("Failed to fetch command line");
 
-    let kernel_data = read_all(&mut kernel_file).unwrap();
-    let kernel_handle = system_table
-        .boot_services()
-        .load_image(
-            handle,
-            uefi::table::boot::LoadImageSource::FromBuffer {
-                buffer: &kernel_data,
-                file_path: None,
-            },
-        )
-        .unwrap();
+    let kernel_handle = {
+        let kernel_data =
+            read_all(&mut kernel_file).expect("Failed to read kernel file into memory");
+
+        system_table
+            .boot_services()
+            .load_image(
+                handle,
+                uefi::table::boot::LoadImageSource::FromBuffer {
+                    buffer: &kernel_data,
+                    file_path: None,
+                },
+            )
+            .expect("UEFI refused to load the kernel image. It may not be signed or it may not have an EFI stub.")
+    };
 
     let mut kernel_image = system_table
         .boot_services()
         .open_protocol_exclusive::<LoadedImage>(kernel_handle)
-        .unwrap();
+        .expect("Failed to open the LoadedImage protocol");
 
     unsafe {
         kernel_image.set_load_options(
@@ -138,8 +145,8 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         );
     }
 
-    let mut initrd_loader =
-        InitrdLoader::new(system_table.boot_services(), handle, initrd).unwrap();
+    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd)
+        .expect("Failed to load the initrd. It may not be there or it is not signed");
     let status = system_table
         .boot_services()
         .start_image(kernel_handle)
@@ -147,6 +154,6 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     initrd_loader
         .uninstall(system_table.boot_services())
-        .unwrap();
+        .expect("Failed to uninstall the initrd protocols");
     status
 }
