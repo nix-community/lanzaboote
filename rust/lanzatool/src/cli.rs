@@ -32,6 +32,8 @@ pub enum Commands {
         auto_enroll: bool,
 
         bootspec: PathBuf,
+
+        generations: Vec<PathBuf>,
     },
 }
 
@@ -50,12 +52,14 @@ impl Commands {
                 pki_bundle,
                 auto_enroll,
                 bootspec,
+                generations,
             } => install(
                 &public_key,
                 &private_key,
-                pki_bundle,
+                &pki_bundle,
                 auto_enroll,
                 &bootspec,
+                generations,
             ),
         }
     }
@@ -64,9 +68,10 @@ impl Commands {
 fn install(
     public_key: &Path,
     private_key: &Path,
-    pki_bundle: Option<PathBuf>,
+    pki_bundle: &Option<PathBuf>,
     auto_enroll: bool,
     bootspec: &Path,
+    generations: Vec<PathBuf>,
 ) -> Result<()> {
     let lanzaboote_stub =
         std::env::var("LANZABOOTE_STUB").context("Failed to read LANZABOOTE_STUB env variable")?;
@@ -79,6 +84,7 @@ fn install(
         pki_bundle,
         auto_enroll,
         bootspec,
+        generations,
         Path::new(&lanzaboote_stub),
         Path::new(&initrd_stub),
     )
