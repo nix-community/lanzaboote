@@ -1,6 +1,7 @@
 mod bootspec;
 mod cli;
 mod esp;
+mod generation;
 mod install;
 mod pe;
 mod signer;
