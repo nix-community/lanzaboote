@@ -104,45 +104,31 @@ impl Installer {
         let wrapped_initrd = pe::wrap_initrd(&secure_temp_dir, &self.initrd_stub, &initrd_location)
             .context("Failed to assemble stub")?;
 
-        println!("Copy files to EFI system partition...");
+        println!("Sign and copy files to EFI system partition...");
+
+        let signer = Signer::new(&self.public_key, &self.private_key);
 
         let systemd_boot = bootspec_doc
             .extension
             .systemd
             .join("lib/systemd/boot/efi/systemd-bootx64.efi");
 
-        let files_to_copy = [
-            (bootspec_doc.kernel, &esp_paths.kernel),
-            (wrapped_initrd, &esp_paths.initrd),
-            (lanzaboote_image, &esp_paths.lanzaboote_image),
-            (systemd_boot.clone(), &esp_paths.efi_fallback),
-            (systemd_boot, &esp_paths.systemd_boot),
+        let files_to_copy_and_sign = [
+            (&systemd_boot, &esp_paths.efi_fallback),
+            (&systemd_boot, &esp_paths.systemd_boot),
+            (&lanzaboote_image, &esp_paths.lanzaboote_image),
+            (&bootspec_doc.kernel, &esp_paths.kernel),
+            (&wrapped_initrd, &esp_paths.initrd),
         ];
 
-        for (source, target) in files_to_copy {
-            copy(&source, &target)?;
-        }
+        for (from, to) in files_to_copy_and_sign {
+            println!("Signing {}...", to.display());
 
-        // TODO: we should implement sign_and_copy which would be secure
-        // by construction for TOCTOU.
-
-        println!("Signing files...");
-
-        let signer = Signer::new(&self.public_key, &self.private_key);
-
-        let files_to_sign = [
-            &esp_paths.efi_fallback,
-            &esp_paths.systemd_boot,
-            &esp_paths.lanzaboote_image,
-            &esp_paths.kernel,
-            &esp_paths.initrd,
-        ];
-
-        for file in files_to_sign {
-            println!("Signing {}...", file.display());
-            signer
-                .sign_file(&file)
-                .with_context(|| format!("Failed to sign file {}", &file.display()))?;
+            ensure_parent_dir(to);
+            signer.sign_and_copy(&from, &to).with_context(|| {
+                format!("Failed to copy and sign file from {:?} to {:?}", from, to)
+            })?;
+            // Call sync to improve the likelihood that file is actually written to disk
             sync();
         }
 
@@ -185,10 +171,7 @@ fn assemble_kernel_cmdline(init: PathBuf, kernel_params: Vec<String>) -> Vec<Str
 }
 
 fn copy(from: &Path, to: &Path) -> Result<()> {
-    match to.parent() {
-        Some(parent) => fs::create_dir_all(parent).unwrap_or(()),
-        _ => (),
-    };
+    ensure_parent_dir(to);
     fs::copy(from, to)
         .with_context(|| format!("Failed to copy from {} to {}", from.display(), to.display()))?;
 
@@ -201,4 +184,11 @@ fn copy(from: &Path, to: &Path) -> Result<()> {
         .with_context(|| format!("Failed to set permissions to: {}", to.display()))?;
 
     Ok(())
+}
+
+// Ensures the parent directory of an arbitrary path exists
+fn ensure_parent_dir(path: &Path) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
 }
