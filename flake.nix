@@ -207,10 +207,17 @@
           };
           testScript = ''
             machine.start()
-            machine.succeed("ls /boot/EFI/nixos")
-            machine.succeed("bootctl set-default $variant-id")
-            machine.reboot()
-            print(machine.succeed("efibootmgr"))
+            print(machine.succeed("ls -lah /boot/EFI/Linux"))
+            print(machine.succeed("cat /run/current-system/bootspec/boot.v1.json"))
+            # TODO: make it more reliable to find this filename, i.e. read it from somewhere?
+            machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant.efi")
+            machine.succeed("sync")
+            machine.fail("efibootmgr")
+            machine.crash()
+            machine.start()
+            print(machine.succeed("bootctl"))
+            # We have efibootmgr in this specialisation.
+            machine.succeed("efibootmgr")
           '';
         };
       };

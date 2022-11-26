@@ -34,16 +34,42 @@ pub fn install(
 
         println!("Installing generation {generation_version}");
 
+        println!("Reading main bootspec...");
+        let top_bootspec_doc: Bootspec =
+            serde_json::from_slice(&fs::read(bootspec).context("Failed to read main bootspec file")?)
+                .context("Failed to parse main bootspec json")?;
+
+        let specialisations = top_bootspec_doc.specialisation.clone();
+
         install_generation(
             generation_version,
             public_key,
             private_key,
             pki_bundle,
             auto_enroll,
-            bootspec,
+            top_bootspec_doc,
             lanzaboote_stub,
             initrd_stub,
+            None
         )?;
+
+        println!("Installing specialisations (generation {generation_version})...");
+        specialisations.into_iter().for_each(move |(variant_name, spec_bootspec_doc)| {
+            println!("\tInstalling specialisation {variant_name}");
+
+            // TODO: chain the results.
+            install_generation(
+                generation_version,
+                public_key,
+                private_key,
+                pki_bundle,
+                auto_enroll,
+                spec_bootspec_doc,
+                lanzaboote_stub,
+                initrd_stub,
+                Some(variant_name)
+            ).unwrap()
+        });
     }
 
     Ok(())
@@ -73,17 +99,12 @@ fn install_generation(
     private_key: &Path,
     _pki_bundle: &Option<PathBuf>,
     _auto_enroll: bool,
-    bootspec: &Path,
+    bootspec_doc: Bootspec,
     lanzaboote_stub: &Path,
     initrd_stub: &Path,
+    specialisation_name: Option<String>
 ) -> Result<()> {
-    println!("Reading bootspec...");
-
-    let bootspec_doc: Bootspec =
-        serde_json::from_slice(&fs::read(bootspec).context("Failed to read bootspec file")?)
-            .context("Failed to parse bootspec json")?;
-
-    let esp_paths = EspPaths::new(&bootspec_doc.extension.esp, generation, &bootspec_doc)?;
+    let esp_paths = EspPaths::new(&bootspec_doc.extension.esp, generation, &bootspec_doc, specialisation_name)?;
 
     println!("Assembling lanzaboote image...");
 

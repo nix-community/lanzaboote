@@ -17,7 +17,7 @@ pub struct EspPaths {
 }
 
 impl EspPaths {
-    pub fn new(esp: &str, generation: u64, bootspec: &Bootspec) -> Result<Self> {
+    pub fn new(esp: &str, generation: u64, bootspec: &Bootspec, spec_name: Option<String>) -> Result<Self> {
         let esp = Path::new(esp);
         let esp_nixos = esp.join("EFI/nixos");
         let esp_linux = esp.join("EFI/Linux");
@@ -30,7 +30,7 @@ impl EspPaths {
             kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
             initrd: esp_nixos.join(nixos_path(&bootspec.initrd, "initrd")?),
             linux: esp_linux.clone(),
-            lanzaboote_image: esp_linux.join(generation_path(generation)),
+            lanzaboote_image: esp_linux.join(generation_path(generation, spec_name)),
             efi_fallback_dir: esp_efi_fallback_dir.clone(),
             efi_fallback: esp_efi_fallback_dir.join("BOOTX64.EFI"),
             systemd: esp_systemd.clone(),
@@ -59,6 +59,10 @@ fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(nixos_filename))
 }
 
-fn generation_path(generation: u64) -> PathBuf {
-    PathBuf::from(format!("nixos-generation-{}.efi", generation))
+fn generation_path(generation: u64, spec_name: Option<String>) -> PathBuf {
+    if let Some(sname) = spec_name {
+        PathBuf::from(format!("nixos-generation-{}-specialisation-{}.efi", generation, sname))
+    } else {
+        PathBuf::from(format!("nixos-generation-{}.efi", generation))
+    }
 }
