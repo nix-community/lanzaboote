@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use nix::unistd::sync;
 use tempfile::tempdir;
 
-use crate::bootspec::Bootspec;
 use crate::esp::EspPaths;
 use crate::generation::Generation;
 use crate::pe;
@@ -20,7 +19,7 @@ pub struct Installer {
     private_key: PathBuf,
     _pki_bundle: Option<PathBuf>,
     _auto_enroll: bool,
-    bootspec: PathBuf,
+    esp: PathBuf,
     generations: Vec<PathBuf>,
 }
 
@@ -32,7 +31,7 @@ impl Installer {
         private_key: PathBuf,
         _pki_bundle: Option<PathBuf>,
         _auto_enroll: bool,
-        bootspec: PathBuf,
+        esp: PathBuf,
         generations: Vec<PathBuf>,
     ) -> Self {
         Self {
@@ -42,7 +41,7 @@ impl Installer {
             private_key,
             _pki_bundle,
             _auto_enroll,
-            bootspec,
+            esp,
             generations,
         }
     }
@@ -50,7 +49,7 @@ impl Installer {
     pub fn install(&self) -> Result<()> {
         for toplevel in &self.generations {
             let generation = Generation::from_toplevel(toplevel).with_context(|| {
-                format!("Failed to extract generation version from: {toplevel:?}")
+                format!("Failed to build generation from toplevel: {toplevel:?}")
             })?;
 
             println!("Installing generation {generation}");
@@ -64,16 +63,14 @@ impl Installer {
     pub fn install_generation(&self, generation: Generation) -> Result<()> {
         println!("Reading bootspec...");
 
-        let bootspec_doc: Bootspec = serde_json::from_slice(
-            &fs::read(&self.bootspec).context("Failed to read bootspec file")?,
-        )
-        .context("Failed to parse bootspec json")?;
+        let bootspec = &generation.bootspec;
 
-        let esp_paths = EspPaths::new(&bootspec_doc.extension.esp, generation, &bootspec_doc)?;
+        let esp_paths = EspPaths::new(&self.esp, &generation)?;
 
         println!("Assembling lanzaboote image...");
 
-        let kernel_cmdline = assemble_kernel_cmdline(bootspec_doc.init, bootspec_doc.kernel_params);
+        let kernel_cmdline =
+            assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
 
         // prepare a secure temporary directory
         // permission bits are not set, because when files below
@@ -86,7 +83,7 @@ impl Installer {
         let lanzaboote_image = pe::lanzaboote_image(
             &secure_temp_dir,
             &self.lanzaboote_stub,
-            &bootspec_doc.extension.os_release,
+            &bootspec.extension.os_release,
             &kernel_cmdline,
             &esp_paths.kernel,
             &esp_paths.initrd,
@@ -97,8 +94,8 @@ impl Installer {
         println!("Wrapping initrd into a PE binary...");
 
         let initrd_location = secure_temp_dir.path().join("initrd");
-        copy(&bootspec_doc.initrd, &initrd_location)?;
-        if let Some(initrd_secrets_script) = bootspec_doc.initrd_secrets {
+        copy(&bootspec.initrd, &initrd_location)?;
+        if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
             append_initrd_secrets(&initrd_secrets_script, &initrd_location)?;
         }
         let wrapped_initrd = pe::wrap_initrd(&secure_temp_dir, &self.initrd_stub, &initrd_location)
@@ -108,16 +105,15 @@ impl Installer {
 
         let signer = Signer::new(&self.public_key, &self.private_key);
 
-        let systemd_boot = bootspec_doc
-            .extension
-            .systemd
-            .join("lib/systemd/boot/efi/systemd-bootx64.efi");
+        let systemd_boot = bootspec
+            .toplevel
+            .join("systemd/lib/systemd/boot/efi/systemd-bootx64.efi");
 
         let files_to_copy_and_sign = [
             (&systemd_boot, &esp_paths.efi_fallback),
             (&systemd_boot, &esp_paths.systemd_boot),
             (&lanzaboote_image, &esp_paths.lanzaboote_image),
-            (&bootspec_doc.kernel, &esp_paths.kernel),
+            (&bootspec.kernel, &esp_paths.kernel),
             (&wrapped_initrd, &esp_paths.initrd),
         ];
 
@@ -160,11 +156,11 @@ pub fn append_initrd_secrets(
     Ok(())
 }
 
-fn assemble_kernel_cmdline(init: PathBuf, kernel_params: Vec<String>) -> Vec<String> {
-    let init_string = init
-        .into_os_string()
-        .into_string()
-        .expect("Failed to convert init path to string");
+fn assemble_kernel_cmdline(init: &Path, kernel_params: Vec<String>) -> Vec<String> {
+    let init_string = String::from(
+        init.to_str()
+            .expect("Failed to convert init path to string"),
+    );
     let mut kernel_cmdline: Vec<String> = vec![format!("init={}", init_string)];
     kernel_cmdline.extend(kernel_params);
     kernel_cmdline

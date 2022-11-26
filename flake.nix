@@ -140,8 +140,7 @@
             import json
             import os.path
             bootspec = None
-            def extract_bspec_attr(attr):
-                return bootspec.get(attr)
+
             def convert_to_esp(store_file_path):
                 store_dir = os.path.basename(os.path.dirname(store_file_path))
                 filename = os.path.basename(store_file_path)
@@ -192,8 +191,8 @@
               };
 
               boot.initrd.preDeviceCommands = ''
-              grep "this is a very secure secret" /etc/iamasecret
-            '';
+                grep "this is a very secure secret" /etc/iamasecret
+              '';
             };
             testScript = ''
             machine.start()
@@ -203,18 +202,17 @@
           is-initrd-secured = mkUnsignedTest {
             name = "unsigned-initrd-do-not-boot-under-secureboot";
             path = {
-              src = "extract_bspec_attr('initrd')";
-              dst = "convert_to_esp(extract_bspec_attr('initrd'))";
+              src = "bootspec.get('initrd')";
+              dst = "convert_to_esp(bootspec.get('initrd'))";
             };
           };
           is-kernel-secured = mkUnsignedTest {
             name = "unsigned-kernel-do-not-boot-under-secureboot";
             path = {
-              src = "extract_bspec_attr('kernel')";
-              dst = "convert_to_esp(extract_bspec_attr('kernel'))";
+              src = "bootspec.get('kernel')";
+              dst = "convert_to_esp(bootspec.get('kernel'))";
             };
           };
-
-        };
+      };
     };
 }
