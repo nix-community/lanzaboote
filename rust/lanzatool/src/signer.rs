@@ -18,20 +18,21 @@ impl Signer {
         }
     }
 
-    pub fn sign_file(&self, filepath: &Path) -> Result<()> {
+    pub fn sign_and_copy(&self, from: &Path, to: &Path) -> Result<()> {
         let args = vec![
             String::from("--key"),
             utils::path_to_string(&self.private_key),
             String::from("--cert"),
             utils::path_to_string(&self.public_key),
-            utils::path_to_string(filepath),
+            utils::path_to_string(from),
             String::from("--output"),
-            utils::path_to_string(filepath),
+            utils::path_to_string(to),
         ];
 
-        let status = Command::new("sbsign").args(&args).status()?;
+        let output = Command::new("sbsign").args(&args).output()?;
 
-        if !status.success() {
+        if !output.status.success() {
+            print!("{:?}", output.stderr);
             return Err(anyhow::anyhow!(
                 "Failed to sign file using sbsign with args `{:?}`",
                 &args
