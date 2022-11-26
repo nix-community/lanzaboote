@@ -10,6 +10,8 @@ use crate::esp::EspPaths;
 use crate::pe;
 use crate::signer::Signer;
 
+use tempfile::tempdir;
+
 pub fn install(
     public_key: &Path,
     private_key: &Path,
@@ -31,12 +33,22 @@ pub fn install(
 
     let kernel_cmdline = assemble_kernel_cmdline(bootspec_doc.init, bootspec_doc.kernel_params);
 
+    // prepare a secure temporary directory
+    // permission bits are not set, because when files below
+    // are opened, they are opened with 600 mode bits.
+    // hence, they cannot be read except by the current user
+    // which is assumed to be root in most cases.
+    // TODO(Raito): prove to niksnur this is actually acceptable.
+    let secure_temp_dir = tempdir()?;
+
     let lanzaboote_image = pe::lanzaboote_image(
+        &secure_temp_dir,
         lanzaboote_stub,
         &bootspec_doc.extension.os_release,
         &kernel_cmdline,
         &esp_paths.kernel,
         &esp_paths.initrd,
+        &bootspec_doc.initrd_secrets,
         &esp_paths.esp,
     )
     .context("Failed to assemble stub")?;
@@ -44,7 +56,7 @@ pub fn install(
     println!("Wrapping initrd into a PE binary...");
 
     let wrapped_initrd =
-        pe::wrap_initrd(initrd_stub, &bootspec_doc.initrd).context("Failed to assemble stub")?;
+        pe::wrap_initrd(&secure_temp_dir, initrd_stub, &bootspec_doc.initrd).context("Failed to assemble stub")?;
 
     println!("Copy files to EFI system partition...");
 
@@ -64,6 +76,9 @@ pub fn install(
     for (source, target) in files_to_copy {
         copy(&source, &target)?;
     }
+
+    // TODO: we should implement sign_and_copy which would be secure
+    // by construction for TOCTOU.
 
     println!("Signing files...");
 
