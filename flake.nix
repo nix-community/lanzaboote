@@ -139,7 +139,6 @@
 
             machine.start()
             bootspec = json.loads(machine.succeed("cat /run/current-system/bootspec/boot.v1.json"))
-            print(machine.succeed("ls /boot/EFI/nixos"))
             src_path = ${path.src}
             dst_path = ${path.dst}
             machine.succeed(f"cp -rf {src_path} {dst_path}")
@@ -187,14 +186,14 @@
           name = "unsigned-initrd-do-not-boot-under-secureboot";
           path = {
             src = "extract_bspec_attr('initrd')";
-            dst = "\"/boot/EFI/nixos/initrd\"";
+            dst = "convert_to_esp(extract_bspec_attr('initrd'))";
           };
         };
         is-kernel-secured = mkUnsignedTest {
           name = "unsigned-kernel-do-not-boot-under-secureboot";
           path = {
             src = "extract_bspec_attr('kernel')";
-            dst = "\"/boot/EFI/nixos/kernel\"";
+            dst = "convert_to_esp(extract_bspec_attr('kernel'))";
           };
         };
 

@@ -45,7 +45,7 @@ in
             cp -r ${cfg.pkiBundle}/* /tmp/pki
             ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
           ''}
-        ${cfg.package}/bin/lanzatool install --pki-bundle ${cfg.pkiBundle} --public-key ${cfg.publicKeyFile} --private-key ${cfg.privateKeyFile} "$@"
+        ${cfg.package}/bin/lanzatool install --pki-bundle ${cfg.pkiBundle} --public-key ${cfg.publicKeyFile} --private-key ${cfg.privateKeyFile} "$@" /nix/var/nix/profiles/system-*-link
       ''}/bin/bootinstall";
       # ${cfg.package}/bin/lanzatool install ${optionalString cfg.enrollKeys "--auto-enroll"} --pki-bundle ${cfg.pkiBundle}
     };
