@@ -30,29 +30,6 @@
         naersk = naersk-nightly;
       };
 
-      systemd-boot-run = pkgs.writeShellScriptBin "systemd-boot-run" ''
-       ${uefi-run}/bin/uefi-run lib/systemd/boot/efi/systemd-bootx64.efi
-      '';
-
-      add-sections = pkgs.writeShellScriptBin "add-sections" ''
-        set -eu
-        IN=$1
-        OSREL=$2
-        CMDLINE=$3
-        OUT=$4
-
-        stub_line=$(objdump -h "$1" | tail -2 | head -1)
-        stub_size=0x$(echo "$stub_line" | awk '{print $3}')
-        stub_offs=0x$(echo "$stub_line" | awk '{print $4}')
-        osrel_offs=$((stub_size + stub_offs))
-        cmdline_offs=$((osrel_offs + $(stat -c%s "$OSREL")))
-        objcopy \
-          --add-section .osrel="$OSREL" --change-section-vma .osrel=$(printf 0x%x $osrel_offs) \
-          --add-section .cmdline="$CMDLINE" \
-          --change-section-vma .cmdline=$(printf 0x%x $cmdline_offs) \
-           "$IN" "$OUT"
-      '';
-
       buildRustEfiApp = src: naersk-nightly.buildPackage {
         inherit src;
         cargoBuildOptions = old: old ++ [
@@ -88,23 +65,6 @@
           --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
           --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi \
       '';
-
-      osrel = pkgs.writeText "lanzaboote-osrel" ''
-        NAME=Lanzaboote
-        VERSION="${lanzaboote.version}"
-      '';
-
-      cmdline = pkgs.writeText "lanzaboote-cmdline" "console=ttyS0";
-
-      lanzaboote-uki = pkgs.runCommand "lanzboote-uki" {
-        nativeBuildInputs = [
-          pkgs.binutils-unwrapped
-          add-sections
-        ];
-      } ''
-        mkdir -p $out/bin
-        add-sections ${lanzaboote}/bin/lanzaboote.efi ${osrel} ${cmdline} $out/bin/lanzaboote.efi
-      '';
     in {
       overlays.default = final: prev: {
         inherit lanzatool;
@@ -113,8 +73,8 @@
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
 
       packages.x86_64-linux = {
-        inherit uefi-run initrd-stub lanzaboote lanzaboote-uki lanzatool;
-        default = lanzaboote-uki;
+        inherit initrd-stub lanzaboote lanzatool;
+        default = lanzatool;
       };
 
       devShells.x86_64-linux.default = pkgs.mkShell {
