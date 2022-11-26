@@ -226,6 +226,29 @@
             assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
           '';
         };
+        # So, this is the responsibility of the lanzatool install
+        # to run the append-initrd-secret script
+        # This test assert that lanzatool still do the right thing
+        # preDeviceCommands should not have any root filesystem mounted
+        # so it should not be able to find /etc/iamasecret, other than the
+        # initrd's one.
+        # which should exist IF lanzatool do the right thing.
+        lanzaboote-with-initrd-secrets = mkSecureBootTest {
+          name = "signed-files-boot-with-secrets-under-secureboot";
+          machine = { ... }: {
+            boot.initrd.secrets = {
+              "/etc/iamasecret" = (pkgs.writeText "iamsecret" "this is a very secure secret");
+            };
+
+            boot.initrd.preDeviceCommands = ''
+              grep "this is a very secure secret" /etc/iamasecret
+            '';
+          };
+          testScript = ''
+            machine.start()
+            assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+          '';
+        };
         is-initrd-secured = mkUnsignedTest {
           name = "unsigned-initrd-do-not-boot-under-secureboot";
           path = {
