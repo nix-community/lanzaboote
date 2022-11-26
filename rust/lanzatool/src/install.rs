@@ -10,6 +10,10 @@ use crate::esp::EspPaths;
 use crate::pe;
 use crate::signer::Signer;
 
+use tempfile::tempdir;
+
+use std::process::Command;
+
 pub fn install(
     public_key: &Path,
     private_key: &Path,
@@ -31,7 +35,16 @@ pub fn install(
 
     let kernel_cmdline = assemble_kernel_cmdline(bootspec_doc.init, bootspec_doc.kernel_params);
 
+    // prepare a secure temporary directory
+    // permission bits are not set, because when files below
+    // are opened, they are opened with 600 mode bits.
+    // hence, they cannot be read except by the current user
+    // which is assumed to be root in most cases.
+    // TODO(Raito): prove to niksnur this is actually acceptable.
+    let secure_temp_dir = tempdir()?;
+
     let lanzaboote_image = pe::lanzaboote_image(
+        &secure_temp_dir,
         lanzaboote_stub,
         &bootspec_doc.extension.os_release,
         &kernel_cmdline,
@@ -43,8 +56,14 @@ pub fn install(
 
     println!("Wrapping initrd into a PE binary...");
 
+    let initrd_location = secure_temp_dir.path().join("initrd");
+    copy(&bootspec_doc.initrd, &initrd_location)?;
+    if let Some(initrd_secrets_script) = bootspec_doc.initrd_secrets {
+        append_initrd_secrets(&initrd_secrets_script,
+            &initrd_location)?;
+    }
     let wrapped_initrd =
-        pe::wrap_initrd(initrd_stub, &bootspec_doc.initrd).context("Failed to assemble stub")?;
+        pe::wrap_initrd(&secure_temp_dir, initrd_stub, &initrd_location).context("Failed to assemble stub")?;
 
     println!("Copy files to EFI system partition...");
 
@@ -64,6 +83,9 @@ pub fn install(
     for (source, target) in files_to_copy {
         copy(&source, &target)?;
     }
+
+    // TODO: we should implement sign_and_copy which would be secure
+    // by construction for TOCTOU.
 
     println!("Signing files...");
 
@@ -89,6 +111,20 @@ pub fn install(
         "Successfully installed lanzaboote to '{}'",
         esp_paths.esp.display()
     );
+
+    Ok(())
+}
+
+pub fn append_initrd_secrets(append_initrd_secrets_path: &Path, initrd_path: &PathBuf) -> Result<()> {
+    let status = Command::new(append_initrd_secrets_path)
+        .args(vec![
+            initrd_path
+        ])
+        .status()
+        .context("Failed to append initrd secrets")?;
+    if !status.success() {
+        return Err(anyhow::anyhow!("Failed to append initrd secrets with args `{:?}`", vec![append_initrd_secrets_path, initrd_path]).into());
+    }
 
     Ok(())
 }

@@ -33,6 +33,9 @@ in
   };
 
   config = mkIf cfg.enable {
+    # bootspec is putting at false
+    # until we fix this upstream, we will mkForce it.
+    boot.loader.supportsInitrdSecrets = mkForce true;
     boot.loader.external = {
       enable = true;
       passBootspec = true;
