@@ -27,7 +27,7 @@ impl EspPaths {
         Ok(Self {
             esp: esp.to_owned(),
             nixos: esp_nixos.clone(),
-            kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "kernel")?),
+            kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
             initrd: esp_nixos.join(nixos_path(&bootspec.initrd, "initrd")?),
             linux: esp_linux.clone(),
             lanzaboote_image: esp_linux.join(generation_path(generation)),
