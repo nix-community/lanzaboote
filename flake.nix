@@ -198,11 +198,19 @@
         };
         specialisation-works = mkSecureBootTest {
           name = "specialisation-still-boot-under-secureboot";
-          machine = {
-            specialisation.variant = {
+          machine = { pkgs, ... }: {
+            specialisation.variant.configuration = {
+              environment.systemPackages = [
+                pkgs.efibootmgr
+              ];
             };
           };
           testScript = ''
+            machine.start()
+            machine.succeed("ls /boot/EFI/nixos")
+            machine.succeed("bootctl set-default $variant-id")
+            machine.reboot()
+            print(machine.succeed("efibootmgr"))
           '';
         };
       };
