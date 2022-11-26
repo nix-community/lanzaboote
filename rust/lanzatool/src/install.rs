@@ -17,7 +17,61 @@ use std::process::Command;
 pub fn install(
     public_key: &Path,
     private_key: &Path,
-    _pki_bundle: Option<PathBuf>,
+    pki_bundle: &Option<PathBuf>,
+    auto_enroll: bool,
+    bootspec: &Path,
+    generations: Vec<PathBuf>,
+    lanzaboote_stub: &Path,
+    initrd_stub: &Path,
+) -> Result<()> {
+    for generation in generations {
+        let generation_version = extract_generation_version(&generation).with_context(|| {
+            format!(
+                "Failed to extract generation version from generation: {}",
+                generation.display()
+            )
+        })?;
+
+        println!("Installing generation {generation_version}");
+
+        install_generation(
+            generation_version,
+            public_key,
+            private_key,
+            pki_bundle,
+            auto_enroll,
+            bootspec,
+            lanzaboote_stub,
+            initrd_stub,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn extract_generation_version(path: impl AsRef<Path>) -> Result<u64> {
+    let file_name = path.as_ref().file_name().ok_or(anyhow::anyhow!(
+        "Failed to extract file name from generation"
+    ))?;
+    let file_name_str = file_name
+        .to_str()
+        .with_context(|| "Failed to convert file name of generation to string")?;
+
+    let generation_version = file_name_str
+        .split("-")
+        .nth(1)
+        .ok_or(anyhow::anyhow!("Failed to extract version from generation"))?;
+
+    Ok(generation_version
+        .parse()
+        .with_context(|| format!("Failed to parse generation version: {}", generation_version))?)
+}
+
+fn install_generation(
+    generation: u64,
+    public_key: &Path,
+    private_key: &Path,
+    _pki_bundle: &Option<PathBuf>,
     _auto_enroll: bool,
     bootspec: &Path,
     lanzaboote_stub: &Path,
@@ -29,7 +83,7 @@ pub fn install(
         serde_json::from_slice(&fs::read(bootspec).context("Failed to read bootspec file")?)
             .context("Failed to parse bootspec json")?;
 
-    let esp_paths = EspPaths::new(&bootspec_doc.extension.esp);
+    let esp_paths = EspPaths::new(&bootspec_doc.extension.esp, generation, &bootspec_doc)?;
 
     println!("Assembling lanzaboote image...");
 
