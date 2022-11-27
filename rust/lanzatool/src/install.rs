@@ -51,18 +51,28 @@ impl Installer {
 
             println!("Installing generation {generation}");
 
-            self.install_generation(generation)?
+            self.install_generation(&generation)
+                .context("Failed to install generation")?;
+
+            for (name, bootspec) in &generation.bootspec.specialisation {
+                let specialised_generation = generation.specialise(name, bootspec);
+
+                println!("Installing specialisation: {name} of generation: {generation}");
+
+                self.install_generation(&specialised_generation)
+                    .context("Failed to install specialisation")?;
+            }
         }
 
         Ok(())
     }
 
-    pub fn install_generation(&self, generation: Generation) -> Result<()> {
+    fn install_generation(&self, generation: &Generation) -> Result<()> {
         println!("Reading bootspec...");
 
         let bootspec = &generation.bootspec;
 
-        let esp_paths = EspPaths::new(&self.esp, &generation)?;
+        let esp_paths = EspPaths::new(&self.esp, generation)?;
 
         println!("Assembling lanzaboote image...");
 

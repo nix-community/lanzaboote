@@ -211,6 +211,30 @@
               dst = "convert_to_esp(bootspec.get('kernel'))";
             };
           };
-      };
+          specialisation-works = mkSecureBootTest {
+            name = "specialisation-still-boot-under-secureboot";
+            machine = { pkgs, ... }: {
+              specialisation.variant.configuration = {
+                environment.systemPackages = [
+                  pkgs.efibootmgr
+                ];
+              };
+            };
+            testScript = ''
+              machine.start()
+              print(machine.succeed("ls -lah /boot/EFI/Linux"))
+              print(machine.succeed("cat /run/current-system/bootspec/boot.v1.json"))
+              # TODO: make it more reliable to find this filename, i.e. read it from somewhere?
+              machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant.efi")
+              machine.succeed("sync")
+              machine.fail("efibootmgr")
+              machine.crash()
+              machine.start()
+              print(machine.succeed("bootctl"))
+              # We have efibootmgr in this specialisation.
+              machine.succeed("efibootmgr")
+            '';
+          };
+        };
     };
 }

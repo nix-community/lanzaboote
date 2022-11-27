@@ -9,6 +9,7 @@ use crate::bootspec::Bootspec;
 #[derive(Debug)]
 pub struct Generation {
     version: u64,
+    specialisation_name: Option<String>,
     pub bootspec: Bootspec,
 }
 
@@ -22,8 +23,21 @@ impl Generation {
 
         Ok(Self {
             version: parse_version(toplevel)?,
+            specialisation_name: None,
             bootspec,
         })
+    }
+
+    pub fn specialise(&self, name: &str, bootspec: &Bootspec) -> Self {
+        Self {
+            version: self.version,
+            specialisation_name: Some(String::from(name)),
+            bootspec: bootspec.clone(),
+        }
+    }
+
+    pub fn is_specialized(&self) -> Option<String> {
+        self.specialisation_name.clone()
     }
 }
 
