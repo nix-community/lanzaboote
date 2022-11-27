@@ -37,20 +37,23 @@
         naersk = naersk-nightly;
       };
 
-      buildRustEfiApp = src: naersk-nightly.buildPackage {
+      buildRustEfiAppNaersk = src: naersk-nightly.buildPackage {
         inherit src;
         cargoBuildOptions = old: old ++ [
-          "--target x86_64-unknown-uefi"
+          "--target x86_64-unknown-uefi "
         ];
       };
 
-      buildRustLinuxApp = src: naersk-nightly.buildPackage {
-        inherit src;
+      buildRustEfiApp = src: craneLib.buildPackage {
+        src = craneLib.cleanCargoSource src;
+        CARGO_BUILD_TARGET = "x86_64-unknown-uefi";
+        doCheck = false;
       };
 
       # This is basically an empty EFI application that we use as a
       # carrier for the initrd.
       initrd-stub = buildRustEfiApp ./rust/initrd-stub;
+      initrd-stub-naersk = buildRustEfiAppNaersk ./rust/initrd-stub;
 
       lanzaboote = buildRustEfiApp ./rust/lanzaboote;
 
@@ -83,7 +86,7 @@
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
 
       packages.x86_64-linux = {
-        inherit initrd-stub lanzaboote lanzatool;
+        inherit initrd-stub initrd-stub-naersk lanzaboote lanzatool lanzatool-unwrapped;
         default = lanzatool;
       };
 
