@@ -85,7 +85,9 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             .expect("Failed to extract configuration from binary. Did you run lanzatool?");
 
     let mut kernel_file;
-    let initrd = {
+    let initrd_file;
+
+    {
         let mut file_system = system_table
             .boot_services()
             .get_image_file_system(handle)
@@ -104,15 +106,16 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             .into_regular_file()
             .expect("Kernel is not a regular file");
 
-        root.open(
-            &config.initrd_filename,
-            FileMode::Read,
-            FileAttribute::empty(),
-        )
-        .expect("Failed to open initrd for reading")
-        .into_regular_file()
-        .expect("Initrd is not a regular file")
-    };
+        initrd_file = root
+            .open(
+                &config.initrd_filename,
+                FileMode::Read,
+                FileAttribute::empty(),
+            )
+            .expect("Failed to open initrd for reading")
+            .into_regular_file()
+            .expect("Initrd is not a regular file");
+    }
 
     let kernel_cmdline =
         booted_image_cmdline(system_table.boot_services()).expect("Failed to fetch command line");
@@ -145,7 +148,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         );
     }
 
-    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd)
+    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_file)
         .expect("Failed to load the initrd. It may not be there or it is not signed");
     let status = system_table
         .boot_services()
