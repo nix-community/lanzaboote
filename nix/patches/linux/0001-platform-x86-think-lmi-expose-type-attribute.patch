@@ -1,0 +1,62 @@
+From a0691689e401906a30d95781e7e6cb1b8ea4077e Mon Sep 17 00:00:00 2001
+From: Julian Stecklina <js@alien8.de>
+Date: Fri, 25 Nov 2022 13:27:27 +0100
+Subject: [PATCH] platform/x86: think-lmi: expose 'type' attribute
+
+think-lmi currently doesn't adhere to sysfs layout for
+firmware-attributes. It doesn't expose a 'type' file. As we already
+expose 'possible_values', we need to set the type to "enumeration".
+
+This fixes the following fwupd error message:
+
+   sudo fwupdtool security
+[sudo] password for julian:
+Loading                 [*************************              ]
+12:27:57:0662 FuBiosSettings       KERNEL BUG: 'type' attribute not exported: (failed to load type: Failed to open file /sys/class/firmware-attributes/thinklmi/attributes/SecureBoot/type: No such file or directory)
+Loading                 [-                                      ]
+
+Not enough data was provided to make an HSI calculation.
+  https://fwupd.github.io/hsi.html#not-enough-info
+To ignore this warning, use --force
+
+Signed-off-by: Julian Stecklina <julian.stecklina@cyberus-technology.de>
+---
+ drivers/platform/x86/think-lmi.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/platform/x86/think-lmi.c b/drivers/platform/x86/think-lmi.c
+index a01a92769c1a..eb6dc01a449e 100644
+--- a/drivers/platform/x86/think-lmi.c
++++ b/drivers/platform/x86/think-lmi.c
+@@ -917,6 +917,12 @@ static ssize_t display_name_show(struct kobject *kobj, struct kobj_attribute *at
+ 	return sysfs_emit(buf, "%s\n", setting->display_name);
+ }
+ 
++static ssize_t type_show(struct kobject *kobj, struct kobj_attribute *attr,
++		char *buf)
++{
++	return sysfs_emit(buf, "enumeration\n");
++}
++
+ static ssize_t current_value_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+ {
+ 	struct tlmi_attr_setting *setting = to_tlmi_attr_setting(kobj);
+@@ -1034,12 +1040,15 @@ static struct kobj_attribute attr_displ_name = __ATTR_RO(display_name);
+ 
+ static struct kobj_attribute attr_possible_values = __ATTR_RO(possible_values);
+ 
++static struct kobj_attribute attr_type = __ATTR_RO(type);
++
+ static struct kobj_attribute attr_current_val = __ATTR_RW_MODE(current_value, 0600);
+ 
+ static struct attribute *tlmi_attrs[] = {
+ 	&attr_displ_name.attr,
+ 	&attr_current_val.attr,
+ 	&attr_possible_values.attr,
++	&attr_type.attr,
+ 	NULL
+ };
+ 
+-- 
+2.38.1
+

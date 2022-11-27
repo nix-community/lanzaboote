@@ -134,7 +134,7 @@
             };
           };
         };
-        mkUnsignedTest = { name, path }: mkSecureBootTest {
+        mkUnsignedTest = { name, path, machine ? {} }: mkSecureBootTest {
           inherit name;
           testScript = ''
             import json
@@ -174,6 +174,20 @@
             assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
           '';
           };
+
+          lanzaboote-boot-lockdown = mkSecureBootTest {
+            name = "system-boots-with-lockdown-enabled";
+
+            machine = { ... }: {
+              boot.lanzaboote.lockdown = true;
+            };
+
+            testScript = ''
+              machine.start()
+              assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+            '';
+          };
+
           # So, this is the responsibility of the lanzatool install
           # to run the append-initrd-secret script
           # This test assert that lanzatool still do the right thing
