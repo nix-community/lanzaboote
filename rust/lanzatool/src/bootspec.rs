@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bootspec {
     /// Label for the system closure
@@ -19,10 +20,12 @@ pub struct Bootspec {
     pub initrd_secrets: Option<PathBuf>,
     /// config.system.build.toplevel path
     pub toplevel: PathBuf,
+    /// Mapping of specialisation names to their boot.json
+    pub specialisation: HashMap<String, Bootspec>,
     pub extension: Extension,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Extension {
     pub os_release: PathBuf,

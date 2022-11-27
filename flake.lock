@@ -103,11 +103,11 @@
     },
     "nixpkgs-test": {
       "locked": {
-        "lastModified": 1669288333,
-        "narHash": "sha256-PMP3JiUBIYu40gmWAIw+DG2UVsx7m5exGaGxdSQE3ew=",
+        "lastModified": 1669495095,
+        "narHash": "sha256-wasu8T7ac+LVm4aXuAYkH76Rr98VW0Cp9oZvNPuKiiU=",
         "owner": "RaitoBezarius",
         "repo": "nixpkgs",
-        "rev": "308e09c57da1df2abeccc236431a2675a2b38555",
+        "rev": "8bbe1bb1f7352dd9c2e448e8d68846a66d0c2aca",
         "type": "github"
       },
       "original": {
