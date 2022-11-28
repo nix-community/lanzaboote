@@ -54,21 +54,12 @@
         });
       };
 
-      # This is basically an empty EFI application that we use as a
-      # carrier for the initrd.
-      initrdStubCrane = buildRustApp {
-        src = ./rust/initrd-stub;
-        target = "x86_64-unknown-uefi";
-        doCheck = false;
-      };
-
       lanzabooteCrane = buildRustApp {
         src = ./rust/lanzaboote;
         target = "x86_64-unknown-uefi";
         doCheck = false;
       };
 
-      initrd-stub = initrdStubCrane.package;
       lanzaboote = lanzabooteCrane.package;
 
       lanzatoolCrane = buildRustApp {
@@ -87,8 +78,7 @@
         makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
           --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
           --set RUST_BACKTRACE full \
-          --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
-          --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi \
+          --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
       '';
     in {
       overlays.default = final: prev: {
@@ -98,7 +88,7 @@
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
 
       packages.x86_64-linux = {
-        inherit initrd-stub lanzaboote lanzatool;
+        inherit lanzaboote lanzatool;
         default = lanzatool;
       };
 
