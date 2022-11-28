@@ -14,7 +14,6 @@ use crate::signature::KeyPair;
 
 pub struct Installer {
     lanzaboote_stub: PathBuf,
-    initrd_stub: PathBuf,
     key_pair: KeyPair,
     _pki_bundle: Option<PathBuf>,
     _auto_enroll: bool,
@@ -25,7 +24,6 @@ pub struct Installer {
 impl Installer {
     pub fn new(
         lanzaboote_stub: PathBuf,
-        initrd_stub: PathBuf,
         key_pair: KeyPair,
         _pki_bundle: Option<PathBuf>,
         _auto_enroll: bool,
@@ -34,7 +32,6 @@ impl Installer {
     ) -> Self {
         Self {
             lanzaboote_stub,
-            initrd_stub,
             key_pair,
             _pki_bundle,
             _auto_enroll,
@@ -94,8 +91,6 @@ impl Installer {
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
-        let wrapped_initrd = pe::wrap_initrd(&secure_temp_dir, &self.initrd_stub, &initrd_location)
-            .context("Failed to assemble stub")?;
 
         println!("Sign and copy files to EFI system partition...");
 
@@ -107,10 +102,14 @@ impl Installer {
             (&systemd_boot, &esp_paths.efi_fallback),
             (&systemd_boot, &esp_paths.systemd_boot),
             (&bootspec.kernel, &esp_paths.kernel),
-            (&wrapped_initrd, &esp_paths.initrd),
         ]
         .into_iter()
         .try_for_each(|(from, to)| install_signed(&self.key_pair, from, to))?;
+
+        // The initrd doesn't need to be signed. Lanzaboote has its
+        // hash embedded and will refuse loading it when the has
+        // mismatches.
+        copy(&initrd_location, &esp_paths.initrd).context("Failed to copy initrd to ESP")?;
 
         let lanzaboote_image = pe::lanzaboote_image(
             &secure_temp_dir,

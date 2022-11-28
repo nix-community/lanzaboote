@@ -76,16 +76,6 @@ fn file_hash(file: &Path) -> Result<blake3::Hash> {
     Ok(blake3::hash(&fs::read(file)?))
 }
 
-/// Wrap an initrd into a PE binary.
-///
-/// This is required for lanzaboote to verify the signature of the
-/// initrd.
-pub fn wrap_initrd(target_dir: &TempDir, initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
-    let initrd_offs = stub_offset(initrd_stub)?;
-    let sections = vec![s(".initrd", initrd, initrd_offs)];
-    wrap_in_pe(target_dir, "wrapped-initrd.exe", initrd_stub, sections)
-}
-
 /// Take a PE binary stub and attach sections to it.
 ///
 /// The result is then written to a new file. Returns the filename of

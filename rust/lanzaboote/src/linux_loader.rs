@@ -5,7 +5,7 @@
 //! because we read the initrd multiple times. The code needs to be
 //! restructured to solve this.
 
-use core::{ffi::c_void, ops::Range, pin::Pin, ptr::slice_from_raw_parts_mut};
+use core::{ffi::c_void, pin::Pin, ptr::slice_from_raw_parts_mut};
 
 use alloc::{boxed::Box, vec::Vec};
 use uefi::{
@@ -14,7 +14,6 @@ use uefi::{
         device_path::{DevicePath, FfiDevicePath},
         Protocol,
     },
-    table::boot::LoadImageSource,
     unsafe_guid, Handle, Identify, Result, ResultExt, Status,
 };
 
@@ -115,70 +114,12 @@ pub struct InitrdLoader {
     registered: bool,
 }
 
-/// Returns the data range of the initrd in the PE binary.
-///
-/// The initrd has to be embedded in the file as a .initrd PE section.
-fn initrd_location(initrd_efi: &[u8]) -> Result<Range<usize>> {
-    let pe_binary = goblin::pe::PE::parse(initrd_efi).map_err(|_| Status::INVALID_PARAMETER)?;
-
-    pe_binary
-        .sections
-        .iter()
-        .find(|s| s.name().unwrap() == ".initrd")
-        .map(|s| {
-            let section_start: usize = s.pointer_to_raw_data.try_into().unwrap();
-            let section_size: usize = s.size_of_raw_data.try_into().unwrap();
-
-            Range {
-                start: section_start,
-                end: section_start + section_size,
-            }
-        })
-        .ok_or_else(|| Status::END_OF_FILE.into())
-}
-
-/// Check the signature of the initrd.
-///
-/// For this to work, the initrd needs to be a PE binary. We misuse
-/// [`BootServices::load_image`] for this.
-fn initrd_verify(boot_services: &BootServices, initrd_efi: &[u8]) -> Result<()> {
-    let initrd_handle = boot_services.load_image(
-        boot_services.image_handle(),
-        LoadImageSource::FromBuffer {
-            buffer: &initrd_efi,
-            file_path: None,
-        },
-    )?;
-
-    // If we get here, the security policy allowed loading the
-    // image. This means that it was signed with an acceptable key in
-    // the Secure Boot scenario.
-
-    boot_services.unload_image(initrd_handle)?;
-
-    Ok(())
-}
-
 impl InitrdLoader {
     /// Create a new [`InitrdLoader`].
     ///
     /// `handle` is the handle where the protocols are registered
     /// on. `file` is the file that is served to Linux.
-    pub fn new(
-        boot_services: &BootServices,
-        handle: Handle,
-        mut initrd_data: Vec<u8>,
-    ) -> Result<Self> {
-        initrd_verify(boot_services, &initrd_data)?;
-
-        let range = initrd_location(&initrd_data)?;
-
-        // Remove the PE wrapper from the initrd. We do this in place
-        // to avoid having to keep the initrd in memory twice.
-        initrd_data.drain(0..range.start);
-        initrd_data.resize(range.end - range.start, 0);
-        initrd_data.shrink_to_fit();
-
+    pub fn new(boot_services: &BootServices, handle: Handle, initrd_data: Vec<u8>) -> Result<Self> {
         let mut proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             initrd_data,
