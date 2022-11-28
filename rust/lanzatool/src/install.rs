@@ -87,17 +87,6 @@ impl Installer {
         // TODO(Raito): prove to niksnur this is actually acceptable.
         let secure_temp_dir = tempdir()?;
 
-        let lanzaboote_image = pe::lanzaboote_image(
-            &secure_temp_dir,
-            &self.lanzaboote_stub,
-            &bootspec.extension.os_release,
-            &kernel_cmdline,
-            &esp_paths.kernel,
-            &esp_paths.initrd,
-            &esp_paths.esp,
-        )
-        .context("Failed to assemble stub")?;
-
         println!("Wrapping initrd into a PE binary...");
 
         let initrd_location = secure_temp_dir.path().join("initrd");
@@ -114,24 +103,37 @@ impl Installer {
             .toplevel
             .join("systemd/lib/systemd/boot/efi/systemd-bootx64.efi");
 
-        let files_to_copy_and_sign = [
+        [
             (&systemd_boot, &esp_paths.efi_fallback),
             (&systemd_boot, &esp_paths.systemd_boot),
-            (&lanzaboote_image, &esp_paths.lanzaboote_image),
             (&bootspec.kernel, &esp_paths.kernel),
             (&wrapped_initrd, &esp_paths.initrd),
-        ];
+        ]
+        .into_iter()
+        .try_for_each(|(from, to)| install_signed(&self.key_pair, from, to))?;
 
-        for (from, to) in files_to_copy_and_sign {
-            println!("Signing {}...", to.display());
+        let lanzaboote_image = pe::lanzaboote_image(
+            &secure_temp_dir,
+            &self.lanzaboote_stub,
+            &bootspec.extension.os_release,
+            &kernel_cmdline,
+            &esp_paths.kernel,
+            &esp_paths.initrd,
+            &esp_paths.esp,
+        )
+        .context("Failed to assemble stub")?;
 
-            ensure_parent_dir(to);
-            self.key_pair.sign_and_copy(from, to).with_context(|| {
-                format!("Failed to copy and sign file from {:?} to {:?}", from, to)
-            })?;
-            // Call sync to improve the likelihood that file is actually written to disk
-            sync();
-        }
+        install_signed(
+            &self.key_pair,
+            &lanzaboote_image,
+            &esp_paths.lanzaboote_image,
+        )
+        .context("Failed to install lanzaboote")?;
+
+        // Sync files to persistent storage. This may improve the
+        // chance of a consistent boot directory in case the system
+        // crashes.
+        sync();
 
         println!(
             "Successfully installed lanzaboote to '{}'",
@@ -140,6 +142,18 @@ impl Installer {
 
         Ok(())
     }
+}
+
+/// Install a PE file. The PE gets signed in the process.
+fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
+    println!("Signing {}...", to.display());
+
+    ensure_parent_dir(to);
+    key_pair
+        .sign_and_copy(from, to)
+        .with_context(|| format!("Failed to copy and sign file from {:?} to {:?}", from, to))?;
+
+    Ok(())
 }
 
 pub fn append_initrd_secrets(

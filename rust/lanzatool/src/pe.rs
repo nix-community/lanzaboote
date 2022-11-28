@@ -12,6 +12,11 @@ use crate::utils;
 
 use tempfile::TempDir;
 
+/// Attach all information that lanzaboote needs into the PE binary.
+///
+/// When this function is called the referenced files already need to
+/// be present in the ESP. This is required, because we need to read
+/// them to compute hashes.
 pub fn lanzaboote_image(
     target_dir: &TempDir,
     lanzaboote_stub: &Path,
@@ -21,34 +26,54 @@ pub fn lanzaboote_image(
     initrd_path: &Path,
     esp: &Path,
 ) -> Result<PathBuf> {
-    // objcopy copies files into the PE binary. That's why we have to write the contents
-    // of some bootspec properties to disk
-    let (kernel_cmdline_file, _) =
-        write_to_tmp(target_dir, "kernel-cmdline", kernel_cmdline.join(" "))?;
-    let (kernel_path_file, _) = write_to_tmp(
+    // objcopy can only copy files into the PE binary. That's why we
+    // have to write the contents of some bootspec properties to disk.
+    let kernel_cmdline_file = write_to_tmp(target_dir, "kernel-cmdline", kernel_cmdline.join(" "))?;
+
+    let kernel_path_file = write_to_tmp(
         target_dir,
         "kernel-esp-path",
         esp_relative_path_string(esp, kernel_path),
     )?;
-    let (initrd_path_file, _) = write_to_tmp(
+    let kernel_hash_file = write_to_tmp(
+        target_dir,
+        "kernel-hash",
+        file_hash(kernel_path)?.as_bytes(),
+    )?;
+
+    let initrd_path_file = write_to_tmp(
         target_dir,
         "initrd-esp-path",
         esp_relative_path_string(esp, initrd_path),
+    )?;
+    let initrd_hash_file = write_to_tmp(
+        target_dir,
+        "initrd-hash",
+        file_hash(initrd_path)?.as_bytes(),
     )?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
     let kernel_cmdline_offs = os_release_offs + file_size(os_release)?;
     let initrd_path_offs = kernel_cmdline_offs + file_size(&kernel_cmdline_file)?;
     let kernel_path_offs = initrd_path_offs + file_size(&initrd_path_file)?;
+    let initrd_hash_offs = kernel_path_offs + file_size(&kernel_path_file)?;
+    let kernel_hash_offs = initrd_hash_offs + file_size(&initrd_hash_file)?;
 
     let sections = vec![
         s(".osrel", os_release, os_release_offs),
         s(".cmdline", kernel_cmdline_file, kernel_cmdline_offs),
         s(".initrdp", initrd_path_file, initrd_path_offs),
         s(".kernelp", kernel_path_file, kernel_path_offs),
+        s(".initrdh", initrd_hash_file, initrd_hash_offs),
+        s(".kernelh", kernel_hash_file, kernel_hash_offs),
     ];
 
     wrap_in_pe(target_dir, "lanzaboote-stub.efi", lanzaboote_stub, sections)
+}
+
+/// Compute the blake3 hash of a file.
+fn file_hash(file: &Path) -> Result<blake3::Hash> {
+    Ok(blake3::hash(&fs::read(file)?))
 }
 
 /// Wrap an initrd into a PE binary.
@@ -125,21 +150,26 @@ fn s(name: &'static str, file_path: impl AsRef<Path>, offset: u64) -> Section {
     }
 }
 
+/// Write a `u8` slice to a temporary file.
 fn write_to_tmp(
     secure_temp: &TempDir,
     filename: &str,
     contents: impl AsRef<[u8]>,
-) -> Result<(PathBuf, fs::File)> {
+) -> Result<PathBuf> {
+    let path = secure_temp.path().join(filename);
+
     let mut tmpfile = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .mode(0o600)
-        .open(secure_temp.path().join(filename))
+        .open(&path)
         .context("Failed to create tempfile")?;
+
     tmpfile
         .write_all(contents.as_ref())
         .context("Failed to write to tempfile")?;
-    Ok((secure_temp.path().join(filename), tmpfile))
+
+    Ok(path)
 }
 
 fn esp_relative_path_string(esp: &Path, path: &Path) -> String {
