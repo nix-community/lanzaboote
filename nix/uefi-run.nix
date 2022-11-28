@@ -1,5 +1,5 @@
-{ fetchFromGitHub, naersk, makeWrapper, OVMF, qemu }:
-naersk.buildPackage {
+{ fetchFromGitHub, craneLib, makeWrapper, OVMF, qemu }:
+craneLib.buildPackage {
   src = fetchFromGitHub {
     owner = "Richard-W";
     repo = "uefi-run";
@@ -11,7 +11,11 @@ naersk.buildPackage {
   nativeBuildInputs = [ makeWrapper ];
 
   postInstall = ''
-    wrapProgram "$out/bin/uefi-run" \
-      --add-flags '--bios-path ${OVMF.fd}/FV/OVMF.fd --qemu-path ${qemu}/bin/qemu-system-x86_64'
+    # The hook runs for the dependency-only derivation where the binary is not
+    # produced. We need to skip it there.
+    if [ -f $out/bin/uefi-run ]; then
+      wrapProgram "$out/bin/uefi-run" \
+        --add-flags '--bios-path ${OVMF.fd}/FV/OVMF.fd --qemu-path ${qemu}/bin/qemu-system-x86_64'
+    fi
   '';
 }

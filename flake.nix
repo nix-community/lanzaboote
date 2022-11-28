@@ -11,10 +11,9 @@
 
     nixpkgs-test.url = "github:RaitoBezarius/nixpkgs/experimental-secureboot";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    naersk.url = "github:nix-community/naersk";
   };
 
-  outputs = { self, nixpkgs, crane, nixpkgs-test, rust-overlay, naersk }:
+  outputs = { self, nixpkgs, crane, nixpkgs-test, rust-overlay }:
     let
       pkgs = import nixpkgs {
         system = "x86_64-linux";
@@ -28,39 +27,55 @@
       rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
       craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
 
-      naersk-nightly = pkgs.callPackage naersk {
-        cargo = rust-nightly;
-        rustc = rust-nightly;
-      };
-
       uefi-run = pkgs.callPackage ./nix/uefi-run.nix {
-        naersk = naersk-nightly;
+        inherit craneLib;
       };
 
-      buildRustEfiApp = src: naersk-nightly.buildPackage {
-        inherit src;
-        cargoBuildOptions = old: old ++ [
-          "--target x86_64-unknown-uefi"
-        ];
-      };
+      # Build attributes for a Rust application.
+      buildRustApp = {
+        src, target ? null, doCheck ? true
+      }: let
+        cleanedSrc = craneLib.cleanCargoSource src;
+        commonArgs = {
+          src = cleanedSrc;
+          CARGO_BUILD_TARGET = target;
+          inherit doCheck;
+        };
 
-      buildRustLinuxApp = src: naersk-nightly.buildPackage {
-        inherit src;
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+      in {
+        package = craneLib.buildPackage (commonArgs // {
+          inherit cargoArtifacts;
+        });
+
+        clippy = craneLib.cargoClippy (commonArgs // {
+          inherit cargoArtifacts;
+          cargoClippyExtraArgs = "-- --deny warnings";
+        });
       };
 
       # This is basically an empty EFI application that we use as a
       # carrier for the initrd.
-      initrd-stub = buildRustEfiApp ./rust/initrd-stub;
-
-      lanzaboote = buildRustEfiApp ./rust/lanzaboote;
-
-      lanzatool-unwrapped-src = craneLib.cleanCargoSource ./rust/lanzatool;
-      lanzatool-unwrapped-deps = craneLib.buildDepsOnly { src = lanzatool-unwrapped-src; };
-
-      lanzatool-unwrapped = craneLib.buildPackage {
-        src = lanzatool-unwrapped-src;
-        cargoArtifacts = lanzatool-unwrapped-deps;
+      initrdStubCrane = buildRustApp {
+        src = ./rust/initrd-stub;
+        target = "x86_64-unknown-uefi";
+        doCheck = false;
       };
+
+      lanzabooteCrane = buildRustApp {
+        src = ./rust/lanzaboote;
+        target = "x86_64-unknown-uefi";
+        doCheck = false;
+      };
+
+      initrd-stub = initrdStubCrane.package;
+      lanzaboote = lanzabooteCrane.package;
+
+      lanzatoolCrane = buildRustApp {
+        src = ./rust/lanzatool;
+      };
+
+      lanzatool-unwrapped = lanzatoolCrane.package;
 
       lanzatool = pkgs.runCommand "lanzatool" {
         nativeBuildInputs = [ pkgs.makeWrapper ];
@@ -159,11 +174,8 @@
         };
       in
         {
-          lanzatool-unwrapped-clippy = craneLib.cargoClippy {
-            src = lanzatool-unwrapped-src;
-            cargoArtifacts = lanzatool-unwrapped-deps;
-            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-          };
+          lanzatool-clippy = lanzatoolCrane.clippy;
+          lanzaboote-clippy = lanzabooteCrane.clippy;
 
           # TODO: user mode: OK
           # TODO: how to get in: {deployed, audited} mode ?
