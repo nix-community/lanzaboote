@@ -51,19 +51,27 @@ pub fn lanzaboote_image(
     wrap_in_pe(target_dir, "lanzaboote-stub.efi", lanzaboote_stub, sections)
 }
 
+/// Wrap an initrd into a PE binary.
+///
+/// This is required for lanzaboote to verify the signature of the
+/// initrd.
 pub fn wrap_initrd(target_dir: &TempDir, initrd_stub: &Path, initrd: &Path) -> Result<PathBuf> {
     let initrd_offs = stub_offset(initrd_stub)?;
     let sections = vec![s(".initrd", initrd, initrd_offs)];
     wrap_in_pe(target_dir, "wrapped-initrd.exe", initrd_stub, sections)
 }
 
+/// Take a PE binary stub and attach sections to it.
+///
+/// The result is then written to a new file. Returns the filename of
+/// the generated file.
 fn wrap_in_pe(
     target_dir: &TempDir,
-    filename: &str,
+    output_filename: &str,
     stub: &Path,
     sections: Vec<Section>,
 ) -> Result<PathBuf> {
-    let image_path = target_dir.path().join(filename);
+    let image_path = target_dir.path().join(output_filename);
     let _ = fs::OpenOptions::new()
         .create(true)
         .write(true)
