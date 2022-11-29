@@ -1,3 +1,9 @@
+// Clippy doesn't like the lifetimes, but rustc wants them. 🤷
+#![allow(clippy::needless_lifetimes)]
+// Clippy doesn't understand that we exit with ? from the closure in
+// and_then below and this can't be expressed with map.
+#![allow(clippy::bind_instead_of_map)]
+
 use alloc::{borrow::ToOwned, string::String};
 
 /// Extracts the data of a section of a PE file.
@@ -20,6 +26,5 @@ pub fn pe_section<'a>(file_data: &'a [u8], section_name: &str) -> Option<&'a [u8
 
 /// Extracts the data of a section of a PE file and returns it as a string.
 pub fn pe_section_as_string<'a>(file_data: &'a [u8], section_name: &str) -> Option<String> {
-    pe_section(file_data, section_name)
-        .and_then(|data| Some(core::str::from_utf8(data).unwrap().to_owned()))
+    pe_section(file_data, section_name).map(|data| core::str::from_utf8(data).unwrap().to_owned())
 }

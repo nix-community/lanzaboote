@@ -147,16 +147,16 @@ fn initrd_location(initrd_efi: &mut RegularFile) -> Result<Range<usize>> {
         .sections
         .iter()
         .find(|s| s.name().unwrap() == ".initrd")
-        .and_then(|s| {
+        .map(|s| {
             let section_start: usize = s.pointer_to_raw_data.try_into().unwrap();
             let section_size: usize = s.size_of_raw_data.try_into().unwrap();
 
-            Some(Range {
+            Range {
                 start: section_start,
                 end: section_start + section_size,
-            })
+            }
         })
-        .ok_or(Status::END_OF_FILE.into())
+        .ok_or_else(|| Status::END_OF_FILE.into())
 }
 
 /// Check the signature of the initrd.
