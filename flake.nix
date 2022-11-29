@@ -170,10 +170,22 @@
           lanzaboote-boot = mkSecureBootTest {
             name = "signed-files-boot-under-secureboot";
             testScript = ''
-            machine.start()
-            assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
-          '';
+              machine.start()
+              assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+            '';
           };
+
+          lanzaboote-boot-under-sd-stage1 = mkSecureBootTest {
+            name = "signed-files-boot-under-secureboot-systemd-stage-1";
+            machine = { ... }: {
+              boot.initrd.systemd.enable = true;
+            };
+            testScript = ''
+              machine.start()
+              assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+            '';
+          };
+
           # So, this is the responsibility of the lanzatool install
           # to run the append-initrd-secret script
           # This test assert that lanzatool still do the right thing
