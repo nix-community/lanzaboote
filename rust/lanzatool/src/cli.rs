@@ -27,14 +27,6 @@ struct InstallCommand {
     #[arg(long)]
     private_key: PathBuf,
 
-    /// sbctl PKI bundle for auto enrolling key
-    #[arg(long)]
-    pki_bundle: Option<PathBuf>,
-
-    /// Auto enroll your keys. This might brick your device
-    #[arg(long, default_value = "false")]
-    auto_enroll: bool,
-
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -65,8 +57,6 @@ fn install(args: InstallCommand) -> Result<()> {
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
         key_pair,
-        args.pki_bundle,
-        args.auto_enroll,
         args.esp,
         args.generations,
     )

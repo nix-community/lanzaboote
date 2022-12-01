@@ -15,8 +15,6 @@ use crate::signature::KeyPair;
 pub struct Installer {
     lanzaboote_stub: PathBuf,
     key_pair: KeyPair,
-    _pki_bundle: Option<PathBuf>,
-    _auto_enroll: bool,
     esp: PathBuf,
     generations: Vec<PathBuf>,
 }
@@ -25,16 +23,12 @@ impl Installer {
     pub fn new(
         lanzaboote_stub: PathBuf,
         key_pair: KeyPair,
-        _pki_bundle: Option<PathBuf>,
-        _auto_enroll: bool,
         esp: PathBuf,
         generations: Vec<PathBuf>,
     ) -> Self {
         Self {
             lanzaboote_stub,
             key_pair,
-            _pki_bundle,
-            _auto_enroll,
             esp,
             generations,
         }
