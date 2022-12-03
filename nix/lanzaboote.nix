@@ -46,7 +46,6 @@ in
         ''}
   
         ${cfg.package}/bin/lanzatool install \
-          --pki-bundle ${cfg.pkiBundle} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           ${config.boot.loader.efi.efiSysMountPoint} \
