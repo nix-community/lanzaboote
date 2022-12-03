@@ -65,13 +65,9 @@ impl Installer {
     }
 
     fn install_generation(&self, generation: &Generation) -> Result<()> {
-        println!("Reading bootspec...");
-
         let bootspec = &generation.bootspec;
 
         let esp_paths = EspPaths::new(&self.esp, generation)?;
-
-        println!("Assembling lanzaboote image...");
 
         let kernel_cmdline =
             assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
@@ -84,15 +80,13 @@ impl Installer {
         // TODO(Raito): prove to niksnur this is actually acceptable.
         let secure_temp_dir = tempdir()?;
 
-        println!("Wrapping initrd into a PE binary...");
+        println!("Appending secrets to initrd...");
 
         let initrd_location = secure_temp_dir.path().join("initrd");
         copy(&bootspec.initrd, &initrd_location)?;
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
-
-        println!("Sign and copy files to EFI system partition...");
 
         let systemd_boot = bootspec
             .toplevel
@@ -107,9 +101,9 @@ impl Installer {
         .try_for_each(|(from, to)| install_signed(&self.key_pair, from, to))?;
 
         // The initrd doesn't need to be signed. Lanzaboote has its
-        // hash embedded and will refuse loading it when the has
+        // hash embedded and will refuse loading it when the hash
         // mismatches.
-        copy(&initrd_location, &esp_paths.initrd).context("Failed to copy initrd to ESP")?;
+        install(&initrd_location, &esp_paths.initrd).context("Failed to install initrd to ESP")?;
 
         let lanzaboote_image = pe::lanzaboote_image(
             &secure_temp_dir,
@@ -144,13 +138,33 @@ impl Installer {
 }
 
 /// Install a PE file. The PE gets signed in the process.
+///
+/// The file is only signed and copied if it doesn't exist at the destination
 fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
-    println!("Signing {}...", to.display());
+    if to.exists() {
+        println!("{} already exists, skipping...", to.display());
+    } else {
+        println!("Signing and installing {}...", to.display());
+        ensure_parent_dir(to);
+        key_pair
+            .sign_and_copy(from, to)
+            .with_context(|| format!("Failed to copy and sign file from {:?} to {:?}", from, to))?;
+    }
 
-    ensure_parent_dir(to);
-    key_pair
-        .sign_and_copy(from, to)
-        .with_context(|| format!("Failed to copy and sign file from {:?} to {:?}", from, to))?;
+    Ok(())
+}
+
+/// Install an arbitrary file
+///
+/// The file is only copied if it doesn't exist at the destination
+fn install(from: &Path, to: &Path) -> Result<()> {
+    if to.exists() {
+        println!("{} already exists, skipping...", to.display());
+    } else {
+        println!("Installing {}...", to.display());
+        ensure_parent_dir(to);
+        copy(from, to)?;
+    }
 
     Ok(())
 }
