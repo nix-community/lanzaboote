@@ -12,17 +12,16 @@ in
     enrollKeys = mkEnableOption "Automatic enrollment of the keys using sbctl";
     pkiBundle = mkOption {
       type = types.nullOr types.path;
-      default = null;
       description = "PKI bundle containg db, PK, KEK";
     };
     publicKeyFile = mkOption {
       type = types.path;
-      default = if cfg.pkiBundle != null then "${cfg.pkiBundle}/keys/db/db.pem" else null;
+      default = "${cfg.pkiBundle}/keys/db/db.pem";
       description = "Public key to sign your boot files";
     };
     privateKeyFile = mkOption {
       type = types.path;
-      default = if cfg.pkiBundle != null then "${cfg.pkiBundle}/keys/db/db.key" else null;
+      default = "${cfg.pkiBundle}/keys/db/db.key";
       description = "Private key to sign your boot files";
     };
     package = mkOption {
