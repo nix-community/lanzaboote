@@ -103,7 +103,10 @@
         inherit lanzatool;
       };
 
-      nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
+      nixosModules.lanzaboote = { pkgs, lib, ... }: {
+        imports = [ ./nix/lanzaboote.nix ];
+        boot.lanzaboote.package = lib.mkDefault self.packages.${pkgs.system}.lanzaboote;
+      };
 
       packages.x86_64-linux = {
         inherit initrd-stub lanzaboote lanzatool;
