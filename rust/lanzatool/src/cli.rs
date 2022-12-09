@@ -59,14 +59,11 @@ impl Commands {
 fn install(args: InstallCommand) -> Result<()> {
     let lanzaboote_stub =
         std::env::var("LANZABOOTE_STUB").context("Failed to read LANZABOOTE_STUB env variable")?;
-    let initrd_stub = std::env::var("LANZABOOTE_INITRD_STUB")
-        .context("Failed to read LANZABOOTE_INITRD_STUB env variable")?;
 
     let key_pair = KeyPair::new(&args.public_key, &args.private_key);
 
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
-        PathBuf::from(initrd_stub),
         key_pair,
         args.pki_bundle,
         args.auto_enroll,

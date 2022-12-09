@@ -54,21 +54,12 @@
         });
       };
 
-      # This is basically an empty EFI application that we use as a
-      # carrier for the initrd.
-      initrdStubCrane = buildRustApp {
-        src = ./rust/initrd-stub;
-        target = "x86_64-unknown-uefi";
-        doCheck = false;
-      };
-
       lanzabooteCrane = buildRustApp {
         src = ./rust/lanzaboote;
         target = "x86_64-unknown-uefi";
         doCheck = false;
       };
 
-      initrd-stub = initrdStubCrane.package;
       lanzaboote = lanzabooteCrane.package;
 
       lanzatoolCrane = buildRustApp {
@@ -87,8 +78,7 @@
         makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
           --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
           --set RUST_BACKTRACE full \
-          --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi \
-          --set LANZABOOTE_INITRD_STUB ${initrd-stub}/bin/initrd-stub.efi \
+          --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
       '';
     in {
       overlays.default = final: prev: {
@@ -98,7 +88,7 @@
       nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
 
       packages.x86_64-linux = {
-        inherit initrd-stub lanzaboote lanzatool;
+        inherit lanzaboote lanzatool;
         default = lanzatool;
       };
 
@@ -149,7 +139,10 @@
             };
           };
         };
-        mkUnsignedTest = { name, path }: mkSecureBootTest {
+
+        # Execute a boot test that is intended to fail.
+        #
+        mkUnsignedTest = { name, path, appendCrap ? false }: mkSecureBootTest {
           inherit name;
           testScript = ''
             import json
@@ -166,10 +159,14 @@
             src_path = ${path.src}
             dst_path = ${path.dst}
             machine.succeed(f"cp -rf {src_path} {dst_path}")
+          '' + lib.optionalString appendCrap ''
+            machine.succeed(f"echo Foo >> {dst_path}")
+          '' +
+          ''
             machine.succeed("sync")
             machine.crash()
             machine.start()
-            machine.wait_for_console_text("panicked")
+            machine.wait_for_console_text("Hash mismatch")
           '';
         };
       in
@@ -221,13 +218,21 @@
             assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
           '';
           };
+
+          # The initrd is not directly signed. Its hash is embedded
+          # into lanzaboote. To make integrity verification fail, we
+          # actually have to modify the initrd. Appending crap to the
+          # end is a harmless way that would make the kernel still
+          # accept it.
           is-initrd-secured = mkUnsignedTest {
             name = "unsigned-initrd-do-not-boot-under-secureboot";
             path = {
               src = "bootspec.get('initrd')";
               dst = "convert_to_esp(bootspec.get('initrd'))";
             };
+            appendCrap = true;
           };
+
           is-kernel-secured = mkUnsignedTest {
             name = "unsigned-kernel-do-not-boot-under-secureboot";
             path = {

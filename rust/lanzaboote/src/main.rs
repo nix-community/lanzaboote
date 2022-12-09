@@ -9,7 +9,8 @@ mod linux_loader;
 mod pe_section;
 mod uefi_helpers;
 
-use pe_section::pe_section_as_string;
+use blake3::Hash;
+use pe_section::{pe_section, pe_section_as_string};
 use uefi::{
     prelude::*,
     proto::{
@@ -52,9 +53,33 @@ struct EmbeddedConfiguration {
     /// lanzaboote binary.
     kernel_filename: CString16,
 
+    /// The cryptographic hash of the kernel.
+    kernel_hash: Hash,
+
     /// The filename of the initrd to be passed to the kernel. See
     /// `kernel_filename` for how to interpret these filenames.
     initrd_filename: CString16,
+
+    /// The cryptographic hash of the initrd. This hash is computed
+    /// over the whole PE binary, not only the embedded initrd.
+    initrd_hash: Hash,
+}
+
+/// Extract a filename from a PE section. The filename is stored as UTF-8.
+fn extract_filename(file_data: &[u8], section: &str) -> Result<CString16> {
+    let filename = pe_section_as_string(file_data, section).ok_or(Status::INVALID_PARAMETER)?;
+
+    Ok(CString16::try_from(filename.as_str()).map_err(|_| Status::INVALID_PARAMETER)?)
+}
+
+/// Extract a Blake3 hash from a PE section.
+fn extract_hash(file_data: &[u8], section: &str) -> Result<Hash> {
+    let array: [u8; 32] = pe_section(file_data, section)
+        .ok_or(Status::INVALID_PARAMETER)?
+        .try_into()
+        .map_err(|_| Status::INVALID_PARAMETER)?;
+
+    Ok(array.into())
 }
 
 impl EmbeddedConfiguration {
@@ -62,14 +87,12 @@ impl EmbeddedConfiguration {
         file.set_position(0)?;
         let file_data = read_all(file)?;
 
-        let kernel_filename =
-            pe_section_as_string(&file_data, ".kernelp").ok_or(Status::INVALID_PARAMETER)?;
-        let initrd_filename =
-            pe_section_as_string(&file_data, ".initrdp").ok_or(Status::INVALID_PARAMETER)?;
-
         Ok(Self {
-            kernel_filename: CString16::try_from(kernel_filename.as_str()).unwrap(),
-            initrd_filename: CString16::try_from(initrd_filename.as_str()).unwrap(),
+            kernel_filename: extract_filename(&file_data, ".kernelp")?,
+            kernel_hash: extract_hash(&file_data, ".kernelh")?,
+
+            initrd_filename: extract_filename(&file_data, ".initrdp")?,
+            initrd_hash: extract_hash(&file_data, ".initrdh")?,
         })
     }
 }
@@ -84,8 +107,10 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
             .expect("Failed to extract configuration from binary. Did you run lanzatool?");
 
-    let mut kernel_file;
-    let initrd = {
+    let kernel_data;
+    let initrd_data;
+
+    {
         let mut file_system = system_table
             .boot_services()
             .get_image_file_system(handle)
@@ -94,7 +119,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             .open_volume()
             .expect("Failed to find ESP root directory");
 
-        kernel_file = root
+        let mut kernel_file = root
             .open(
                 &config.kernel_filename,
                 FileMode::Read,
@@ -104,23 +129,41 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             .into_regular_file()
             .expect("Kernel is not a regular file");
 
-        root.open(
-            &config.initrd_filename,
-            FileMode::Read,
-            FileAttribute::empty(),
-        )
-        .expect("Failed to open initrd for reading")
-        .into_regular_file()
-        .expect("Initrd is not a regular file")
-    };
+        kernel_data = read_all(&mut kernel_file).expect("Failed to read kernel file into memory");
+
+        let mut initrd_file = root
+            .open(
+                &config.initrd_filename,
+                FileMode::Read,
+                FileAttribute::empty(),
+            )
+            .expect("Failed to open initrd for reading")
+            .into_regular_file()
+            .expect("Initrd is not a regular file");
+
+        initrd_data = read_all(&mut initrd_file).expect("Failed to read kernel file into memory");
+    }
+
+    if blake3::hash(&kernel_data) != config.kernel_hash {
+        system_table
+            .stdout()
+            .output_string(cstr16!("Hash mismatch for kernel. Refusing to load!\r\n"))
+            .unwrap();
+        return Status::SECURITY_VIOLATION;
+    }
+
+    if blake3::hash(&initrd_data) != config.initrd_hash {
+        system_table
+            .stdout()
+            .output_string(cstr16!("Hash mismatch for initrd. Refusing to load!\r\n"))
+            .unwrap();
+        return Status::SECURITY_VIOLATION;
+    }
 
     let kernel_cmdline =
         booted_image_cmdline(system_table.boot_services()).expect("Failed to fetch command line");
 
     let kernel_handle = {
-        let kernel_data =
-            read_all(&mut kernel_file).expect("Failed to read kernel file into memory");
-
         system_table
             .boot_services()
             .load_image(
@@ -145,7 +188,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         );
     }
 
-    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd)
+    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)
         .expect("Failed to load the initrd. It may not be there or it is not signed");
     let status = system_table
         .boot_services()
