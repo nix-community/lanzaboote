@@ -105,7 +105,7 @@
 
       nixosModules.lanzaboote = { pkgs, lib, ... }: {
         imports = [ ./nix/lanzaboote.nix ];
-        boot.lanzaboote.package = lib.mkDefault self.packages.${pkgs.system}.lanzaboote;
+        boot.lanzaboote.package = lib.mkDefault self.packages.${pkgs.system}.lanzatool;
       };
 
       packages.x86_64-linux = {
