@@ -7,13 +7,21 @@
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.rust-overlay.follows = "rust-overlay";
+      inputs.flake-utils.follows = "flake-utils";
     };
 
     nixpkgs-test.url = "github:RaitoBezarius/nixpkgs/experimental-secureboot";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, crane, nixpkgs-test, rust-overlay }:
+  outputs = { self, nixpkgs, crane, nixpkgs-test, rust-overlay, ... }:
     let
       pkgs = import nixpkgs {
         system = "x86_64-linux";
@@ -85,7 +93,10 @@
         inherit lanzatool;
       };
 
-      nixosModules.lanzaboote = import ./nix/lanzaboote.nix;
+      nixosModules.lanzaboote = { pkgs, lib, ... }: {
+        imports = [ ./nix/lanzaboote.nix ];
+        boot.lanzaboote.package = lib.mkDefault self.packages.${pkgs.system}.lanzatool;
+      };
 
       packages.x86_64-linux = {
         inherit lanzaboote lanzatool;
