@@ -16,3 +16,4 @@ tempfile = "3.3.0"
 blake3 = "1.3.3"
 # TODO: wait for a upstream release and pin it.
 bootspec = { git = "https://github.com/DeterminateSystems/bootspec" }
+walkdir = "2.3.2"
