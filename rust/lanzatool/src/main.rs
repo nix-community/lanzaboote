@@ -1,5 +1,6 @@
 mod cli;
 mod esp;
+mod gc;
 mod generation;
 mod install;
 mod pe;

@@ -27,10 +27,14 @@ struct InstallCommand {
     #[arg(long)]
     private_key: PathBuf,
 
+    /// Configuration limit
+    #[arg(long, default_value_t = 1)]
+    configuration_limit: usize,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
-    /// List of generations (e.g. /nix/var/nix/profiles/system-*-link)
+    /// List of generation links (e.g. /nix/var/nix/profiles/system-*-link)
     generations: Vec<PathBuf>,
 }
 
@@ -57,6 +61,7 @@ fn install(args: InstallCommand) -> Result<()> {
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
         key_pair,
+        args.configuration_limit,
         args.esp,
         args.generations,
     )
