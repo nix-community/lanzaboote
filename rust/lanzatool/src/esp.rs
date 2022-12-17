@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-use crate::generation::OSGeneration;
+use crate::generation::Generation;
 
 pub struct EspPaths {
     pub esp: PathBuf,
@@ -17,20 +17,26 @@ pub struct EspPaths {
 }
 
 impl EspPaths {
-    pub fn new(esp: impl AsRef<Path>, generation: &OSGeneration) -> Result<Self> {
+    pub fn new(esp: impl AsRef<Path>, generation: &Generation) -> Result<Self> {
         let esp = esp.as_ref();
         let esp_nixos = esp.join("EFI/nixos");
         let esp_linux = esp.join("EFI/Linux");
         let esp_systemd = esp.join("EFI/systemd");
         let esp_efi_fallback_dir = esp.join("EFI/BOOT");
 
-        let bootspec = &generation.bootspec;
+        let bootspec = &generation.spec.bootspec;
 
         Ok(Self {
             esp: esp.to_path_buf(),
             nixos: esp_nixos.clone(),
             kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
-            initrd: esp_nixos.join(nixos_path(&bootspec.initrd, "initrd")?),
+            initrd: esp_nixos.join(nixos_path(
+                bootspec
+                    .initrd
+                    .as_ref()
+                    .context("Lanzaboote does not support missing initrd yet")?,
+                "initrd",
+            )?),
             linux: esp_linux.clone(),
             lanzaboote_image: esp_linux.join(generation_path(generation)),
             efi_fallback_dir: esp_efi_fallback_dir.clone(),
@@ -66,7 +72,7 @@ fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(nixos_filename))
 }
 
-fn generation_path(generation: &OSGeneration) -> PathBuf {
+fn generation_path(generation: &Generation) -> PathBuf {
     if let Some(specialisation_name) = generation.is_specialized() {
         PathBuf::from(format!(
             "nixos-generation-{}-specialisation-{}.efi",

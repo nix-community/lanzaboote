@@ -8,7 +8,7 @@ use nix::unistd::sync;
 use tempfile::tempdir;
 
 use crate::esp::EspPaths;
-use crate::generation::OSGeneration;
+use crate::generation::Generation;
 use crate::pe;
 use crate::signature::KeyPair;
 
@@ -36,7 +36,7 @@ impl Installer {
 
     pub fn install(&self) -> Result<()> {
         for toplevel in &self.generations {
-            let generation = OSGeneration::from_toplevel(toplevel).with_context(|| {
+            let generation = Generation::from_toplevel(toplevel).with_context(|| {
                 format!("Failed to build generation from toplevel: {toplevel:?}")
             })?;
 
@@ -45,8 +45,8 @@ impl Installer {
             self.install_generation(&generation)
                 .context("Failed to install generation")?;
 
-            for (name, bootspec) in &generation.bootspec.specialisation {
-                let specialised_generation = generation.specialise(name, bootspec);
+            for (name, bootspec) in &generation.spec.bootspec.specialisation {
+                let specialised_generation = generation.specialise(name, bootspec)?;
 
                 println!("Installing specialisation: {name} of generation: {generation}");
 
@@ -58,8 +58,9 @@ impl Installer {
         Ok(())
     }
 
-    fn install_generation(&self, generation: &OSGeneration) -> Result<()> {
-        let bootspec = &generation.bootspec;
+    fn install_generation(&self, generation: &Generation) -> Result<()> {
+        let bootspec = &generation.spec.bootspec;
+        let secureboot_extensions = &generation.spec.extensions;
 
         let esp_paths = EspPaths::new(&self.esp, generation)?;
 
@@ -77,13 +78,20 @@ impl Installer {
         println!("Appending secrets to initrd...");
 
         let initrd_location = secure_temp_dir.path().join("initrd");
-        copy(&bootspec.initrd, &initrd_location)?;
+        copy(
+            bootspec
+                .initrd
+                .as_ref()
+                .context("Lanzaboote does not support missing initrd yet")?,
+            &initrd_location,
+        )?;
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
 
         let systemd_boot = bootspec
-            .toplevel.0
+            .toplevel
+            .0
             .join("systemd/lib/systemd/boot/efi/systemd-bootx64.efi");
 
         [
@@ -102,7 +110,7 @@ impl Installer {
         let lanzaboote_image = pe::lanzaboote_image(
             &secure_temp_dir,
             &self.lanzaboote_stub,
-            &bootspec.extensions.os_release,
+            &secureboot_extensions.os_release,
             &kernel_cmdline,
             &esp_paths.kernel,
             &esp_paths.initrd,

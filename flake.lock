@@ -14,11 +14,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1669605882,
-        "narHash": "sha256-TiQtL5sUI5rp28S63v+VX25qNjcrc8Xeu+shf3g7Tj4=",
+        "lastModified": 1670900067,
+        "narHash": "sha256-VXVa+KBfukhmWizaiGiHRVX/fuk66P8dgSFfkVN4/MY=",
         "owner": "ipetkov",
         "repo": "crane",
-        "rev": "24591d5f8cc979f7b243b88a2d39da09976970ad",
+        "rev": "59b31b41a589c0a65e4a1f86b0e5eac68081468b",
         "type": "github"
       },
       "original": {
@@ -30,11 +30,11 @@
     "flake-compat": {
       "flake": false,
       "locked": {
-        "lastModified": 1650374568,
-        "narHash": "sha256-Z+s0J8/r907g149rllvwhb4pKi8Wam5ij0st8PwAh+E=",
+        "lastModified": 1668681692,
+        "narHash": "sha256-Ht91NGdewz8IQLtWZ9LCeNXMSXHUss+9COoqu6JLmXU=",
         "owner": "edolstra",
         "repo": "flake-compat",
-        "rev": "b4a34015c698c7793d592d66adbab377907a2be8",
+        "rev": "009399224d5e398d03b22badca40a37ac85412a1",
         "type": "github"
       },
       "original": {
@@ -60,32 +60,32 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1669535121,
-        "narHash": "sha256-koZLM7oWVGrjyHnYDo7/w5qlmUn9UZUKSFNfmIjueE8=",
+        "lastModified": 1671755972,
+        "narHash": "sha256-X977apvpqBqqRf2XBNorfunZmQNn3cQYGEnQE4L90Fo=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "b45ec953794bb07922f0468152ad1ebaf8a084b3",
+        "rev": "e8ee153b1717dca9c6aa38d5cf198329480d5b41",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixpkgs-unstable",
+        "ref": "nixos-unstable-small",
         "repo": "nixpkgs",
         "type": "github"
       }
     },
     "nixpkgs-test": {
       "locked": {
-        "lastModified": 1669495095,
-        "narHash": "sha256-wasu8T7ac+LVm4aXuAYkH76Rr98VW0Cp9oZvNPuKiiU=",
+        "lastModified": 1671812130,
+        "narHash": "sha256-GALBK+qB9rhnB+lVnxdgtMoXCySXughZZ3+qGO1Ke/k=",
         "owner": "RaitoBezarius",
         "repo": "nixpkgs",
-        "rev": "8bbe1bb1f7352dd9c2e448e8d68846a66d0c2aca",
+        "rev": "e51bf8cc8e2c75192e930ad83ed272938729e7be",
         "type": "github"
       },
       "original": {
         "owner": "RaitoBezarius",
-        "ref": "experimental-secureboot",
+        "ref": "simplified-qemu-boot-disks",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -109,11 +109,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1669602829,
-        "narHash": "sha256-I3LBvBiVui4Rf0iQvTqUIgBovaLDzpOzsoNEzCsDowg=",
+        "lastModified": 1671243596,
+        "narHash": "sha256-vQ1q6uwx2gKsHbQVhkq17nT8HwUmRbIG8cJVFafNb5s=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "b9da8e68a08707115be750c0cf7ade33f49d8ec4",
+        "rev": "905db21103d646ddc1eb81920e05180e6e2b6734",
         "type": "github"
       },
       "original": {

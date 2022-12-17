@@ -2,7 +2,8 @@
   description = "Lanzaboot Secure Boot Madness";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
+    nixpkgs-test.url = "github:RaitoBezarius/nixpkgs/simplified-qemu-boot-disks";
 
     crane = {
       url = "github:ipetkov/crane";
@@ -11,7 +12,6 @@
       inputs.flake-utils.follows = "flake-utils";
     };
 
-    nixpkgs-test.url = "github:RaitoBezarius/nixpkgs/experimental-secureboot";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -21,7 +21,7 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, crane, nixpkgs-test, rust-overlay, ... }:
+  outputs = { self, nixpkgs, nixpkgs-test, crane, rust-overlay, ... }:
     let
       pkgs = import nixpkgs {
         system = "x86_64-linux";
@@ -140,7 +140,6 @@
             };
 
             boot.loader.efi = {
-              enable = true;
               canTouchEfiVariables = true;
             };
             boot.lanzaboote = {
@@ -166,7 +165,8 @@
                 return f'/boot/EFI/nixos/{store_dir}-{filename}.efi'
 
             machine.start()
-            bootspec = json.loads(machine.succeed("cat /run/current-system/bootspec/boot.v1.json"))
+            bootspec = json.loads(machine.succeed("cat /run/current-system/boot.json")).get('v1')
+            assert bootspec is not None, "Unsupported bootspec version!"
             src_path = ${path.src}
             dst_path = ${path.dst}
             machine.succeed(f"cp -rf {src_path} {dst_path}")
@@ -263,7 +263,7 @@
             testScript = ''
               machine.start()
               print(machine.succeed("ls -lah /boot/EFI/Linux"))
-              print(machine.succeed("cat /run/current-system/bootspec/boot.v1.json"))
+              print(machine.succeed("cat /run/current-system/boot.json"))
               # TODO: make it more reliable to find this filename, i.e. read it from somewhere?
               machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant.efi")
               machine.succeed("sync")

@@ -17,7 +17,7 @@
     "toplevel": "/run/current-system",
     "specialisation": {},
     "extensions": {
-      "org.lanzaboote.osRelease": "/etc/os-release"
+      "lanzaboote": { "osRelease": "/etc/os-release" }
     }
   }
 }

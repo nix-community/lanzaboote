@@ -69,7 +69,7 @@ dependencies = [
 [[package]]
 name = "bootspec"
 version = "0.1.0"
-source = "git+https://github.com/RaitoBezarius/bootspec-1?branch=secureboot-needs#a5d327ceb25da6ae4147fbf0b15088f44214a91a"
+source = "git+https://github.com/RaitoBezarius/bootspec-1?branch=secureboot-needs#3d5acac24d353c5e9998067abb1b458b996cba81"
 dependencies = [
  "serde",
  "serde_json",
