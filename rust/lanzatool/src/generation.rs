@@ -1,22 +1,46 @@
+use serde::{Deserialize, Serialize};
+
 use std::fmt;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use bootspec::BootJson;
+use bootspec::SpecialisationName;
+use bootspec::generation::Generation;
 
-use crate::bootspec::Bootspec;
-
-#[derive(Debug)]
-pub struct Generation {
-    version: u64,
-    specialisation_name: Option<String>,
-    pub bootspec: Bootspec,
+// TODO: actually, I'm not sure it's a good thing to have Default
+// we should maybe have TryDefault?
+// discuss this with upstream.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct SecureBootExtension {
+    #[serde(rename="org.lanzaboote.osRelease")]
+    pub os_release: PathBuf
 }
 
-impl Generation {
+pub type ExtendedBootJson = BootJson<SecureBootExtension>;
+
+#[derive(Debug)]
+pub struct OSGeneration {
+    /// Top-level nixpkgs version
+    version: u64,
+    /// Top-level specialisation name
+    specialisation_name: Option<SpecialisationName>,
+    /// Top-level bootspec document
+    pub bootspec: ExtendedBootJson,
+}
+
+fn into_boot_json(generation: Generation<SecureBootExtension>) -> Result<ExtendedBootJson> {
+    Ok(match generation {
+        Generation::V1(json) => json,
+        _ => panic!("Failed")
+    })
+}
+
+impl OSGeneration {
     pub fn from_toplevel(toplevel: impl AsRef<Path>) -> Result<Self> {
-        let bootspec_path = toplevel.as_ref().join("bootspec/boot.v1.json");
-        let bootspec: Bootspec = serde_json::from_slice(
+        let bootspec_path = toplevel.as_ref().join("bootspec/boot.json");
+        let generation: Generation<SecureBootExtension> = serde_json::from_slice(
             &fs::read(bootspec_path).context("Failed to read bootspec file")?,
         )
         .context("Failed to parse bootspec json")?;
@@ -24,24 +48,24 @@ impl Generation {
         Ok(Self {
             version: parse_version(toplevel)?,
             specialisation_name: None,
-            bootspec,
+            bootspec: into_boot_json(generation)?,
         })
     }
 
-    pub fn specialise(&self, name: &str, bootspec: &Bootspec) -> Self {
+    pub fn specialise(&self, name: &SpecialisationName, bootspec: &ExtendedBootJson) -> Self {
         Self {
             version: self.version,
-            specialisation_name: Some(String::from(name)),
-            bootspec: bootspec.clone(),
+            specialisation_name: Some(name.clone()),
+            bootspec: bootspec.clone()
         }
     }
 
-    pub fn is_specialized(&self) -> Option<String> {
+    pub fn is_specialized(&self) -> Option<SpecialisationName> {
         self.specialisation_name.clone()
     }
 }
 
-impl fmt::Display for Generation {
+impl fmt::Display for OSGeneration {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.version)
     }

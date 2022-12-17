@@ -8,7 +8,7 @@ use nix::unistd::sync;
 use tempfile::tempdir;
 
 use crate::esp::EspPaths;
-use crate::generation::Generation;
+use crate::generation::OSGeneration;
 use crate::pe;
 use crate::signature::KeyPair;
 
@@ -36,7 +36,7 @@ impl Installer {
 
     pub fn install(&self) -> Result<()> {
         for toplevel in &self.generations {
-            let generation = Generation::from_toplevel(toplevel).with_context(|| {
+            let generation = OSGeneration::from_toplevel(toplevel).with_context(|| {
                 format!("Failed to build generation from toplevel: {toplevel:?}")
             })?;
 
@@ -58,7 +58,7 @@ impl Installer {
         Ok(())
     }
 
-    fn install_generation(&self, generation: &Generation) -> Result<()> {
+    fn install_generation(&self, generation: &OSGeneration) -> Result<()> {
         let bootspec = &generation.bootspec;
 
         let esp_paths = EspPaths::new(&self.esp, generation)?;
@@ -83,7 +83,7 @@ impl Installer {
         }
 
         let systemd_boot = bootspec
-            .toplevel
+            .toplevel.0
             .join("systemd/lib/systemd/boot/efi/systemd-bootx64.efi");
 
         [
@@ -102,7 +102,7 @@ impl Installer {
         let lanzaboote_image = pe::lanzaboote_image(
             &secure_temp_dir,
             &self.lanzaboote_stub,
-            &bootspec.extension.os_release,
+            &bootspec.extensions.os_release,
             &kernel_cmdline,
             &esp_paths.kernel,
             &esp_paths.initrd,

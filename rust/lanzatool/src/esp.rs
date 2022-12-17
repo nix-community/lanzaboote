@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-use crate::generation::Generation;
+use crate::generation::OSGeneration;
 
 pub struct EspPaths {
     pub esp: PathBuf,
@@ -17,7 +17,7 @@ pub struct EspPaths {
 }
 
 impl EspPaths {
-    pub fn new(esp: impl AsRef<Path>, generation: &Generation) -> Result<Self> {
+    pub fn new(esp: impl AsRef<Path>, generation: &OSGeneration) -> Result<Self> {
         let esp = esp.as_ref();
         let esp_nixos = esp.join("EFI/nixos");
         let esp_linux = esp.join("EFI/Linux");
@@ -66,7 +66,7 @@ fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(nixos_filename))
 }
 
-fn generation_path(generation: &Generation) -> PathBuf {
+fn generation_path(generation: &OSGeneration) -> PathBuf {
     if let Some(specialisation_name) = generation.is_specialized() {
         PathBuf::from(format!(
             "nixos-generation-{}-specialisation-{}.efi",
