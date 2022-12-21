@@ -92,3 +92,11 @@ This project depends on upstream nixpkgs work:
 
 You can find everything integrated as PoC
 [here](https://github.com/NixOS/nixpkgs/pull/202497).
+
+## Funding
+
+<pre><img alt="Logo of NLnet Foundation" src="https://nlnet.nl/logo/banner-bw.svg" width="320px" height="120px" />     <img alt="Logo of NGI Assure" src="https://nlnet.nl/image/logos/NGIAssure_tag_black_mono.svg" width="320px" height="120px" /></pre>
+
+[This project](https://nlnet.nl/project/NixOS-UEFI/) was funded through the [NGI Assure](https://nlnet.nl/assure) Fund, a fund established by [NLnet](https://nlnet.nl/) with financial support from the European Commission's [Next Generation Internet](https://ngi.eu/) programme, under the aegis of DG Communications Networks, Content and Technology under grant agreement No 957073. **Applications are still open, you can [apply today](https://nlnet.nl/propose)**.
+
+If your organization wants to support the project with extra funding in order to add support for more architectures, PKCS#11 workflows or integration, please contact one of the maintainers.
