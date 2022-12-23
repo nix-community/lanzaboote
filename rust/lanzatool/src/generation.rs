@@ -71,7 +71,7 @@ impl Generation {
             specialisation_name: Some(name.clone()),
             spec: ExtendedBootJson {
                 bootspec: bootspec.clone(),
-                extensions: Self::extract_extensions(&bootspec)?,
+                extensions: Self::extract_extensions(bootspec)?,
             },
         })
     }
