@@ -40,27 +40,31 @@
       };
 
       # Build attributes for a Rust application.
-      buildRustApp = {
-        src, target ? null, doCheck ? true
-      }: let
-        cleanedSrc = craneLib.cleanCargoSource src;
-        commonArgs = {
-          src = cleanedSrc;
-          CARGO_BUILD_TARGET = target;
-          inherit doCheck;
+      buildRustApp =
+        { src
+        , target ? null
+        , doCheck ? true
+        }:
+        let
+          cleanedSrc = craneLib.cleanCargoSource src;
+          commonArgs = {
+            src = cleanedSrc;
+            CARGO_BUILD_TARGET = target;
+            inherit doCheck;
+          };
+
+          cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        in
+        {
+          package = craneLib.buildPackage (commonArgs // {
+            inherit cargoArtifacts;
+          });
+
+          clippy = craneLib.cargoClippy (commonArgs // {
+            inherit cargoArtifacts;
+            cargoClippyExtraArgs = "-- --deny warnings";
+          });
         };
-
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-      in {
-        package = craneLib.buildPackage (commonArgs // {
-          inherit cargoArtifacts;
-        });
-
-        clippy = craneLib.cargoClippy (commonArgs // {
-          inherit cargoArtifacts;
-          cargoClippyExtraArgs = "-- --deny warnings";
-        });
-      };
 
       lanzabooteCrane = buildRustApp {
         src = ./rust/lanzaboote;
@@ -76,9 +80,10 @@
 
       lanzatool-unwrapped = lanzatoolCrane.package;
 
-      lanzatool = pkgs.runCommand "lanzatool" {
-        nativeBuildInputs = [ pkgs.makeWrapper ];
-      } ''
+      lanzatool = pkgs.runCommand "lanzatool"
+        {
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+        } ''
         mkdir -p $out/bin
 
         # Clean PATH to only contain what we need to do objcopy. Also
@@ -88,7 +93,8 @@
           --set RUST_BACKTRACE full \
           --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
       '';
-    in {
+    in
+    {
       overlays.default = final: prev: {
         inherit lanzatool;
       };
@@ -122,65 +128,66 @@
         ];
       };
 
-      checks.x86_64-linux = let
-        mkSecureBootTest = { name, machine ? {}, testScript }: nixpkgs-test.legacyPackages.x86_64-linux.nixosTest {
-          inherit name testScript;
-          nodes.machine = { lib, ... }: {
-            imports = [
-              self.nixosModules.lanzaboote
-              machine
-            ];
+      checks.x86_64-linux =
+        let
+          mkSecureBootTest = { name, machine ? { }, testScript }: nixpkgs-test.legacyPackages.x86_64-linux.nixosTest {
+            inherit name testScript;
+            nodes.machine = { lib, ... }: {
+              imports = [
+                self.nixosModules.lanzaboote
+                machine
+              ];
 
-            nixpkgs.overlays = [ self.overlays.default ];
+              nixpkgs.overlays = [ self.overlays.default ];
 
-            virtualisation = {
-              useBootLoader = true;
-              useEFIBoot = true;
-              useSecureBoot = true;
-            };
+              virtualisation = {
+                useBootLoader = true;
+                useEFIBoot = true;
+                useSecureBoot = true;
+              };
 
-            boot.loader.efi = {
-              canTouchEfiVariables = true;
-            };
-            boot.lanzaboote = {
-              enable = true;
-              enrollKeys = lib.mkDefault true;
-              pkiBundle = ./pki;
+              boot.loader.efi = {
+                canTouchEfiVariables = true;
+              };
+              boot.lanzaboote = {
+                enable = true;
+                enrollKeys = lib.mkDefault true;
+                pkiBundle = ./pki;
+              };
             };
           };
-        };
 
-        # Execute a boot test that is intended to fail.
-        #
-        mkUnsignedTest = { name, path, appendCrap ? false }: mkSecureBootTest {
-          inherit name;
-          testScript = ''
-            import json
-            import os.path
-            bootspec = None
+          # Execute a boot test that is intended to fail.
+          #
+          mkUnsignedTest = { name, path, appendCrap ? false }: mkSecureBootTest {
+            inherit name;
+            testScript = ''
+              import json
+              import os.path
+              bootspec = None
 
-            def convert_to_esp(store_file_path):
-                store_dir = os.path.basename(os.path.dirname(store_file_path))
-                filename = os.path.basename(store_file_path)
-                return f'/boot/EFI/nixos/{store_dir}-{filename}.efi'
+              def convert_to_esp(store_file_path):
+                  store_dir = os.path.basename(os.path.dirname(store_file_path))
+                  filename = os.path.basename(store_file_path)
+                  return f'/boot/EFI/nixos/{store_dir}-{filename}.efi'
 
-            machine.start()
-            bootspec = json.loads(machine.succeed("cat /run/current-system/boot.json")).get('v1')
-            assert bootspec is not None, "Unsupported bootspec version!"
-            src_path = ${path.src}
-            dst_path = ${path.dst}
-            machine.succeed(f"cp -rf {src_path} {dst_path}")
-          '' + lib.optionalString appendCrap ''
-            machine.succeed(f"echo Foo >> {dst_path}")
-          '' +
-          ''
-            machine.succeed("sync")
-            machine.crash()
-            machine.start()
-            machine.wait_for_console_text("Hash mismatch")
-          '';
-        };
-      in
+              machine.start()
+              bootspec = json.loads(machine.succeed("cat /run/current-system/boot.json")).get('v1')
+              assert bootspec is not None, "Unsupported bootspec version!"
+              src_path = ${path.src}
+              dst_path = ${path.dst}
+              machine.succeed(f"cp -rf {src_path} {dst_path}")
+            '' + lib.optionalString appendCrap ''
+              machine.succeed(f"echo Foo >> {dst_path}")
+            '' +
+            ''
+              machine.succeed("sync")
+              machine.crash()
+              machine.start()
+              machine.wait_for_console_text("Hash mismatch")
+            '';
+          };
+        in
         {
           lanzatool-clippy = lanzatoolCrane.clippy;
           lanzaboote-clippy = lanzabooteCrane.clippy;
@@ -225,9 +232,9 @@
               '';
             };
             testScript = ''
-            machine.start()
-            assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
-          '';
+              machine.start()
+              assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+            '';
           };
 
           # The initrd is not directly signed. Its hash is embedded
