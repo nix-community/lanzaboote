@@ -30,7 +30,7 @@
         ];
       };
 
-      lib = pkgs.lib;
+      inherit (pkgs) lib;
 
       rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
       craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
@@ -204,7 +204,7 @@
 
           lanzaboote-boot-under-sd-stage1 = mkSecureBootTest {
             name = "signed-files-boot-under-secureboot-systemd-stage-1";
-            machine = { ... }: {
+            machine = _: {
               boot.initrd.systemd.enable = true;
             };
             testScript = ''
@@ -222,9 +222,9 @@
           # which should exist IF lanzatool do the right thing.
           lanzaboote-with-initrd-secrets = mkSecureBootTest {
             name = "signed-files-boot-with-secrets-under-secureboot";
-            machine = { ... }: {
+            machine = _: {
               boot.initrd.secrets = {
-                "/etc/iamasecret" = (pkgs.writeText "iamsecret" "this is a very secure secret");
+                "/etc/iamasecret" = pkgs.writeText "iamsecret" "this is a very secure secret";
               };
 
               boot.initrd.preDeviceCommands = ''
