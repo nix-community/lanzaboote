@@ -1,4 +1,3 @@
-mod bootspec;
 mod cli;
 mod esp;
 mod generation;

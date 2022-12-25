@@ -31,6 +31,7 @@ to take something up:
 - Experimenting with `fwupd` / Green Checkmark in GNOME Device Security
   - https://github.com/fwupd/fwupd/issues/5284
 - Experimenting with TPM2 measurements
+- Support bootspec with no initrd
 - Studying the initrd secrets feature in NixOS wrt SecureBoot & TPM2
 - ...
 

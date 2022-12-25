@@ -32,9 +32,11 @@ in
   };
 
   config = mkIf cfg.enable {
-    # bootspec is putting at false
-    # until we fix this upstream, we will mkForce it.
-    boot.loader.supportsInitrdSecrets = mkForce true;
+    boot.bootspec = {
+      enable = true;
+      extensions."lanzaboote"."osRelease" = config.environment.etc."os-release".source;
+    };
+    boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
       enable = true;
       installHook = pkgs.writeShellScript "bootinstall" ''

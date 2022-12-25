@@ -1,42 +1,82 @@
+use serde::de::IntoDeserializer;
+use serde::{Deserialize, Serialize};
+
 use std::fmt;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
+use bootspec::generation::Generation as BootspecGeneration;
+use bootspec::BootJson;
+use bootspec::SpecialisationName;
 
-use crate::bootspec::Bootspec;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecureBootExtension {
+    #[serde(rename = "osRelease")]
+    pub os_release: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExtendedBootJson {
+    pub bootspec: BootJson,
+    pub extensions: SecureBootExtension,
+}
 
 #[derive(Debug)]
 pub struct Generation {
+    /// Profile symlink index
     version: u64,
-    specialisation_name: Option<String>,
-    pub bootspec: Bootspec,
+    /// Top-level specialisation name
+    specialisation_name: Option<SpecialisationName>,
+    /// Top-level extended boot specification
+    pub spec: ExtendedBootJson,
 }
 
 impl Generation {
+    fn extract_extensions(bootspec: &BootJson) -> Result<SecureBootExtension> {
+        Ok(Deserialize::deserialize(
+            bootspec.extensions.get("lanzaboote")
+            .context("Failed to extract Lanzaboote-specific extension from Bootspec, missing lanzaboote field in `extensions`")?
+            .clone()
+            .into_deserializer()
+        )?)
+    }
+
     pub fn from_toplevel(toplevel: impl AsRef<Path>) -> Result<Self> {
-        let bootspec_path = toplevel.as_ref().join("bootspec/boot.v1.json");
-        let bootspec: Bootspec = serde_json::from_slice(
+        let bootspec_path = toplevel.as_ref().join("boot.json");
+        let generation: BootspecGeneration = serde_json::from_slice(
             &fs::read(bootspec_path).context("Failed to read bootspec file")?,
         )
         .context("Failed to parse bootspec json")?;
 
+        let bootspec: BootJson = generation
+            .try_into()
+            .map_err(|err: &'static str| anyhow!(err))?;
+
+        let extensions = Self::extract_extensions(&bootspec)?;
+
         Ok(Self {
             version: parse_version(toplevel)?,
             specialisation_name: None,
-            bootspec,
+            spec: ExtendedBootJson {
+                bootspec,
+                extensions,
+            },
         })
     }
 
-    pub fn specialise(&self, name: &str, bootspec: &Bootspec) -> Self {
-        Self {
+    pub fn specialise(&self, name: &SpecialisationName, bootspec: &BootJson) -> Result<Self> {
+        Ok(Self {
             version: self.version,
-            specialisation_name: Some(String::from(name)),
-            bootspec: bootspec.clone(),
-        }
+            specialisation_name: Some(name.clone()),
+            spec: ExtendedBootJson {
+                bootspec: bootspec.clone(),
+                extensions: Self::extract_extensions(bootspec)?,
+            },
+        })
     }
 
-    pub fn is_specialized(&self) -> Option<String> {
+    pub fn is_specialized(&self) -> Option<SpecialisationName> {
         self.specialisation_name.clone()
     }
 }

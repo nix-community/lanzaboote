@@ -24,13 +24,19 @@ impl EspPaths {
         let esp_systemd = esp.join("EFI/systemd");
         let esp_efi_fallback_dir = esp.join("EFI/BOOT");
 
-        let bootspec = &generation.bootspec;
+        let bootspec = &generation.spec.bootspec;
 
         Ok(Self {
             esp: esp.to_path_buf(),
             nixos: esp_nixos.clone(),
             kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
-            initrd: esp_nixos.join(nixos_path(&bootspec.initrd, "initrd")?),
+            initrd: esp_nixos.join(nixos_path(
+                bootspec
+                    .initrd
+                    .as_ref()
+                    .context("Lanzaboote does not support missing initrd yet")?,
+                "initrd",
+            )?),
             linux: esp_linux.clone(),
             lanzaboote_image: esp_linux.join(generation_path(generation)),
             efi_fallback_dir: esp_efi_fallback_dir.clone(),
