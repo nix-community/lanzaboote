@@ -35,7 +35,7 @@
       rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
       craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
 
-      uefi-run = pkgs.callPackage ./nix/uefi-run.nix {
+      uefi-run = pkgs.callPackage ./nix/packages/uefi-run.nix {
         inherit craneLib;
       };
 
@@ -100,7 +100,7 @@
       };
 
       nixosModules.lanzaboote = { pkgs, lib, ... }: {
-        imports = [ ./nix/lanzaboote.nix ];
+        imports = [ ./nix/modules/lanzaboote.nix ];
         boot.lanzaboote.package = lib.mkDefault self.packages.${pkgs.system}.lanzatool;
       };
 
