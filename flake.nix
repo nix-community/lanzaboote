@@ -123,6 +123,8 @@
           pkgs.efitools
           pkgs.python39Packages.ovmfvartool
           pkgs.qemu
+          pkgs.nixpkgs-fmt
+          pkgs.statix
         ];
 
         inputsFrom = [
