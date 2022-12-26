@@ -36,10 +36,16 @@ impl Installer {
 
     pub fn install(&self) -> Result<()> {
         for toplevel in &self.generations {
-            let generation = Generation::from_toplevel(toplevel).with_context(|| {
+            let generation_result = Generation::from_toplevel(toplevel).with_context(|| {
                 format!("Failed to build generation from toplevel: {toplevel:?}")
-            })?;
+            });
 
+            if let Err(e) = generation_result {
+                println!("Malformed generation: {:?}", e);
+                continue;
+            }
+
+            let generation = generation_result.unwrap();
             println!("Installing generation {generation}");
 
             self.install_generation(&generation)
