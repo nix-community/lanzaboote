@@ -118,7 +118,6 @@
       devShells.x86_64-linux.default = pkgs.mkShell {
         packages = [
           uefi-run
-          lanzatool
           pkgs.openssl
           (pkgs.sbctl.override {
             databasePath = "pki";
@@ -133,6 +132,7 @@
 
         inputsFrom = [
           lanzaboote
+          lanzatool
         ];
       };
 
