@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+use crate::policy::LanzabootPolicy;
 use crate::install;
 use crate::signature::KeyPair;
 
@@ -26,6 +27,10 @@ struct InstallCommand {
     /// sbsign Private Key
     #[arg(long)]
     private_key: PathBuf,
+
+    /// unsigned generations policy
+    #[arg(long)]
+    unsigned_generations_policy: String,
 
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
@@ -59,6 +64,9 @@ fn install(args: InstallCommand) -> Result<()> {
         key_pair,
         args.esp,
         args.generations,
+        LanzabootPolicy {
+            unsigned_generations_policy: args.unsigned_generations_policy.try_into()?
+        }
     )
     .install()
 }
