@@ -10,6 +10,7 @@ use tempfile::tempdir;
 use crate::esp::EspPaths;
 use crate::generation::Generation;
 use crate::pe;
+use crate::policy::LanzabootPolicy;
 use crate::signature::KeyPair;
 
 pub struct Installer {
@@ -17,6 +18,7 @@ pub struct Installer {
     key_pair: KeyPair,
     esp: PathBuf,
     generations: Vec<PathBuf>,
+    policy: LanzabootPolicy
 }
 
 impl Installer {
@@ -25,21 +27,29 @@ impl Installer {
         key_pair: KeyPair,
         esp: PathBuf,
         generations: Vec<PathBuf>,
+        policy: LanzabootPolicy
     ) -> Self {
         Self {
             lanzaboote_stub,
             key_pair,
             esp,
             generations,
+            policy
         }
     }
 
     pub fn install(&self) -> Result<()> {
         for toplevel in &self.generations {
-            let generation = Generation::from_toplevel(toplevel).with_context(|| {
+            let generation_result = Generation::from_toplevel(toplevel).with_context(|| {
                 format!("Failed to build generation from toplevel: {toplevel:?}")
-            })?;
+            });
 
+            if let Err(e) = generation_result {
+                println!("Malformed generation: {:?}", e);
+                continue;
+            }
+
+            let generation = generation_result.unwrap();
             println!("Installing generation {generation}");
 
             self.install_generation(&generation)
