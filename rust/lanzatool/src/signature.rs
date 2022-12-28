@@ -1,9 +1,8 @@
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::Result;
-
-use crate::utils;
 
 pub struct KeyPair {
     pub private_key: PathBuf,
@@ -19,14 +18,14 @@ impl KeyPair {
     }
 
     pub fn sign_and_copy(&self, from: &Path, to: &Path) -> Result<()> {
-        let args = vec![
-            String::from("--key"),
-            utils::path_to_string(&self.private_key),
-            String::from("--cert"),
-            utils::path_to_string(&self.public_key),
-            utils::path_to_string(from),
-            String::from("--output"),
-            utils::path_to_string(to),
+        let args: Vec<OsString> = vec![
+            OsString::from("--key"),
+            self.private_key.clone().into(),
+            OsString::from("--cert"),
+            self.public_key.clone().into(),
+            from.as_os_str().to_owned(),
+            OsString::from("--output"),
+            to.as_os_str().to_owned(),
         ];
 
         let output = Command::new("sbsign").args(&args).output()?;

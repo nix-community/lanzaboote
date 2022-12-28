@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -7,8 +8,6 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 use goblin::pe::PE;
-
-use crate::utils;
 
 use tempfile::TempDir;
 
@@ -94,12 +93,11 @@ fn wrap_in_pe(
         .open(&image_path)
         .context("Failed to generate named temp file")?;
 
-    let mut args: Vec<String> = sections.iter().flat_map(Section::to_objcopy).collect();
-    let extra_args = vec![
-        utils::path_to_string(stub),
-        utils::path_to_string(&image_path),
-    ];
-    args.extend(extra_args);
+    let mut args: Vec<OsString> = sections.iter().flat_map(Section::to_objcopy).collect();
+
+    [stub.as_os_str(), image_path.as_os_str()]
+        .iter()
+        .for_each(|a| args.push(a.into()));
 
     let status = Command::new("objcopy")
         .args(&args)
@@ -122,12 +120,19 @@ struct Section {
 }
 
 impl Section {
-    fn to_objcopy(&self) -> Vec<String> {
+    /// Create objcopy `-add-section` command line parameters that
+    /// attach the section to a PE file.
+    fn to_objcopy(&self) -> Vec<OsString> {
+        // There is unfortunately no format! for OsString, so we cannot
+        // just format a path.
+        let mut map_str: OsString = format!("{}=", self.name).into();
+        map_str.push(&self.file_path);
+
         vec![
-            String::from("--add-section"),
-            format!("{}={}", self.name, utils::path_to_string(&self.file_path)),
-            String::from("--change-section-vma"),
-            format!("{}={:#x}", self.name, self.offset),
+            OsString::from("--add-section"),
+            map_str,
+            OsString::from("--change-section-vma"),
+            format!("{}={:#x}", self.name, self.offset).into(),
         ]
     }
 }

@@ -4,7 +4,6 @@ mod generation;
 mod install;
 mod pe;
 mod signature;
-mod utils;
 
 use anyhow::Result;
 use clap::Parser;
