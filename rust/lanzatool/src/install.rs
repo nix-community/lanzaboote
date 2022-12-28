@@ -36,9 +36,8 @@ impl Installer {
 
     pub fn install(&self) -> Result<()> {
         for toplevel in &self.generations {
-            let generation_result = Generation::from_toplevel(toplevel).with_context(|| {
-                format!("Failed to build generation from toplevel: {toplevel:?}")
-            });
+            let generation_result = Generation::from_toplevel(toplevel)
+                .with_context(|| format!("Failed to build generation from toplevel: {toplevel:?}"));
 
             let generation = match generation_result {
                 Ok(generation) => generation,
@@ -47,7 +46,7 @@ impl Installer {
                     continue;
                 }
             };
-            
+
             println!("Installing generation {generation}");
 
             self.install_generation(&generation)
