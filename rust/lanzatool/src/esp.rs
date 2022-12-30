@@ -53,21 +53,13 @@ fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
         .read_link()
         .unwrap_or_else(|_| path.as_ref().into());
 
-    let parent = resolved.parent().ok_or_else(|| {
-        anyhow::anyhow!(format!(
-            "Path: {} does not have a parent",
-            resolved.display()
-        ))
-    })?;
+    let parent_final_component = resolved
+        .parent()
+        .and_then(|x| x.file_name())
+        .and_then(|x| x.to_str())
+        .with_context(|| format!("Failed to extract final component from: {:?}", resolved))?;
 
-    let without_store = parent.strip_prefix("/nix/store").with_context(|| {
-        format!(
-            "Failed to strip /nix/store from path {}",
-            path.as_ref().display()
-        )
-    })?;
-
-    let nixos_filename = format!("{}-{}.efi", without_store.display(), name);
+    let nixos_filename = format!("{}-{}.efi", parent_final_component, name);
 
     Ok(PathBuf::from(nixos_filename))
 }
@@ -80,5 +72,24 @@ fn generation_path(generation: &Generation) -> PathBuf {
         ))
     } else {
         PathBuf::from(format!("nixos-generation-{}.efi", generation))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nixos_path_creates_correct_filename_from_nix_store_path() -> Result<()> {
+        let path =
+            Path::new("/nix/store/xqplddjjjy1lhzyzbcv4dza11ccpcfds-initrd-linux-6.1.1/initrd");
+
+        let generated_filename = nixos_path(path, "initrd")?;
+
+        let expected_filename =
+            PathBuf::from("xqplddjjjy1lhzyzbcv4dza11ccpcfds-initrd-linux-6.1.1-initrd.efi");
+
+        assert_eq!(generated_filename, expected_filename);
+        Ok(())
     }
 }
