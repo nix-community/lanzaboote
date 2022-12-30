@@ -87,24 +87,29 @@ impl fmt::Display for Generation {
     }
 }
 
-fn parse_version(toplevel: impl AsRef<Path>) -> Result<u64> {
-    let file_name = toplevel
+/// Parse version number from a path.
+///
+/// Expects a path in the format of "system-{version}-link".
+fn parse_version(path: impl AsRef<Path>) -> Result<u64> {
+    let generation_version = path
         .as_ref()
         .file_name()
-        .ok_or_else(|| anyhow::anyhow!("Failed to extract file name from generation"))?;
+        .and_then(|x| x.to_str())
+        .and_then(|x| x.split('-').nth(1))
+        .and_then(|x| x.parse::<u64>().ok())
+        .with_context(|| format!("Failed to extract version from: {:?}", path.as_ref()))?;
 
-    let file_name_str = file_name
-        .to_str()
-        .with_context(|| "Failed to convert file name of generation to string")?;
+    Ok(generation_version)
+}
 
-    let generation_version = file_name_str
-        .split('-')
-        .nth(1)
-        .ok_or_else(|| anyhow::anyhow!("Failed to extract version from generation"))?;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let parsed_generation_version = generation_version
-        .parse()
-        .with_context(|| format!("Failed to parse generation version: {}", generation_version))?;
-
-    Ok(parsed_generation_version)
+    #[test]
+    fn parse_version_correctly() {
+        let path = Path::new("system-2-link");
+        let parsed_version = parse_version(path).unwrap();
+        assert_eq!(parsed_version, 2,);
+    }
 }
