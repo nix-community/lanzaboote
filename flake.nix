@@ -50,14 +50,14 @@
         { src
         , target ? null
         , doCheck ? true
+        , extraArgs ? { }
         }:
         let
-          cleanedSrc = craneLib.cleanCargoSource src;
           commonArgs = {
-            src = cleanedSrc;
+            inherit src;
             CARGO_BUILD_TARGET = target;
             inherit doCheck;
-          };
+          } // extraArgs;
 
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
         in
@@ -73,7 +73,7 @@
         };
 
       lanzabooteCrane = buildRustApp {
-        src = ./rust/lanzaboote;
+        src = craneLib.cleanCargoSource ./rust/lanzaboote;
         target = "x86_64-unknown-uefi";
         doCheck = false;
       };
@@ -82,6 +82,13 @@
 
       lanzatoolCrane = buildRustApp {
         src = ./rust/lanzatool;
+        extraArgs = {
+          TEST_SYSTEMD = pkgs.systemd;
+          checkInputs = with pkgs; [
+            binutils-unwrapped
+            sbsigntool
+          ];
+        };
       };
 
       lanzatool-unwrapped = lanzatoolCrane.package;
@@ -134,6 +141,8 @@
           lanzaboote
           lanzatool
         ];
+
+        TEST_SYSTEMD = pkgs.systemd;
       };
 
       checks.x86_64-linux = {
