@@ -32,7 +32,7 @@ pub fn lanzaboote_image(
     let kernel_path_file = write_to_tmp(
         target_dir,
         "kernel-esp-path",
-        esp_relative_path_string(esp, kernel_path),
+        esp_relative_path_string(esp, kernel_path)?,
     )?;
     let kernel_hash_file = write_to_tmp(
         target_dir,
@@ -43,7 +43,7 @@ pub fn lanzaboote_image(
     let initrd_path_file = write_to_tmp(
         target_dir,
         "initrd-esp-path",
-        esp_relative_path_string(esp, initrd_path),
+        esp_relative_path_string(esp, initrd_path)?,
     )?;
     let initrd_hash_file = write_to_tmp(
         target_dir,
@@ -167,17 +167,17 @@ fn write_to_tmp(
     Ok(path)
 }
 
-fn esp_relative_path_string(esp: &Path, path: &Path) -> String {
+fn esp_relative_path_string(esp: &Path, path: &Path) -> Result<String> {
     let relative_path = path
         .strip_prefix(esp)
-        .expect("Failed to make path relative to esp")
+        .with_context(|| format!("Failed to strip prefix: {:?} from path: {:?}", esp, path))?
         .to_owned();
     let relative_path_string = relative_path
         .into_os_string()
         .into_string()
         .expect("Failed to convert path '{}' to a relative string path")
         .replace('/', "\\");
-    format!("\\{}", &relative_path_string)
+    Ok(format!("\\{}", &relative_path_string))
 }
 
 fn stub_offset(binary: &Path) -> Result<u64> {
@@ -205,5 +205,13 @@ fn image_base(pe: &PE) -> u64 {
 }
 
 fn file_size(path: impl AsRef<Path>) -> Result<u64> {
-    Ok(fs::File::open(path)?.metadata()?.size())
+    Ok(fs::File::open(&path)
+        .with_context(|| {
+            format!(
+                "Failed to read file to calculate its size: {:?}",
+                path.as_ref()
+            )
+        })?
+        .metadata()?
+        .size())
 }

@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -31,7 +32,7 @@ impl KeyPair {
         let output = Command::new("sbsign").args(&args).output()?;
 
         if !output.status.success() {
-            print!("{:?}", output.stderr);
+            std::io::stderr().write_all(&output.stderr).unwrap();
             return Err(anyhow::anyhow!(
                 "Failed to sign file using sbsign with args `{:?}`",
                 &args
