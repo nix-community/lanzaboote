@@ -212,14 +212,13 @@ fn image_base(pe: &PE) -> u64 {
 }
 
 fn file_size(path: impl AsRef<Path>) -> Result<u64> {
-    Ok(fs::File::open(&path)
+    Ok(fs::metadata(&path)
         .with_context(|| {
             format!(
-                "Failed to read file to calculate its size: {:?}",
+                "Failed to read file metadata to calculate its size: {:?}",
                 path.as_ref()
             )
         })?
-        .metadata()?
         .size())
 }
 
