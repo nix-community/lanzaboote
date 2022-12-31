@@ -32,7 +32,7 @@ pub fn lanzaboote_image(
     let kernel_path_file = write_to_tmp(
         target_dir,
         "kernel-esp-path",
-        esp_relative_path_string(esp, kernel_path)?,
+        esp_relative_uefi_path(esp, kernel_path)?,
     )?;
     let kernel_hash_file = write_to_tmp(
         target_dir,
@@ -43,7 +43,7 @@ pub fn lanzaboote_image(
     let initrd_path_file = write_to_tmp(
         target_dir,
         "initrd-esp-path",
-        esp_relative_path_string(esp, initrd_path)?,
+        esp_relative_uefi_path(esp, initrd_path)?,
     )?;
     let initrd_hash_file = write_to_tmp(
         target_dir,
@@ -167,17 +167,24 @@ fn write_to_tmp(
     Ok(path)
 }
 
-fn esp_relative_path_string(esp: &Path, path: &Path) -> Result<String> {
+/// Convert a path to an UEFI path relative to the specified ESP.
+fn esp_relative_uefi_path(esp: &Path, path: &Path) -> Result<String> {
     let relative_path = path
         .strip_prefix(esp)
-        .with_context(|| format!("Failed to strip prefix: {:?} from path: {:?}", esp, path))?
-        .to_owned();
-    let relative_path_string = relative_path
-        .into_os_string()
-        .into_string()
-        .expect("Failed to convert path '{}' to a relative string path")
-        .replace('/', "\\");
-    Ok(format!("\\{}", &relative_path_string))
+        .with_context(|| format!("Failed to strip esp prefix: {:?} from: {:?}", esp, path))?;
+    let uefi_path = uefi_path(relative_path)?;
+    Ok(format!("\\{}", &uefi_path))
+}
+
+/// Convert a path to a UEFI string representation.
+///
+/// This might not _necessarily_ produce a valid UEFI path, since some UEFI implementations might
+/// not support UTF-8 strings. A Rust String, however, is _always_ valid UTF-8.
+fn uefi_path(path: &Path) -> Result<String> {
+    path.to_str()
+        .to_owned()
+        .map(|x| x.replace('/', "\\"))
+        .with_context(|| format!("Failed to convert {:?} to an UEFI path", path))
 }
 
 fn stub_offset(binary: &Path) -> Result<u64> {
@@ -214,4 +221,26 @@ fn file_size(path: impl AsRef<Path>) -> Result<u64> {
         })?
         .metadata()?
         .size())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn convert_to_valid_uefi_path_relative_to_esp() {
+        let esp = Path::new("esp");
+        let path = Path::new("esp/lanzaboote/is/great.txt");
+        let converted_path = esp_relative_uefi_path(esp, path).unwrap();
+        let expected_path = String::from("\\lanzaboote\\is\\great.txt");
+        assert_eq!(converted_path, expected_path);
+    }
+
+    #[test]
+    fn convert_to_valid_uefi_path() {
+        let path = Path::new("lanzaboote/is/great.txt");
+        let converted_path = uefi_path(path).unwrap();
+        let expected_path = String::from("lanzaboote\\is\\great.txt");
+        assert_eq!(converted_path, expected_path);
+    }
 }
