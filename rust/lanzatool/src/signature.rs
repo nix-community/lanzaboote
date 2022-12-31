@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 pub struct KeyPair {
     pub private_key: PathBuf,
@@ -32,7 +32,9 @@ impl KeyPair {
         let output = Command::new("sbsign").args(&args).output()?;
 
         if !output.status.success() {
-            std::io::stderr().write_all(&output.stderr).unwrap();
+            std::io::stderr()
+                .write_all(&output.stderr)
+                .context("Failed to write output of sbsign to stderr")?;
             return Err(anyhow::anyhow!(
                 "Failed to sign file using sbsign with args `{:?}`",
                 &args
