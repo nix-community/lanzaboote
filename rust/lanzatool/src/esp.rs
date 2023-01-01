@@ -1,10 +1,13 @@
-use anyhow::{Context, Result};
+use std::array::IntoIter;
 use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
 
 use crate::generation::Generation;
 
 pub struct EspPaths {
     pub esp: PathBuf,
+    pub efi: PathBuf,
     pub nixos: PathBuf,
     pub kernel: PathBuf,
     pub initrd: PathBuf,
@@ -19,31 +22,51 @@ pub struct EspPaths {
 impl EspPaths {
     pub fn new(esp: impl AsRef<Path>, generation: &Generation) -> Result<Self> {
         let esp = esp.as_ref();
-        let esp_nixos = esp.join("EFI/nixos");
-        let esp_linux = esp.join("EFI/Linux");
-        let esp_systemd = esp.join("EFI/systemd");
-        let esp_efi_fallback_dir = esp.join("EFI/BOOT");
+        let efi = esp.join("EFI");
+        let efi_nixos = efi.join("nixos");
+        let efi_linux = efi.join("Linux");
+        let efi_systemd = efi.join("systemd");
+        let efi_efi_fallback_dir = efi.join("BOOT");
 
         let bootspec = &generation.spec.bootspec;
 
         Ok(Self {
             esp: esp.to_path_buf(),
-            nixos: esp_nixos.clone(),
-            kernel: esp_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
-            initrd: esp_nixos.join(nixos_path(
+            efi,
+            nixos: efi_nixos.clone(),
+            kernel: efi_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
+            initrd: efi_nixos.join(nixos_path(
                 bootspec
                     .initrd
                     .as_ref()
                     .context("Lanzaboote does not support missing initrd yet")?,
                 "initrd",
             )?),
-            linux: esp_linux.clone(),
-            lanzaboote_image: esp_linux.join(generation_path(generation)),
-            efi_fallback_dir: esp_efi_fallback_dir.clone(),
-            efi_fallback: esp_efi_fallback_dir.join("BOOTX64.EFI"),
-            systemd: esp_systemd.clone(),
-            systemd_boot: esp_systemd.join("systemd-bootx64.efi"),
+            linux: efi_linux.clone(),
+            lanzaboote_image: efi_linux.join(generation_path(generation)),
+            efi_fallback_dir: efi_efi_fallback_dir.clone(),
+            efi_fallback: efi_efi_fallback_dir.join("BOOTX64.EFI"),
+            systemd: efi_systemd.clone(),
+            systemd_boot: efi_systemd.join("systemd-bootx64.efi"),
         })
+    }
+
+    /// Return the used file paths to store as garbage collection roots.
+    pub fn to_iter(&self) -> IntoIter<&PathBuf, 11> {
+        [
+            &self.esp,
+            &self.efi,
+            &self.nixos,
+            &self.kernel,
+            &self.initrd,
+            &self.linux,
+            &self.lanzaboote_image,
+            &self.efi_fallback_dir,
+            &self.efi_fallback,
+            &self.systemd,
+            &self.systemd_boot,
+        ]
+        .into_iter()
     }
 }
 
