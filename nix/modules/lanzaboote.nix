@@ -47,7 +47,6 @@ in
   config = mkIf cfg.enable {
     boot.bootspec = {
       enable = true;
-      extensions."lanzaboote"."osRelease" = config.environment.etc."os-release".source;
     };
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
