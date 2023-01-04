@@ -61,7 +61,20 @@ impl Installer {
         };
         self.install_links(links)?;
 
-        self.gc_roots.collect_garbage(&self.esp)?;
+        // Only collect garbage in these two directories. This way, no files that do not belong to
+        // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
+        // directory and deletes ALL files that it doesn't know about. Dual- or multiboot setups
+        // that need files in this directory will NOT work.
+        self.gc_roots.collect_garbage(self.esp.join("EFI/nixos"))?;
+        // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
+        // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
+        // deleted).
+        self.gc_roots
+            .collect_garbage_with_filter(self.esp.join("EFI/Linux"), |p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map_or(false, |n| n.starts_with("nixos-"))
+            })?;
 
         Ok(())
     }
