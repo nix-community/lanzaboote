@@ -43,6 +43,11 @@ in
       default = "${cfg.pkiBundle}/keys/db/db.key";
       description = "Private key to sign your boot files";
     };
+    variant = mkOption {
+      type = types.enum [ "grub" "systemd-boot" ];
+      default = "systemd-boot";
+      description = "Bootloader variant to use with lanzaboot";
+    };
     package = mkOption {
       type = types.package;
       default = pkgs.lzbt;
@@ -57,23 +62,33 @@ in
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
       enable = true;
-      installHook = pkgs.writeShellScript "bootinstall" ''
-        ${optionalString cfg.enrollKeys ''
-          mkdir -p /tmp/pki
-          cp -r ${cfg.pkiBundle}/* /tmp/pki
-          ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
-        ''}
-  
-        ${cfg.package}/bin/lzbt install \
-          --systemd ${pkgs.systemd} \
-          --systemd-boot-loader-config ${systemdBootLoaderConfig} \
-          --public-key ${cfg.publicKeyFile} \
-          --private-key ${cfg.privateKeyFile} \
-          --efi-boot-path /run/current-system/systemd/lib/systemd/boot/efi/systemd-bootx64.efi \
-          --configuration-limit ${toString configurationLimit} \
-          ${config.boot.loader.efi.efiSysMountPoint} \
-          /nix/var/nix/profiles/system-*-link
-      '';
+      installHook = 
+        let
+          boot-path = if (cfg.variant == "systemd-boot") then
+            "${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootx64.efi"
+          else "/tmp/grub/boot.efi";
+          grub-image = ''
+            mkdir /tmp/grub
+            ${pkgs.grub2_efi}/bin/grub-mkimage -O x86_64-efi -p "" -o /tmp/grub/boot.efi
+          '';
+        in
+          (pkgs.writeShellScript "bootinstall" ''
+          ${optionalString cfg.enrollKeys ''
+            mkdir -p /tmp/pki
+            cp -r ${cfg.pkiBundle}/* /tmp/pki
+            ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
+          ''} '' + optionalString (cfg.variant == "grub") grub-image + ''
+
+          ${cfg.package}/bin/lzbt install \
+            --systemd ${pkgs.systemd} \
+            --systemd-boot-loader-config ${systemdBootLoaderConfig} \
+            --public-key ${cfg.publicKeyFile} \
+            --private-key ${cfg.privateKeyFile} \
+            --efi-boot-path ${boot-path} \
+            --configuration-limit ${toString configurationLimit} \
+            ${config.boot.loader.efi.efiSysMountPoint} \
+            /nix/var/nix/profiles/system-*-link
+        '');
     };
   };
 }
