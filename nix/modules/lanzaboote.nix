@@ -69,6 +69,7 @@ in
           --systemd-boot-loader-config ${systemdBootLoaderConfig} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
+          --efi-boot-path /run/current-system/systemd/lib/systemd/boot/efi/systemd-bootx64.efi \
           --configuration-limit ${toString configurationLimit} \
           ${config.boot.loader.efi.efiSysMountPoint} \
           /nix/var/nix/profiles/system-*-link

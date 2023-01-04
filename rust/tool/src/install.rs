@@ -23,6 +23,7 @@ pub struct Installer {
     key_pair: KeyPair,
     configuration_limit: usize,
     esp_paths: EspPaths,
+    efi_boot_path: PathBuf,
     generation_links: Vec<PathBuf>,
 }
 
@@ -34,6 +35,7 @@ impl Installer {
         key_pair: KeyPair,
         configuration_limit: usize,
         esp: PathBuf,
+        efi_boot_path: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
@@ -48,6 +50,7 @@ impl Installer {
             key_pair,
             configuration_limit,
             esp_paths,
+            efi_boot_path,
             generation_links,
         }
     }
@@ -211,13 +214,9 @@ impl Installer {
     ///
     /// Checking for the version also allows us to skip buggy systemd versions in the future.
     fn install_systemd_boot(&self) -> Result<()> {
-        let systemd_boot = self
-            .systemd
-            .join("lib/systemd/boot/efi/systemd-bootx64.efi");
-
         let paths = [
-            (&systemd_boot, &self.esp_paths.efi_fallback),
-            (&systemd_boot, &self.esp_paths.systemd_boot),
+            (&self.efi_boot_path, &self.esp_paths.efi_fallback),
+            (&self.efi_boot_path, &self.esp_paths.efi_boot),
         ];
 
         for (from, to) in paths {

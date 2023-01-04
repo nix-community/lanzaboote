@@ -113,7 +113,7 @@ pub fn lanzaboote_install(
 
     let mut cmd = Command::cargo_bin("lzbt")?;
     let output = cmd
-        .env("LANZABOOTE_STUB", test_systemd_stub)
+        .env("LANZABOOTE_STUB", &test_systemd_stub)
         .arg("install")
         .arg("--systemd")
         .arg(test_systemd)
@@ -123,6 +123,8 @@ pub fn lanzaboote_install(
         .arg("tests/fixtures/uefi-keys/db.pem")
         .arg("--private-key")
         .arg("tests/fixtures/uefi-keys/db.key")
+        .arg("--efi-boot-path")
+        .arg(test_systemd_stub)
         .arg("--configuration-limit")
         .arg(config_limit.to_string())
         .arg(esp_mountpoint)

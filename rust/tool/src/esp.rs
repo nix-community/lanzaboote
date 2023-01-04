@@ -14,7 +14,7 @@ pub struct EspPaths {
     pub efi_fallback_dir: PathBuf,
     pub efi_fallback: PathBuf,
     pub systemd: PathBuf,
-    pub systemd_boot: PathBuf,
+    pub efi_boot: PathBuf,
     pub loader: PathBuf,
     pub systemd_boot_loader_config: PathBuf,
 }
@@ -38,7 +38,7 @@ impl EspPaths {
             efi_fallback_dir: efi_efi_fallback_dir.clone(),
             efi_fallback: efi_efi_fallback_dir.join("BOOTX64.EFI"),
             systemd: efi_systemd.clone(),
-            systemd_boot: efi_systemd.join("systemd-bootx64.efi"),
+            efi_boot: efi_systemd.join("systemd-bootx64.efi"),
             loader,
             systemd_boot_loader_config,
         }
@@ -54,7 +54,7 @@ impl EspPaths {
             &self.efi_fallback_dir,
             &self.efi_fallback,
             &self.systemd,
-            &self.systemd_boot,
+            &self.efi_boot,
             &self.loader,
             &self.systemd_boot_loader_config,
         ]

@@ -39,6 +39,10 @@ struct InstallCommand {
     #[arg(long, default_value_t = 1)]
     configuration_limit: usize,
 
+    /// EFI Bootloader Path (e.g. systemd/lib/systemd/boot/efi/systemd-bootx64.efi)
+    #[arg(long)]
+    efi_boot_path: PathBuf,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -73,6 +77,7 @@ fn install(args: InstallCommand) -> Result<()> {
         key_pair,
         args.configuration_limit,
         args.esp,
+        args.efi_boot_path,
         args.generations,
     )
     .install()
