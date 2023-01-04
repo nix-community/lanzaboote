@@ -19,16 +19,27 @@ fn keep_only_configured_number_of_generations() -> Result<()> {
         })
         .collect();
     let stub_count = || count_files(&esp_mountpoint.path().join("EFI/Linux")).unwrap();
+    let kernel_and_initrd_count = || count_files(&esp_mountpoint.path().join("EFI/nixos")).unwrap();
 
     // Install all 3 generations.
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), generation_links.clone())?;
     assert!(output0.status.success());
-    assert_eq!(stub_count(), 3);
+    assert_eq!(stub_count(), 3, "Wrong number of stubs after installation");
+    assert_eq!(
+        kernel_and_initrd_count(),
+        6,
+        "Wrong number of kernels & initrds after installation"
+    );
 
     // Call `lanzatool install` again with a config limit of 2 and assert that one is deleted.
     let output1 = common::lanzaboote_install(2, esp_mountpoint.path(), generation_links)?;
     assert!(output1.status.success());
-    assert_eq!(stub_count(), 2);
+    assert_eq!(stub_count(), 2, "Wrong number of stubs after gc.");
+    assert_eq!(
+        kernel_and_initrd_count(),
+        4,
+        "Wrong number of kernels & initrds after gc."
+    );
 
     Ok(())
 }
