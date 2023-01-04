@@ -13,7 +13,7 @@ supports UEFI.
 
 ## ⚡ Quickstart ⚡
 
-If you want to try this out, head over [here](./docs/QUICK_START) for
+If you want to try this out, head over [here](./docs/QUICK_START.md) for
 instructions.
 
 ## 🪛 Get Involved 🪛
