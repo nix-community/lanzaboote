@@ -35,10 +35,30 @@ impl Roots {
     }
 
     pub fn collect_garbage(&self, directory: impl AsRef<Path>) -> Result<()> {
+        self.collect_garbage_with_filter(directory, |_| true)
+    }
+
+    /// Collect garbage with an additional filter.
+    ///
+    /// The filter function takes a &Path and returns a bool. The paths for which the filter
+    /// function returns true are considered for garbage collection. This means that _only_ files
+    /// that are unused AND for which the filter function returns true are deleted.
+    pub fn collect_garbage_with_filter<P>(
+        &self,
+        directory: impl AsRef<Path>,
+        mut predicate: P,
+    ) -> Result<()>
+    where
+        P: FnMut(&Path) -> bool,
+    {
         // Find all the paths not used anymore.
         let entries_not_in_use = WalkDir::new(directory.as_ref())
             .into_iter()
-            .filter(|e| !self.in_use(e.as_ref().ok()));
+            .filter(|e| !self.in_use(e.as_ref().ok()))
+            .filter(|e| match e.as_ref().ok() {
+                Some(e) => predicate(e.path()),
+                None => false,
+            });
 
         // Remove all entries not in use.
         for e in entries_not_in_use {
@@ -145,6 +165,27 @@ mod tests {
         assert!(used_directory.exists());
         assert!(used_file_in_directory.exists());
         assert!(!unused_file_in_directory.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn only_delete_filtered_unused_files() -> Result<()> {
+        let tmpdir = tempfile::tempdir()?;
+        let rootdir = create_dir(tmpdir.path().join("root"))?;
+
+        let unused_file = create_file(rootdir.join("unused_file"))?;
+        let unused_file_with_prefix = create_file(rootdir.join("prefix_unused_file"))?;
+
+        let mut roots = Roots::new();
+        roots.extend(vec![&rootdir]);
+        roots.collect_garbage_with_filter(&rootdir, |p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map_or(false, |n| n.starts_with("prefix_"))
+        })?;
+
+        assert!(unused_file.exists());
+        assert!(!unused_file_with_prefix.exists());
         Ok(())
     }
 

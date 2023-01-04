@@ -44,6 +44,41 @@ fn keep_only_configured_number_of_generations() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn keep_unrelated_files_on_esp() -> Result<()> {
+    let esp_mountpoint = tempdir()?;
+    let tmpdir = tempdir()?;
+    let profiles = tempdir()?;
+    let generation_links: Vec<PathBuf> = [1, 2, 3]
+        .into_iter()
+        .map(|v| {
+            common::setup_generation_link(tmpdir.path(), profiles.path(), v)
+                .expect("Failed to setup generation link")
+        })
+        .collect();
+
+    // Install all 3 generations.
+    let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), generation_links.clone())?;
+    assert!(output0.status.success());
+
+    let unrelated_uki = esp_mountpoint.path().join("EFI/Linux/ubuntu.efi");
+    let unrelated_os = esp_mountpoint.path().join("EFI/windows");
+    let unrelated_firmware = esp_mountpoint.path().join("dell");
+    fs::File::create(&unrelated_uki)?;
+    fs::create_dir(&unrelated_os)?;
+    fs::create_dir(&unrelated_firmware)?;
+
+    // Call `lanzatool install` again with a config limit of 2.
+    let output1 = common::lanzaboote_install(2, esp_mountpoint.path(), generation_links)?;
+    assert!(output1.status.success());
+
+    assert!(unrelated_uki.exists());
+    assert!(unrelated_os.exists());
+    assert!(unrelated_firmware.exists());
+
+    Ok(())
+}
+
 fn count_files(path: &Path) -> Result<usize> {
     Ok(fs::read_dir(path)?.count())
 }
