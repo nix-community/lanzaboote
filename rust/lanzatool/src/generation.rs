@@ -64,7 +64,7 @@ impl Generation {
         })
     }
 
-    pub fn is_specialized(&self) -> Option<SpecialisationName> {
+    pub fn is_specialised(&self) -> Option<SpecialisationName> {
         self.specialisation_name.clone()
     }
 
