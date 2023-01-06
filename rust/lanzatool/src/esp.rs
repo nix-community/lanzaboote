@@ -88,7 +88,7 @@ fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
 }
 
 fn generation_path(generation: &Generation) -> PathBuf {
-    if let Some(specialisation_name) = generation.is_specialized() {
+    if let Some(specialisation_name) = generation.is_specialised() {
         PathBuf::from(format!(
             "nixos-generation-{}-specialisation-{}.efi",
             generation, specialisation_name
