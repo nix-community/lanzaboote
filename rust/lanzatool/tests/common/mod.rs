@@ -21,6 +21,8 @@ pub fn setup_generation_link(
     version: u64,
 ) -> Result<PathBuf> {
     let toplevel = setup_toplevel(tmpdir).context("Failed to setup toplevel")?;
+    // Explicitly set modification time so that snapshot test of os-release reliably works.
+    filetime::set_file_mtime(&toplevel, filetime::FileTime::zero())?;
 
     let bootspec = json!({
         "v1": {
@@ -73,7 +75,8 @@ fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     let initrd_path = toplevel.join("initrd");
     let kernel_path = toplevel.join("kernel");
     let systemd_path = toplevel.join("systemd");
-    let os_release_path = toplevel.join("os-release");
+    let nixos_version_path = toplevel.join("nixos-version");
+    let kernel_modules_path = toplevel.join("kernel-modules/lib/modules/6.1.1");
 
     // To simplify the test setup, we use the systemd stub for all PE binaries used by lanzatool.
     // Lanzatool doesn't care whether its actually a kernel or initrd but only whether it can
@@ -82,7 +85,8 @@ fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     fs::copy(&test_systemd_stub, initrd_path)?;
     fs::copy(&test_systemd_stub, kernel_path)?;
     symlink(&test_systemd, systemd_path)?;
-    setup_os_release(&os_release_path).context("Failed to setup os-release")?;
+    fs::write(nixos_version_path, b"23.05")?;
+    fs::create_dir_all(kernel_modules_path)?;
 
     Ok(toplevel)
 }
@@ -93,19 +97,6 @@ fn random_string(length: usize) -> String {
         .take(length)
         .map(char::from)
         .collect()
-}
-
-fn setup_os_release(path: &Path) -> Result<()> {
-    let content = r#"
-        ID=lanzaos
-        NAME=LanzaOS
-        PRETTY_NAME="LanzaOS 23.05 (Goat)"
-        VERSION="23.05 (Goat)"
-    "#;
-
-    let mut file = fs::File::create(path)?;
-    file.write_all(content.as_bytes())?;
-    Ok(())
 }
 
 /// Call the `lanzaboote install` command.

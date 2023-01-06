@@ -10,6 +10,7 @@ use tempfile::tempdir;
 use crate::esp::EspPaths;
 use crate::gc::Roots;
 use crate::generation::{Generation, GenerationLink};
+use crate::os_release::OsRelease;
 use crate::pe;
 use crate::signature::KeyPair;
 
@@ -113,7 +114,6 @@ impl Installer {
 
     fn install_generation(&mut self, generation: &Generation) -> Result<()> {
         let bootspec = &generation.spec.bootspec;
-        let secureboot_extensions = &generation.spec.extensions;
 
         let esp_paths = EspPaths::new(&self.esp, generation)?;
         self.gc_roots.extend(esp_paths.to_iter());
@@ -128,6 +128,12 @@ impl Installer {
         // which is assumed to be root in most cases.
         // TODO(Raito): prove to niksnur this is actually acceptable.
         let secure_temp_dir = tempdir()?;
+
+        let os_release = OsRelease::from_generation(generation)
+            .context("Failed to build OsRelease from generation.")?;
+        let os_release_path = secure_temp_dir.path().join("os-release");
+        fs::write(&os_release_path, os_release.to_string().as_bytes())
+            .with_context(|| format!("Failed to write os-release file: {:?}", os_release_path))?;
 
         println!("Appending secrets to initrd...");
 
@@ -164,7 +170,7 @@ impl Installer {
         let lanzaboote_image = pe::lanzaboote_image(
             &secure_temp_dir,
             &self.lanzaboote_stub,
-            &secureboot_extensions.os_release,
+            &os_release_path,
             &kernel_cmdline,
             &esp_paths.kernel,
             &esp_paths.initrd,
