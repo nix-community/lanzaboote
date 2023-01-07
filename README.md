@@ -65,7 +65,7 @@ this flow. It takes a [NixOS
 bootspec](https://github.com/NixOS/rfcs/pull/125) document, signs the
 relevant files, creates a UKI using lanzaboote (see below) and
 installs the UKI along with other required files to the
-ESP. `lanzatool` is also aware of multiple NixOS genertions and will
+ESP. `lanzatool` is also aware of multiple NixOS generations and will
 sign all configurations that should be bootable.
 ### Lanzaboote
 
