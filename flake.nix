@@ -7,6 +7,12 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
+    pre-commit-hooks-nix = {
+      url = "github:cachix/pre-commit-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+
     # We only have this input to pass it to other dependencies and
     # avoid having mulitple versions in our dependencies.
     flake-utils.url = "github:numtide/flake-utils";
@@ -35,6 +41,9 @@
       imports = [
         # Derive the output overlay automatically from all packages that we define.
         inputs.flake-parts.flakeModules.easyOverlay
+
+        # Formatting and quality checks.
+        inputs.pre-commit-hooks-nix.flakeModule
       ];
 
       flake.nixosModules.lanzaboote = moduleWithSystem (
@@ -146,7 +155,15 @@
           lanzabooteModule = self.nixosModules.lanzaboote;
         });
 
+        pre-commit = {
+          check.enable = true;
+        };
+
         devShells.default = pkgs.mkShell {
+          shellHook = ''
+            ${config.pre-commit.installationScript}
+          '';
+
           packages = let
             uefi-run = pkgs.callPackage ./nix/packages/uefi-run.nix {
               inherit craneLib;
