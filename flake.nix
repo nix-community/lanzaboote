@@ -31,10 +31,32 @@
   };
 
   outputs = inputs@{ self, nixpkgs, nixpkgs-test, crane, rust-overlay, flake-parts, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      flake = let
+    flake-parts.lib.mkFlake { inherit inputs; } ({ moduleWithSystem, ... }: {
+      imports = [
+        # Derive the output overlay automatically from all packages that we define.
+        inputs.flake-parts.flakeModules.easyOverlay
+      ];
+
+      flake.nixosModules.lanzaboote = moduleWithSystem (
+        perSystem@{ config }:
+        { ... }: {
+          imports = [
+            ./nix/modules/lanzaboote.nix
+          ];
+
+          boot.lanzaboote.package = perSystem.config.packages.lanzatool;
+        });
+
+      systems = [
+        "x86_64-linux"
+
+        # Not actively tested, but may work:
+        # "aarch64-linux"
+      ];
+
+      perSystem = { config, system, pkgs, ... }: let
         pkgs = import nixpkgs {
-          system = "x86_64-linux";
+          system = system;
           overlays = [
             rust-overlay.overlays.default
           ];
@@ -46,10 +68,6 @@
 
         rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
         craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
-
-        uefi-run = pkgs.callPackage ./nix/packages/uefi-run.nix {
-          inherit craneLib;
-        };
 
         # Build attributes for a Rust application.
         buildRustApp =
@@ -98,74 +116,62 @@
         };
 
         lanzatool-unwrapped = lanzatoolCrane.package;
+      in {
+        packages = {
+          inherit lanzaboote;
 
-        lanzatool = pkgs.runCommand "lanzatool"
-          {
+          lanzatool = pkgs.runCommand "lanzatool" {
             nativeBuildInputs = [ pkgs.makeWrapper ];
           } ''
-        mkdir -p $out/bin
+            mkdir -p $out/bin
 
-        # Clean PATH to only contain what we need to do objcopy. Also
-        # tell lanzatool where to find our UEFI binaries.
-        makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
-          --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
-          --set RUST_BACKTRACE full \
-          --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
-      '';
-      in
-        {
-          overlays.default = final: prev: {
-            inherit lanzatool;
-          };
-
-          nixosModules.lanzaboote = { pkgs, lib, ... }: {
-            imports = [ ./nix/modules/lanzaboote.nix ];
-            boot.lanzaboote.package = lib.mkDefault self.packages.${pkgs.system}.lanzatool;
-          };
-
-          packages.x86_64-linux = {
-            inherit lanzaboote lanzatool;
-            default = lanzatool;
-          };
-
-          devShells.x86_64-linux.default = pkgs.mkShell {
-            packages = [
-              uefi-run
-              pkgs.openssl
-              (pkgs.sbctl.override {
-                databasePath = "pki";
-              })
-              pkgs.sbsigntool
-              pkgs.efitools
-              pkgs.python39Packages.ovmfvartool
-              pkgs.qemu
-              pkgs.nixpkgs-fmt
-              pkgs.statix
-            ];
-
-            inputsFrom = [
-              lanzaboote
-              lanzatool
-            ];
-
-            TEST_SYSTEMD = pkgs.systemd;
-          };
-
-          checks.x86_64-linux = {
-            lanzatool-clippy = lanzatoolCrane.clippy;
-            lanzaboote-clippy = lanzabooteCrane.clippy;
-          } // (import ./nix/tests/lanzaboote.nix {
-            inherit pkgs testPkgs;
-            lanzabooteModule = self.nixosModules.lanzaboote;
-          });
+            # Clean PATH to only contain what we need to do objcopy. Also
+            # tell lanzatool where to find our UEFI binaries.
+            makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
+              --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
+              --set RUST_BACKTRACE full \
+              --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
+          '';
         };
 
-      systems = [
-        "x86_64-linux"
-      ];
+        overlayAttrs = {
+          inherit (config.packages) lanzatool;
+        };
 
-      perSystem = { config, ... }: {
-        # Nothing here yet.
+        checks = {
+          lanzatool-clippy = lanzatoolCrane.clippy;
+          lanzaboote-clippy = lanzabooteCrane.clippy;
+        } // (import ./nix/tests/lanzaboote.nix {
+          inherit pkgs testPkgs;
+          lanzabooteModule = self.nixosModules.lanzaboote;
+        });
+
+        devShells.default = pkgs.mkShell {
+          packages = let
+            uefi-run = pkgs.callPackage ./nix/packages/uefi-run.nix {
+              inherit craneLib;
+            };
+          in [
+            uefi-run
+            pkgs.openssl
+            (pkgs.sbctl.override {
+              databasePath = "pki";
+            })
+            pkgs.sbsigntool
+            pkgs.efitools
+            pkgs.python39Packages.ovmfvartool
+            pkgs.qemu
+            pkgs.nixpkgs-fmt
+            pkgs.statix
+          ];
+
+          inputsFrom = [
+            config.packages.lanzaboote
+            config.packages.lanzatool
+          ];
+
+          TEST_SYSTEMD = pkgs.systemd;
+        };
       };
-    };
+    });
 }
