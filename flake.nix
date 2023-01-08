@@ -157,6 +157,10 @@
 
         pre-commit = {
           check.enable = true;
+
+          settings.hooks = {
+            nixpkgs-fmt.enable = true;
+          };
         };
 
         devShells.default = pkgs.mkShell {
