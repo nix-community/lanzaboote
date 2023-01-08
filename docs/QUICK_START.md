@@ -1,4 +1,134 @@
-# How to get started with Lanzaboote-based SecureBoot?
+# Quick Start: NixOS Secure Boot
+
+This document attempts to guide users into setting up UEFI Secure Boot
+for their NixOS system using a custom key chain. The audience are
+experienced NixOS users.
+
+This guide has been tested on a Lenovo Thinkpad and is expected to
+work on other Thinkpads without change. On other systems, certain
+steps may be different.
+
+## ⚠ Disclaimers ⚠
+
+Secure Boot for NixOS is still in development and has some sharp
+edges. There may be cases where you end up with a system that does not
+boot.
+
+**We only recommend this to NixOS users that are comfortable using
+recovery tools to restore their system or have a backup ready.**
+
+## Requirements
+
+To be able to setup Secure Boot on your device, NixOS needs to be
+installed in UEFI mode and
+[`systemd-boot`](https://www.freedesktop.org/wiki/Software/systemd/systemd-boot/)
+must be used as a boot loader.
+
+These prerequisites can be checked via `bootctl status`:
+
+```console
+$ bootctl status
+System:
+     Firmware: UEFI 2.70 (Lenovo 0.4720)
+  Secure Boot: disabled (disabled)
+ TPM2 Support: yes
+ Boot into FW: supported
+
+Current Boot Loader:
+      Product: systemd-boot 251.7
+...
+```
+
+In the `bootctl` output, the firmware needs to be `UEFI` and the
+current boot loader needs to be `systemd-boot`. If this is the case,
+you are all set to continue.
+
+## Part 1: Preparing Your System
+
+In the first part, we will prepare everything on the software side of
+things. At the end of this part, you will have your own Secure Boot
+keys and a NixOS that has signed boot binaries.
+
+### Creating Your Keys
+
+To create Secure Boot keys, we will you `sbctl`, the Secure Boot Key
+Manager. `sbctl` is available in
+[Nixpkgs](https://github.com/NixOS/nixpkgs) as `pkgs.sbctl`.
+
+Once you have installed sbctl (or entered a Nix shell), creating your
+Secure Boot keys requires this command:
+
+```console
+$ sudo sbctl create-keys
+[sudo] password for julian:
+Created Owner UUID 8ec4b2c3-dc7f-4362-b9a3-0cc17e5a34cd
+Creating secure boot keys...✓
+Secure boot keys created!
+```
+
+This takes a couple of seconds. When it is done, your Secure Boot keys
+are located in `/etc/secureboot`. `sbctl` sets the permissions of the
+secret key so that only root can read it.
+
+### Switching to bootspec
+
+- `boot.bootspec.enable = true;`
+- rebuild / reboot
+- GC
+
+
+### Configuring NixOS (without Flakes)
+
+If you are using Flakes, skip to the next section.
+
+... write me ...
+
+### Configuring NixOS (with Flakes)
+
+```nix
+nixosConfigurations = {
+  yourHost = nixpkgs.lib.nixosSystem {
+	system = "x86_64-linux";
+
+	modules = [
+	  # ... other modules ...
+
+	  lanzaboote.nixosModules.lanzaboote
+
+	  ({ config, ... }: {
+		# Lanzaboote currently replaces the sytemd-boot module.
+		boot.loader.systemd-boot.enable = false;
+
+		boot.lanzaboote = {
+		  enable = true;
+		  pkiBundle = "/etc/secureboot";
+
+		  # Start conservatively, because each generation consumes
+		  # space in the ESP. Running out of space in the ESP is currently
+		  # not handled well.
+		  configurationLimit = 20;
+		};
+	  })
+	];
+  };
+```
+
+## Part 2: Enabling Secure Boot
+
+Now that NixOS is ready for Secure Boot, we will setup the
+firmware. At the end of this section, Secure Boot will be enabled on
+your system and your firmware will only boot binaries that are signed
+with your keys.
+
+### Entering Setup Mode
+
+### Enrolling Keys
+
+### Reboot and Profit
+
+# old docs
+
+How to get started with Lanzaboote-based SecureBoot?
 
 **Requirements** :
 
@@ -82,7 +212,7 @@ Use your favorite way to import this project in your configuration, i.e. Flakes 
 ### `fetchFromGitHub`
 
 ```
-{ pkgs, config, lib, ... }: 
+{ pkgs, config, lib, ... }:
 {
   imports = [
     (pkgs.fetchFromGitHub {
