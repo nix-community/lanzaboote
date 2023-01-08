@@ -54,7 +54,8 @@
           ];
 
           boot.lanzaboote.package = perSystem.config.packages.lanzatool;
-        });
+        }
+      );
 
       systems = [
         "x86_64-linux"
@@ -63,37 +64,38 @@
         # "aarch64-linux"
       ];
 
-      perSystem = { config, system, pkgs, ... }: let
-        pkgs = import nixpkgs {
-          system = system;
-          overlays = [
-            rust-overlay.overlays.default
-          ];
-        };
+      perSystem = { config, system, pkgs, ... }:
+        let
+          pkgs = import nixpkgs {
+            system = system;
+            overlays = [
+              rust-overlay.overlays.default
+            ];
+          };
 
-        testPkgs = import nixpkgs-test { system = "x86_64-linux"; };
+          testPkgs = import nixpkgs-test { system = "x86_64-linux"; };
 
-        inherit (pkgs) lib;
+          inherit (pkgs) lib;
 
-        rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
-        craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
+          rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
+          craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
 
-        # Build attributes for a Rust application.
-        buildRustApp =
-          { src
-          , target ? null
-          , doCheck ? true
-          , extraArgs ? { }
-          }:
-          let
-            commonArgs = {
-              inherit src;
-              CARGO_BUILD_TARGET = target;
-              inherit doCheck;
-            } // extraArgs;
+          # Build attributes for a Rust application.
+          buildRustApp =
+            { src
+            , target ? null
+            , doCheck ? true
+            , extraArgs ? { }
+            }:
+            let
+              commonArgs = {
+                inherit src;
+                CARGO_BUILD_TARGET = target;
+                inherit doCheck;
+              } // extraArgs;
 
-            cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-          in
+              cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+            in
             {
               package = craneLib.buildPackage (commonArgs // {
                 inherit cargoArtifacts;
@@ -105,94 +107,98 @@
               });
             };
 
-        lanzabooteCrane = buildRustApp {
-          src = craneLib.cleanCargoSource ./rust/lanzaboote;
-          target = "x86_64-unknown-uefi";
-          doCheck = false;
-        };
-
-        lanzaboote = lanzabooteCrane.package;
-
-        lanzatoolCrane = buildRustApp {
-          src = ./rust/lanzatool;
-          extraArgs = {
-            TEST_SYSTEMD = pkgs.systemd;
-            checkInputs = with pkgs; [
-              binutils-unwrapped
-              sbsigntool
-            ];
+          lanzabooteCrane = buildRustApp {
+            src = craneLib.cleanCargoSource ./rust/lanzaboote;
+            target = "x86_64-unknown-uefi";
+            doCheck = false;
           };
-        };
 
-        lanzatool-unwrapped = lanzatoolCrane.package;
-      in {
-        packages = {
-          inherit lanzaboote;
+          lanzaboote = lanzabooteCrane.package;
 
-          lanzatool = pkgs.runCommand "lanzatool" {
-            nativeBuildInputs = [ pkgs.makeWrapper ];
-          } ''
-            mkdir -p $out/bin
-
-            # Clean PATH to only contain what we need to do objcopy. Also
-            # tell lanzatool where to find our UEFI binaries.
-            makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
-              --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
-              --set RUST_BACKTRACE full \
-              --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
-          '';
-        };
-
-        overlayAttrs = {
-          inherit (config.packages) lanzatool;
-        };
-
-        checks = {
-          lanzatool-clippy = lanzatoolCrane.clippy;
-          lanzaboote-clippy = lanzabooteCrane.clippy;
-        } // (import ./nix/tests/lanzaboote.nix {
-          inherit pkgs testPkgs;
-          lanzabooteModule = self.nixosModules.lanzaboote;
-        });
-
-        pre-commit = {
-          check.enable = true;
-
-          settings.hooks = {
-            nixpkgs-fmt.enable = true;
-          };
-        };
-
-        devShells.default = pkgs.mkShell {
-          shellHook = ''
-            ${config.pre-commit.installationScript}
-          '';
-
-          packages = let
-            uefi-run = pkgs.callPackage ./nix/packages/uefi-run.nix {
-              inherit craneLib;
+          lanzatoolCrane = buildRustApp {
+            src = ./rust/lanzatool;
+            extraArgs = {
+              TEST_SYSTEMD = pkgs.systemd;
+              checkInputs = with pkgs; [
+                binutils-unwrapped
+                sbsigntool
+              ];
             };
-          in [
-            uefi-run
-            pkgs.openssl
-            (pkgs.sbctl.override {
-              databasePath = "pki";
-            })
-            pkgs.sbsigntool
-            pkgs.efitools
-            pkgs.python39Packages.ovmfvartool
-            pkgs.qemu
-            pkgs.nixpkgs-fmt
-            pkgs.statix
-          ];
+          };
 
-          inputsFrom = [
-            config.packages.lanzaboote
-            config.packages.lanzatool
-          ];
+          lanzatool-unwrapped = lanzatoolCrane.package;
+        in
+        {
+          packages = {
+            inherit lanzaboote;
 
-          TEST_SYSTEMD = pkgs.systemd;
+            lanzatool = pkgs.runCommand "lanzatool"
+              {
+                nativeBuildInputs = [ pkgs.makeWrapper ];
+              } ''
+              mkdir -p $out/bin
+
+              # Clean PATH to only contain what we need to do objcopy. Also
+              # tell lanzatool where to find our UEFI binaries.
+              makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
+                --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
+                --set RUST_BACKTRACE full \
+                --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
+            '';
+          };
+
+          overlayAttrs = {
+            inherit (config.packages) lanzatool;
+          };
+
+          checks = {
+            lanzatool-clippy = lanzatoolCrane.clippy;
+            lanzaboote-clippy = lanzabooteCrane.clippy;
+          } // (import ./nix/tests/lanzaboote.nix {
+            inherit pkgs testPkgs;
+            lanzabooteModule = self.nixosModules.lanzaboote;
+          });
+
+          pre-commit = {
+            check.enable = true;
+
+            settings.hooks = {
+              nixpkgs-fmt.enable = true;
+            };
+          };
+
+          devShells.default = pkgs.mkShell {
+            shellHook = ''
+              ${config.pre-commit.installationScript}
+            '';
+
+            packages =
+              let
+                uefi-run = pkgs.callPackage ./nix/packages/uefi-run.nix {
+                  inherit craneLib;
+                };
+              in
+              [
+                uefi-run
+                pkgs.openssl
+                (pkgs.sbctl.override {
+                  databasePath = "pki";
+                })
+                pkgs.sbsigntool
+                pkgs.efitools
+                pkgs.python39Packages.ovmfvartool
+                pkgs.qemu
+                pkgs.nixpkgs-fmt
+                pkgs.statix
+              ];
+
+            inputsFrom = [
+              config.packages.lanzaboote
+              config.packages.lanzatool
+            ];
+
+            TEST_SYSTEMD = pkgs.systemd;
+          };
         };
-      };
     });
 }
