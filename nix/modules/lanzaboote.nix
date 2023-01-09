@@ -45,9 +45,13 @@ in
   };
 
   config = mkIf cfg.enable {
-    boot.bootspec = {
-      enable = true;
-    };
+    boot.bootspec.enable = true;
+
+    environment.systemPackages = [
+      # This is useful on a Secure Boot system for troubleshooting.
+      pkgs.sbctl
+    ];
+
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
       enable = true;
@@ -57,7 +61,7 @@ in
           cp -r ${cfg.pkiBundle}/* /tmp/pki
           ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
         ''}
-  
+
         ${cfg.package}/bin/lanzatool install \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
