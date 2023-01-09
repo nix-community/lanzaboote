@@ -147,6 +147,7 @@
             inherit stub;
             tool = wrappedTool;
             lzbt = wrappedTool;
+            grub-efi-image = pkgs.callPackage ./nix/packages/grub-efi-image.nix {};
           };
 
           overlayAttrs = {

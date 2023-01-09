@@ -66,18 +66,14 @@ in
         let
           boot-path = if (cfg.variant == "systemd-boot") then
             "${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootx64.efi"
-          else "/tmp/grub/boot.efi";
-          grub-image = ''
-            mkdir /tmp/grub
-            ${pkgs.grub2_efi}/bin/grub-mkimage -O x86_64-efi -p "" -o /tmp/grub/boot.efi
-          '';
+          else "${pkgs.grub-efi-image}/boot.efi";
         in
           (pkgs.writeShellScript "bootinstall" ''
           ${optionalString cfg.enrollKeys ''
             mkdir -p /tmp/pki
             cp -r ${cfg.pkiBundle}/* /tmp/pki
             ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
-          ''} '' + optionalString (cfg.variant == "grub") grub-image + ''
+          ''}
 
           ${cfg.package}/bin/lzbt install \
             --systemd ${pkgs.systemd} \
