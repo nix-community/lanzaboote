@@ -5,7 +5,6 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 use nix::unistd::sync;
-use tempfile::tempdir;
 
 use crate::esp::EspPaths;
 use crate::gc::Roots;
@@ -13,6 +12,7 @@ use crate::generation::{Generation, GenerationLink};
 use crate::os_release::OsRelease;
 use crate::pe;
 use crate::signature::KeyPair;
+use crate::utils::SecureTempDirExt;
 
 pub struct Installer {
     gc_roots: Roots,
@@ -121,23 +121,18 @@ impl Installer {
         let kernel_cmdline =
             assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
 
-        // prepare a secure temporary directory
-        // permission bits are not set, because when files below
-        // are opened, they are opened with 600 mode bits.
-        // hence, they cannot be read except by the current user
-        // which is assumed to be root in most cases.
-        // TODO(Raito): prove to niksnur this is actually acceptable.
-        let secure_temp_dir = tempdir()?;
+        // This tempdir must live for the entire lifetime of the current function.
+        let tempdir = tempfile::tempdir()?;
 
         let os_release = OsRelease::from_generation(generation)
             .context("Failed to build OsRelease from generation.")?;
-        let os_release_path = secure_temp_dir.path().join("os-release");
-        fs::write(&os_release_path, os_release.to_string().as_bytes())
-            .with_context(|| format!("Failed to write os-release file: {:?}", os_release_path))?;
+        let os_release_path = tempdir
+            .write_secure_file("os-release", os_release.to_string().as_bytes())
+            .context("Failed to write os-release file.")?;
 
         println!("Appending secrets to initrd...");
 
-        let initrd_location = secure_temp_dir.path().join("initrd");
+        let initrd_location = tempdir.path().join("initrd");
         copy(
             bootspec
                 .initrd
@@ -168,7 +163,7 @@ impl Installer {
         install(&initrd_location, &esp_paths.initrd).context("Failed to install initrd to ESP")?;
 
         let lanzaboote_image = pe::lanzaboote_image(
-            &secure_temp_dir,
+            &tempdir,
             &self.lanzaboote_stub,
             &os_release_path,
             &kernel_cmdline,
