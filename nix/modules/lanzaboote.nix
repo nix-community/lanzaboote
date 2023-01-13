@@ -39,8 +39,8 @@ in
     };
     package = mkOption {
       type = types.package;
-      default = pkgs.lanzatool;
-      description = "Lanzatool package";
+      default = pkgs.lzbt;
+      description = "Lanzaboote tool (lzbt) package";
     };
   };
 
@@ -58,7 +58,7 @@ in
           ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
         ''}
   
-        ${cfg.package}/bin/lanzatool install \
+        ${cfg.package}/bin/lzbt install \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \

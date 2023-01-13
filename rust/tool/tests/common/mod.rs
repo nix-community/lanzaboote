@@ -110,7 +110,7 @@ pub fn lanzaboote_install(
     let test_systemd = systemd_location_from_env()?;
     let test_systemd_stub = format!("{test_systemd}/lib/systemd/boot/efi/linuxx64.efi.stub");
 
-    let mut cmd = Command::cargo_bin("lanzatool")?;
+    let mut cmd = Command::cargo_bin("lzbt")?;
     let output = cmd
         .env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("install")

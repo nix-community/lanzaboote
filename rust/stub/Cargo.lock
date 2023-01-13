@@ -86,7 +86,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lanzaboote"
+name = "lanzaboote_stub"
 version = "0.1.0"
 dependencies = [
  "ed25519-compact",
