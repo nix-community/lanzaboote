@@ -77,7 +77,7 @@
 
           inherit (pkgs) lib;
 
-          rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
+          rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/stub/rust-toolchain.toml;
           craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
 
           # Build attributes for a Rust application.
@@ -108,7 +108,7 @@
             };
 
           lanzabooteCrane = buildRustApp {
-            src = craneLib.cleanCargoSource ./rust/lanzaboote;
+            src = craneLib.cleanCargoSource ./rust/stub;
             target = "x86_64-unknown-uefi";
             doCheck = false;
           };
@@ -116,7 +116,7 @@
           lanzaboote = lanzabooteCrane.package;
 
           lanzatoolCrane = buildRustApp {
-            src = ./rust/lanzatool;
+            src = ./rust/tool;
             extraArgs = {
               TEST_SYSTEMD = pkgs.systemd;
               checkInputs = with pkgs; [
