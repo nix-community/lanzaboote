@@ -9,8 +9,8 @@ mod linux_loader;
 mod pe_section;
 mod uefi_helpers;
 
-use blake3::Hash;
 use pe_section::{pe_section, pe_section_as_string};
+use sha2::{Digest, Sha256};
 use uefi::{
     prelude::*,
     proto::{
@@ -25,6 +25,8 @@ use crate::{
     linux_loader::InitrdLoader,
     uefi_helpers::{booted_image_cmdline, booted_image_file, read_all},
 };
+
+type Hash = sha2::digest::Output<Sha256>;
 
 /// Print the startup logo on boot.
 fn print_logo(output: &mut Output) -> Result<()> {
@@ -144,7 +146,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         initrd_data = read_all(&mut initrd_file).expect("Failed to read kernel file into memory");
     }
 
-    if blake3::hash(&kernel_data) != config.kernel_hash {
+    if Sha256::digest(&kernel_data) != config.kernel_hash {
         system_table
             .stdout()
             .output_string(cstr16!("Hash mismatch for kernel. Refusing to load!\r\n"))
@@ -152,7 +154,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         return Status::SECURITY_VIOLATION;
     }
 
-    if blake3::hash(&initrd_data) != config.initrd_hash {
+    if Sha256::digest(&initrd_data) != config.initrd_hash {
         system_table
             .stdout()
             .output_string(cstr16!("Hash mismatch for initrd. Refusing to load!\r\n"))
