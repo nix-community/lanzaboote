@@ -11,8 +11,8 @@ log = "0.4.17"
 ed25519-compact = { version = "2.0.2", default-features = false, features = [] }
 goblin = { version = "0.6.0", default-features = false, features = [ "pe64", "alloc" ]}
 
-# We don't want the assembly implementations for now.
-blake3 = { version = "1.3.3", default-features = false, features = [ "pure" ]}
+# Use software implementation because the UEFI target seems to need it.
+sha2 = { version = "0.10.6", default-features = false, features = ["force-soft"] }
 
 [profile.release]
 opt-level = "s"

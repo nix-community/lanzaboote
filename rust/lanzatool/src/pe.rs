@@ -8,8 +8,11 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 use goblin::pe::PE;
+use sha2::{Digest, Sha256};
 
 use tempfile::TempDir;
+
+type Hash = sha2::digest::Output<Sha256>;
 
 /// Attach all information that lanzaboote needs into the PE binary.
 ///
@@ -37,7 +40,7 @@ pub fn lanzaboote_image(
     let kernel_hash_file = write_to_tmp(
         target_dir,
         "kernel-hash",
-        file_hash(kernel_path)?.as_bytes(),
+        file_hash(kernel_path)?.as_slice(),
     )?;
 
     let initrd_path_file = write_to_tmp(
@@ -48,7 +51,7 @@ pub fn lanzaboote_image(
     let initrd_hash_file = write_to_tmp(
         target_dir,
         "initrd-hash",
-        file_hash(initrd_path)?.as_bytes(),
+        file_hash(initrd_path)?.as_slice(),
     )?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
@@ -70,9 +73,9 @@ pub fn lanzaboote_image(
     wrap_in_pe(target_dir, "lanzaboote-stub.efi", lanzaboote_stub, sections)
 }
 
-/// Compute the blake3 hash of a file.
-fn file_hash(file: &Path) -> Result<blake3::Hash> {
-    Ok(blake3::hash(&fs::read(file)?))
+/// Compute the SHA 256 hash of a file.
+fn file_hash(file: &Path) -> Result<Hash> {
+    Ok(Sha256::digest(fs::read(file)?))
 }
 
 /// Take a PE binary stub and attach sections to it.
