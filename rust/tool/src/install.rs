@@ -1,7 +1,9 @@
+use std::ffi::CStr;
 use std::fs;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use nix::unistd::sync;
@@ -17,6 +19,7 @@ use crate::utils::SecureTempDirExt;
 pub struct Installer {
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
+    systemd: PathBuf,
     key_pair: KeyPair,
     configuration_limit: usize,
     esp_paths: EspPaths,
@@ -26,6 +29,7 @@ pub struct Installer {
 impl Installer {
     pub fn new(
         lanzaboote_stub: PathBuf,
+        systemd: PathBuf,
         key_pair: KeyPair,
         configuration_limit: usize,
         esp: PathBuf,
@@ -38,6 +42,7 @@ impl Installer {
         Self {
             gc_roots,
             lanzaboote_stub,
+            systemd,
             key_pair,
             configuration_limit,
             esp_paths,
@@ -65,6 +70,8 @@ impl Installer {
                 .collect()
         };
         self.install_links(links)?;
+
+        self.install_systemd_boot()?;
 
         // Only collect garbage in these two directories. This way, no files that do not belong to
         // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
@@ -148,24 +155,17 @@ impl Installer {
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
 
-        let systemd_boot = bootspec
-            .toplevel
-            .0
-            .join("systemd/lib/systemd/boot/efi/systemd-bootx64.efi");
-
-        [
-            (&systemd_boot, &self.esp_paths.efi_fallback),
-            (&systemd_boot, &self.esp_paths.systemd_boot),
-            (&bootspec.kernel, &esp_gen_paths.kernel),
-        ]
-        .into_iter()
-        .try_for_each(|(from, to)| install_signed(&self.key_pair, from, to))?;
-
-        // The initrd doesn't need to be signed. Lanzaboote has its
-        // hash embedded and will refuse loading it when the hash
-        // mismatches.
+        // The initrd doesn't need to be signed. The stub has its hash embedded and will refuse
+        // loading it when the hash mismatches.
+        //
+        // The initrd and kernel are not forcibly installed because they are not built
+        // reproducibly. Forcibly installing (i.e. overwriting) them is likely to break older
+        // generations that point to the same initrd/kernel because the hash embedded in the stub
+        // will not match anymore.
         install(&initrd_location, &esp_gen_paths.initrd)
             .context("Failed to install initrd to ESP")?;
+        install_signed(&self.key_pair, &bootspec.kernel, &esp_gen_paths.kernel)
+            .context("Failed to install kernel to ESP.")?;
 
         let lanzaboote_image = pe::lanzaboote_image(
             &tempdir,
@@ -197,6 +197,33 @@ impl Installer {
 
         Ok(())
     }
+
+    /// Install systemd-boot to ESP.
+    ///
+    /// systemd-boot is only updated when a newer version is available OR when the currently
+    /// installed version is not signed. This enables switching to Lanzaboote without having to
+    /// manually delete previous unsigned systemd-boot binaries and minimizes the number of writes
+    /// to the ESP.
+    ///
+    /// Checking for the version also allows us to skip buggy systemd versions in the future.
+    fn install_systemd_boot(&self) -> Result<()> {
+        let systemd_boot = self
+            .systemd
+            .join("lib/systemd/boot/efi/systemd-bootx64.efi");
+
+        let paths = [
+            (&systemd_boot, &self.esp_paths.efi_fallback),
+            (&systemd_boot, &self.esp_paths.systemd_boot),
+        ];
+
+        for (from, to) in paths {
+            if newer_systemd_boot(from, to)? || !&self.key_pair.verify(to) {
+                force_install_signed(&self.key_pair, from, to)
+                    .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Install a PE file. The PE gets signed in the process.
@@ -206,13 +233,21 @@ fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
     if to.exists() {
         println!("{} already exists, skipping...", to.display());
     } else {
-        println!("Signing and installing {}...", to.display());
-        ensure_parent_dir(to);
-        key_pair
-            .sign_and_copy(from, to)
-            .with_context(|| format!("Failed to copy and sign file from {:?} to {:?}", from, to))?;
+        force_install_signed(key_pair, from, to)?;
     }
 
+    Ok(())
+}
+
+/// Sign and forcibly install a PE file.
+///
+/// If the file already exists at the destination, it is overwritten.
+fn force_install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
+    println!("Signing and installing {}...", to.display());
+    ensure_parent_dir(to);
+    key_pair
+        .sign_and_copy(from, to)
+        .with_context(|| format!("Failed to copy and sign file from {from:?} to {to:?}"))?;
     Ok(())
 }
 
@@ -280,4 +315,58 @@ fn ensure_parent_dir(path: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
+}
+
+/// Determine if a newer systemd-boot version is available.
+///
+/// "Newer" can mean
+///   (1) no file exists at the destination,
+///   (2) the file at the destination is malformed,
+///   (3) a binary with a higher version is available.
+fn newer_systemd_boot(from: &Path, to: &Path) -> Result<bool> {
+    // If the file doesn't exists at the destination, it should be installed.
+    if !to.exists() {
+        return Ok(true);
+    }
+
+    // If the version from the source binary cannot be read, something is irrecoverably wrong.
+    let from_version = systemd_boot_version(from)
+        .with_context(|| format!("Failed to read systemd-boot version from {from:?}."))?;
+
+    // If the version cannot be read from the destination binary, it is malformed. It should be
+    // forcibly reinstalled.
+    let to_version = match systemd_boot_version(to) {
+        Ok(version) => version,
+        _ => return Ok(true),
+    };
+
+    Ok(from_version > to_version)
+}
+
+/// Read the version of a systemd-boot binary from its `.osrel` section.
+///
+/// The version is parsed into a f32 because systemd does not follow strict semver conventions. A
+/// f32, however, should parse all systemd versions and enables usefully comparing them.
+/// This is a hack and we should replace it with a better solution once we find one.
+fn systemd_boot_version(path: &Path) -> Result<f32> {
+    let file_data = fs::read(path).with_context(|| format!("Failed to read file {path:?}"))?;
+    let section_data = pe::read_section_data(&file_data, ".osrel")
+        .with_context(|| format!("PE section '.osrel' is empty: {path:?}"))?;
+
+    // The `.osrel` section in the systemd-boot binary is a NUL terminated string and thus needs
+    // special handling.
+    let section_data_cstr =
+        CStr::from_bytes_with_nul(section_data).context("Failed to parse C string.")?;
+    let section_data_string = section_data_cstr
+        .to_str()
+        .context("Failed to convert C string to Rust string.")?;
+
+    let os_release = OsRelease::from_str(section_data_string)
+        .with_context(|| format!("Failed to parse os-release from {section_data_string}"))?;
+
+    let version_string = os_release
+        .0
+        .get("VERSION")
+        .context("Failed to extract VERSION key from: {os_release:#?}")?;
+    Ok(f32::from_str(version_string)?)
 }

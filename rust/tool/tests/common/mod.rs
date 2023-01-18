@@ -1,7 +1,6 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
@@ -74,7 +73,6 @@ fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
 
     let initrd_path = toplevel.join("initrd");
     let kernel_path = toplevel.join("kernel");
-    let systemd_path = toplevel.join("systemd");
     let nixos_version_path = toplevel.join("nixos-version");
     let kernel_modules_path = toplevel.join("kernel-modules/lib/modules/6.1.1");
 
@@ -84,7 +82,6 @@ fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     // in isolation this should suffice.
     fs::copy(&test_systemd_stub, initrd_path)?;
     fs::copy(&test_systemd_stub, kernel_path)?;
-    symlink(&test_systemd, systemd_path)?;
     fs::write(nixos_version_path, b"23.05")?;
     fs::create_dir_all(kernel_modules_path)?;
 
@@ -114,6 +111,8 @@ pub fn lanzaboote_install(
     let output = cmd
         .env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("install")
+        .arg("--systemd")
+        .arg(test_systemd)
         .arg("--public-key")
         .arg("tests/fixtures/uefi-keys/db.pem")
         .arg("--private-key")
