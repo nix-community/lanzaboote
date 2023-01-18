@@ -6,7 +6,7 @@ use std::process::Command;
 use anyhow::{Context, Result};
 use nix::unistd::sync;
 
-use crate::esp::EspPaths;
+use crate::esp::{EspGenerationPaths, EspPaths};
 use crate::gc::Roots;
 use crate::generation::{Generation, GenerationLink};
 use crate::os_release::OsRelease;
@@ -19,7 +19,7 @@ pub struct Installer {
     lanzaboote_stub: PathBuf,
     key_pair: KeyPair,
     configuration_limit: usize,
-    esp: PathBuf,
+    esp_paths: EspPaths,
     generation_links: Vec<PathBuf>,
 }
 
@@ -31,12 +31,16 @@ impl Installer {
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
+        let mut gc_roots = Roots::new();
+        let esp_paths = EspPaths::new(esp);
+        gc_roots.extend(esp_paths.to_iter());
+
         Self {
-            gc_roots: Roots::new(),
+            gc_roots,
             lanzaboote_stub,
             key_pair,
             configuration_limit,
-            esp,
+            esp_paths,
             generation_links,
         }
     }
@@ -66,12 +70,12 @@ impl Installer {
         // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
         // directory and deletes ALL files that it doesn't know about. Dual- or multiboot setups
         // that need files in this directory will NOT work.
-        self.gc_roots.collect_garbage(self.esp.join("EFI/nixos"))?;
+        self.gc_roots.collect_garbage(&self.esp_paths.nixos)?;
         // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
         // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
         // deleted).
         self.gc_roots
-            .collect_garbage_with_filter(self.esp.join("EFI/Linux"), |p| {
+            .collect_garbage_with_filter(&self.esp_paths.linux, |p| {
                 p.file_name()
                     .and_then(|n| n.to_str())
                     .map_or(false, |n| n.starts_with("nixos-"))
@@ -115,8 +119,8 @@ impl Installer {
     fn install_generation(&mut self, generation: &Generation) -> Result<()> {
         let bootspec = &generation.spec.bootspec;
 
-        let esp_paths = EspPaths::new(&self.esp, generation)?;
-        self.gc_roots.extend(esp_paths.to_iter());
+        let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation)?;
+        self.gc_roots.extend(esp_gen_paths.to_iter());
 
         let kernel_cmdline =
             assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
@@ -150,9 +154,9 @@ impl Installer {
             .join("systemd/lib/systemd/boot/efi/systemd-bootx64.efi");
 
         [
-            (&systemd_boot, &esp_paths.efi_fallback),
-            (&systemd_boot, &esp_paths.systemd_boot),
-            (&bootspec.kernel, &esp_paths.kernel),
+            (&systemd_boot, &self.esp_paths.efi_fallback),
+            (&systemd_boot, &self.esp_paths.systemd_boot),
+            (&bootspec.kernel, &esp_gen_paths.kernel),
         ]
         .into_iter()
         .try_for_each(|(from, to)| install_signed(&self.key_pair, from, to))?;
@@ -160,23 +164,24 @@ impl Installer {
         // The initrd doesn't need to be signed. Lanzaboote has its
         // hash embedded and will refuse loading it when the hash
         // mismatches.
-        install(&initrd_location, &esp_paths.initrd).context("Failed to install initrd to ESP")?;
+        install(&initrd_location, &esp_gen_paths.initrd)
+            .context("Failed to install initrd to ESP")?;
 
         let lanzaboote_image = pe::lanzaboote_image(
             &tempdir,
             &self.lanzaboote_stub,
             &os_release_path,
             &kernel_cmdline,
-            &esp_paths.kernel,
-            &esp_paths.initrd,
-            &esp_paths.esp,
+            &esp_gen_paths.kernel,
+            &esp_gen_paths.initrd,
+            &self.esp_paths.esp,
         )
         .context("Failed to assemble stub")?;
 
         install_signed(
             &self.key_pair,
             &lanzaboote_image,
-            &esp_paths.lanzaboote_image,
+            &esp_gen_paths.lanzaboote_image,
         )
         .context("Failed to install lanzaboote")?;
 
@@ -187,7 +192,7 @@ impl Installer {
 
         println!(
             "Successfully installed lanzaboote to '{}'",
-            esp_paths.esp.display()
+            self.esp_paths.esp.display()
         );
 
         Ok(())
