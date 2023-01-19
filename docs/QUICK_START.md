@@ -82,7 +82,7 @@ secret key so that only root can read it.
 
 ### Switching to bootspec
 
-Lanzatool currently doesn't handle
+`lzbt` currently doesn't handle
 non-[bootspec](https://github.com/grahamc/rfcs/blob/bootspec/rfcs/0125-bootspec.md)
 generations well
 ([#55](https://github.com/nix-community/lanzaboote/issues/55)). As

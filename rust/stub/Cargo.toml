@@ -1,5 +1,5 @@
 [package]
-name = "lanzaboote"
+name = "lanzaboote_stub"
 version = "0.1.0"
 edition = "2021"
 publish = false

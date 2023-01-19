@@ -53,7 +53,7 @@
             ./nix/modules/lanzaboote.nix
           ];
 
-          boot.lanzaboote.package = perSystem.config.packages.lanzatool;
+          boot.lanzaboote.package = perSystem.config.packages.tool;
         }
       );
 
@@ -77,7 +77,7 @@
 
           inherit (pkgs) lib;
 
-          rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/lanzaboote/rust-toolchain.toml;
+          rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/stub/rust-toolchain.toml;
           craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
 
           # Build attributes for a Rust application.
@@ -107,16 +107,16 @@
               });
             };
 
-          lanzabooteCrane = buildRustApp {
-            src = craneLib.cleanCargoSource ./rust/lanzaboote;
+          stubCrane = buildRustApp {
+            src = craneLib.cleanCargoSource ./rust/stub;
             target = "x86_64-unknown-uefi";
             doCheck = false;
           };
 
-          lanzaboote = lanzabooteCrane.package;
+          stub = stubCrane.package;
 
-          lanzatoolCrane = buildRustApp {
-            src = ./rust/lanzatool;
+          toolCrane = buildRustApp {
+            src = ./rust/tool;
             extraArgs = {
               TEST_SYSTEMD = pkgs.systemd;
               checkInputs = with pkgs; [
@@ -126,34 +126,36 @@
             };
           };
 
-          lanzatool-unwrapped = lanzatoolCrane.package;
+          tool = toolCrane.package;
+
+          wrappedTool = pkgs.runCommand "lzbt"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ];
+            } ''
+            mkdir -p $out/bin
+
+            # Clean PATH to only contain what we need to do objcopy. Also
+            # tell lanzatool where to find our UEFI binaries.
+            makeWrapper ${tool}/bin/lzbt $out/bin/lzbt \
+              --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
+              --set RUST_BACKTRACE full \
+              --set LANZABOOTE_STUB ${stub}/bin/lanzaboote_stub.efi
+          '';
         in
         {
           packages = {
-            inherit lanzaboote;
-
-            lanzatool = pkgs.runCommand "lanzatool"
-              {
-                nativeBuildInputs = [ pkgs.makeWrapper ];
-              } ''
-              mkdir -p $out/bin
-
-              # Clean PATH to only contain what we need to do objcopy. Also
-              # tell lanzatool where to find our UEFI binaries.
-              makeWrapper ${lanzatool-unwrapped}/bin/lanzatool $out/bin/lanzatool \
-                --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
-                --set RUST_BACKTRACE full \
-                --set LANZABOOTE_STUB ${lanzaboote}/bin/lanzaboote.efi
-            '';
+            inherit stub;
+            tool = wrappedTool;
+            lzbt = wrappedTool;
           };
 
           overlayAttrs = {
-            inherit (config.packages) lanzatool;
+            inherit (config.packages) tool;
           };
 
           checks = {
-            lanzatool-clippy = lanzatoolCrane.clippy;
-            lanzaboote-clippy = lanzabooteCrane.clippy;
+            toolClippy = toolCrane.clippy;
+            stubClippy = stubCrane.clippy;
           } // (import ./nix/tests/lanzaboote.nix {
             inherit pkgs testPkgs;
             lanzabooteModule = self.nixosModules.lanzaboote;
@@ -193,8 +195,8 @@
               ];
 
             inputsFrom = [
-              config.packages.lanzaboote
-              config.packages.lanzatool
+              config.packages.stub
+              config.packages.tool
             ];
 
             TEST_SYSTEMD = pkgs.systemd;

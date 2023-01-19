@@ -274,7 +274,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4217ad341ebadf8d8e724e264f13e593e0648f5b3e94b3896a5df283be015ecc"
 
 [[package]]
-name = "lanzatool"
+name = "lanzaboote_tool"
 version = "0.1.0"
 dependencies = [
  "anyhow",
