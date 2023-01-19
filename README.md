@@ -53,21 +53,24 @@ Boot effective:
 
 These steps will not be covered here.
 
-### Lanzatool
+### `lzbt`, the Lanzaboote tool
 
 At the moment, boot loaders, kernels and initrds on NixOS are signed
 on the current system. These then need to be prepared as [Unified
 Kernel Images
 (UKI)](https://uapi-group.org/specifications/specs/boot_loader_specification/#type-2-efi-unified-kernel-images) and placed on the [EFI System Partition (ESP)](https://en.wikipedia.org/wiki/EFI_system_partition).
 
-`lanzatool` is a Linux command line application that takes care of
+`lzbt` is a Linux command line application that takes care of
 this flow. It takes a [NixOS
 bootspec](https://github.com/NixOS/rfcs/pull/125) document, signs the
-relevant files, creates a UKI using lanzaboote (see below) and
+relevant files, creates a UKI using the stub (see below) and
 installs the UKI along with other required files to the
-ESP. `lanzatool` is also aware of multiple NixOS generations and will
+ESP. `lzbt` is also aware of multiple NixOS generations and will
 sign all configurations that should be bootable.
-### Lanzaboote
+
+`lzbt` lives in `rust/tool`.
+
+### Stub 
 
 When the Linux kernel and initrd are packed into a UKI, they need an
 UEFI application stub. This role is typically filled by
@@ -78,13 +81,13 @@ initrd to be packed into the UKI, which makes it pretty large. As we
 need one UKI per NixOS configuration, systems with many configurations
 quickly run out of the limited disk space in the ESP.
 
-`lanzaboote` is a UEFI stub that solves the same problem as
+The Lanzaboote stub is a UEFI stub that solves the same problem as
 `systemd-stub`, but allows kernel and initrd to be stored separately
 on the ESP. The chain of trust is maintained by validating the
 signature on the Linux kernel and embedding a cryptographic hash of
 the initrd into the signed UKI.
 
-`lanzaboote` lives in `rust/lanzaboote`.
+The stub lives in `rust/stub`.
 
 ## State of Upstreaming to Nixpkgs
 
