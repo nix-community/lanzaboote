@@ -74,7 +74,7 @@ fn extract_filename(file_data: &[u8], section: &str) -> Result<CString16> {
     Ok(CString16::try_from(filename.as_str()).map_err(|_| Status::INVALID_PARAMETER)?)
 }
 
-/// Extract a Blake3 hash from a PE section.
+/// Extract a cryptographic hash from a PE section.
 fn extract_hash(file_data: &[u8], section: &str) -> Result<Hash> {
     let array: [u8; 32] = pe_section(file_data, section)
         .ok_or(Status::INVALID_PARAMETER)?
