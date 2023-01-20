@@ -5,7 +5,7 @@
 
 extern crate alloc;
 
-mod linux_loader;
+mod initrd_loader;
 mod pe_section;
 mod uefi_helpers;
 
@@ -22,7 +22,7 @@ use uefi::{
 };
 
 use crate::{
-    linux_loader::InitrdLoader,
+    initrd_loader::InitrdLoader,
     uefi_helpers::{booted_image_cmdline, booted_image_file, read_all},
 };
 

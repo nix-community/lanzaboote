@@ -1,9 +1,5 @@
 //! This module implements the protocols to hand an initrd to the
 //! Linux kernel.
-//!
-//! XXX The initrd signature validation is vulnerable to TOCTOU,
-//! because we read the initrd multiple times. The code needs to be
-//! restructured to solve this.
 
 use core::{ffi::c_void, pin::Pin, ptr::slice_from_raw_parts_mut};
 
