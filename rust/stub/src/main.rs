@@ -190,12 +190,18 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         );
     }
 
+    // The Linux kernel loads the initrd via the LoadFile2
+    // protocol. We need to install this before we start the kernel.
     let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)
         .expect("Failed to load the initrd. It may not be there or it is not signed");
     let status = system_table
         .boot_services()
         .start_image(kernel_handle)
         .status();
+
+    // If we come back here, loading the image has not worked and we
+    // will return to the bootloader that loaded us. This is typically
+    // systemd-boot.
 
     initrd_loader
         .uninstall(system_table.boot_services())
