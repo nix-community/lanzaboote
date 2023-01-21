@@ -166,6 +166,7 @@
 
             settings.hooks = {
               nixpkgs-fmt.enable = true;
+              typos.enable = true;
             };
           };
 
