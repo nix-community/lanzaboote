@@ -126,7 +126,7 @@ fn read_build_time(path: &Path) -> Result<String> {
 /// A link pointing to a generation.
 ///
 /// Can be built from a symlink in /nix/var/nix/profiles/ alone because the name of the
-/// symlink enocdes the version number.
+/// symlink encodes the version number.
 #[derive(Debug)]
 pub struct GenerationLink {
     pub version: u64,

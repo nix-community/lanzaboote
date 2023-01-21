@@ -196,7 +196,7 @@ fn stub_offset(binary: &Path) -> Result<u64> {
 
     let image_base = image_base(&pe);
 
-    // The Virtual Memory Addresss (VMA) is relative to the image base, aka the image base
+    // The Virtual Memory Address (VMA) is relative to the image base, aka the image base
     // needs to be added to the virtual address to get the actual (but still virtual address)
     Ok(u64::from(
         pe.sections

@@ -14,7 +14,7 @@
     };
 
     # We only have this input to pass it to other dependencies and
-    # avoid having mulitple versions in our dependencies.
+    # avoid having multiple versions in our dependencies.
     flake-utils.url = "github:numtide/flake-utils";
 
     crane = {

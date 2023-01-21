@@ -25,7 +25,7 @@ in
     };
     pkiBundle = mkOption {
       type = types.nullOr types.path;
-      description = "PKI bundle containg db, PK, KEK";
+      description = "PKI bundle containing db, PK, KEK";
     };
     publicKeyFile = mkOption {
       type = types.path;
