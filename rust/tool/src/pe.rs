@@ -1,8 +1,6 @@
 use std::ffi::OsString;
 use std::fs;
-use std::io::Write;
 use std::os::unix::fs::MetadataExt;
-use std::os::unix::prelude::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -10,7 +8,7 @@ use anyhow::{Context, Result};
 use goblin::pe::PE;
 use sha2::{Digest, Sha256};
 
-use tempfile::TempDir;
+use crate::utils::SecureTempDirExt;
 
 type Hash = sha2::digest::Output<Sha256>;
 
@@ -20,7 +18,9 @@ type Hash = sha2::digest::Output<Sha256>;
 /// be present in the ESP. This is required, because we need to read
 /// them to compute hashes.
 pub fn lanzaboote_image(
-    target_dir: &TempDir,
+    // Because the returned path of this function is inside the tempdir as well, the tempdir must
+    // live longer than the function. This is why it cannot be created inside the function.
+    tempdir: &tempfile::TempDir,
     lanzaboote_stub: &Path,
     os_release: &Path,
     kernel_cmdline: &[String],
@@ -30,29 +30,18 @@ pub fn lanzaboote_image(
 ) -> Result<PathBuf> {
     // objcopy can only copy files into the PE binary. That's why we
     // have to write the contents of some bootspec properties to disk.
-    let kernel_cmdline_file = write_to_tmp(target_dir, "kernel-cmdline", kernel_cmdline.join(" "))?;
+    let kernel_cmdline_file =
+        tempdir.write_secure_file("kernel-cmdline", kernel_cmdline.join(" "))?;
 
-    let kernel_path_file = write_to_tmp(
-        target_dir,
-        "kernel-esp-path",
-        esp_relative_uefi_path(esp, kernel_path)?,
-    )?;
-    let kernel_hash_file = write_to_tmp(
-        target_dir,
-        "kernel-hash",
-        file_hash(kernel_path)?.as_slice(),
-    )?;
+    let kernel_path_file =
+        tempdir.write_secure_file("kernel-path", esp_relative_uefi_path(esp, kernel_path)?)?;
+    let kernel_hash_file =
+        tempdir.write_secure_file("kernel-hash", file_hash(kernel_path)?.as_slice())?;
 
-    let initrd_path_file = write_to_tmp(
-        target_dir,
-        "initrd-esp-path",
-        esp_relative_uefi_path(esp, initrd_path)?,
-    )?;
-    let initrd_hash_file = write_to_tmp(
-        target_dir,
-        "initrd-hash",
-        file_hash(initrd_path)?.as_slice(),
-    )?;
+    let initrd_path_file =
+        tempdir.write_secure_file("initrd-path", esp_relative_uefi_path(esp, initrd_path)?)?;
+    let initrd_hash_file =
+        tempdir.write_secure_file("initrd-hash", file_hash(initrd_path)?.as_slice())?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
     let kernel_cmdline_offs = os_release_offs + file_size(os_release)?;
@@ -70,7 +59,9 @@ pub fn lanzaboote_image(
         s(".kernelh", kernel_hash_file, kernel_hash_offs),
     ];
 
-    wrap_in_pe(target_dir, "lanzaboote-stub.efi", lanzaboote_stub, sections)
+    let image_path = tempdir.path().join("lanzaboote-stub.efi");
+    wrap_in_pe(lanzaboote_stub, sections, &image_path)?;
+    Ok(image_path)
 }
 
 /// Compute the SHA 256 hash of a file.
@@ -80,25 +71,11 @@ fn file_hash(file: &Path) -> Result<Hash> {
 
 /// Take a PE binary stub and attach sections to it.
 ///
-/// The result is then written to a new file. Returns the filename of
-/// the generated file.
-fn wrap_in_pe(
-    target_dir: &TempDir,
-    output_filename: &str,
-    stub: &Path,
-    sections: Vec<Section>,
-) -> Result<PathBuf> {
-    let image_path = target_dir.path().join(output_filename);
-    let _ = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .mode(0o600)
-        .open(&image_path)
-        .context("Failed to generate named temp file")?;
-
+/// The resulting binary is then written to a newly created file at the provided output path.
+fn wrap_in_pe(stub: &Path, sections: Vec<Section>, output: &Path) -> Result<()> {
     let mut args: Vec<OsString> = sections.iter().flat_map(Section::to_objcopy).collect();
 
-    [stub.as_os_str(), image_path.as_os_str()]
+    [stub.as_os_str(), output.as_os_str()]
         .iter()
         .for_each(|a| args.push(a.into()));
 
@@ -113,7 +90,7 @@ fn wrap_in_pe(
         ));
     }
 
-    Ok(image_path)
+    Ok(())
 }
 
 struct Section {
@@ -146,28 +123,6 @@ fn s(name: &'static str, file_path: impl AsRef<Path>, offset: u64) -> Section {
         file_path: file_path.as_ref().into(),
         offset,
     }
-}
-
-/// Write a `u8` slice to a temporary file.
-fn write_to_tmp(
-    secure_temp: &TempDir,
-    filename: &str,
-    contents: impl AsRef<[u8]>,
-) -> Result<PathBuf> {
-    let path = secure_temp.path().join(filename);
-
-    let mut tmpfile = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .mode(0o600)
-        .open(&path)
-        .context("Failed to create tempfile")?;
-
-    tmpfile
-        .write_all(contents.as_ref())
-        .context("Failed to write to tempfile")?;
-
-    Ok(path)
 }
 
 /// Convert a path to an UEFI path relative to the specified ESP.

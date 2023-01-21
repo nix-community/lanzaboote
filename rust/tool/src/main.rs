@@ -6,6 +6,7 @@ mod install;
 mod os_release;
 mod pe;
 mod signature;
+mod utils;
 
 use anyhow::Result;
 use clap::Parser;
