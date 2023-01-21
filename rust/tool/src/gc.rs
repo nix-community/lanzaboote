@@ -149,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn keep_used_dirctory_with_used_and_unused_file() -> Result<()> {
+    fn keep_used_directory_with_used_and_unused_file() -> Result<()> {
         let tmpdir = tempfile::tempdir()?;
         let rootdir = create_dir(tmpdir.path().join("root"))?;
 
