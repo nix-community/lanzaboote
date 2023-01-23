@@ -9,7 +9,7 @@ use uefi::{
         boot::{AllocateType, MemoryType},
         Boot, SystemTable,
     },
-    Handle, Status,
+    CStr16, Handle, Status,
 };
 
 /// UEFI mandates 4 KiB pages.
@@ -124,7 +124,7 @@ impl Image {
         self,
         handle: Handle,
         system_table: &SystemTable<Boot>,
-        load_options: &[u8],
+        load_options: &CStr16,
     ) -> Status {
         let mut loaded_image = system_table
             .boot_services()
@@ -146,7 +146,7 @@ impl Image {
             );
             loaded_image.set_load_options(
                 load_options.as_ptr() as *const u8,
-                u32::try_from(load_options.len()).unwrap(),
+                u32::try_from(load_options.num_bytes()).unwrap(),
             );
         }
 
