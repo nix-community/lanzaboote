@@ -5,14 +5,12 @@ use anyhow::{Context, Result};
 
 use crate::generation::Generation;
 
+/// Paths to the boot files that are not specific to a generation.
 pub struct EspPaths {
     pub esp: PathBuf,
     pub efi: PathBuf,
     pub nixos: PathBuf,
-    pub kernel: PathBuf,
-    pub initrd: PathBuf,
     pub linux: PathBuf,
-    pub lanzaboote_image: PathBuf,
     pub efi_fallback_dir: PathBuf,
     pub efi_fallback: PathBuf,
     pub systemd: PathBuf,
@@ -20,7 +18,7 @@ pub struct EspPaths {
 }
 
 impl EspPaths {
-    pub fn new(esp: impl AsRef<Path>, generation: &Generation) -> Result<Self> {
+    pub fn new(esp: impl AsRef<Path>) -> Self {
         let esp = esp.as_ref();
         let efi = esp.join("EFI");
         let efi_nixos = efi.join("nixos");
@@ -28,45 +26,63 @@ impl EspPaths {
         let efi_systemd = efi.join("systemd");
         let efi_efi_fallback_dir = efi.join("BOOT");
 
-        let bootspec = &generation.spec.bootspec;
-
-        Ok(Self {
+        Self {
             esp: esp.to_path_buf(),
             efi,
-            nixos: efi_nixos.clone(),
-            kernel: efi_nixos.join(nixos_path(&bootspec.kernel, "bzImage")?),
-            initrd: efi_nixos.join(nixos_path(
-                bootspec
-                    .initrd
-                    .as_ref()
-                    .context("Lanzaboote does not support missing initrd yet")?,
-                "initrd",
-            )?),
-            linux: efi_linux.clone(),
-            lanzaboote_image: efi_linux.join(generation_path(generation)),
+            nixos: efi_nixos,
+            linux: efi_linux,
             efi_fallback_dir: efi_efi_fallback_dir.clone(),
             efi_fallback: efi_efi_fallback_dir.join("BOOTX64.EFI"),
             systemd: efi_systemd.clone(),
             systemd_boot: efi_systemd.join("systemd-bootx64.efi"),
-        })
+        }
     }
 
     /// Return the used file paths to store as garbage collection roots.
-    pub fn to_iter(&self) -> IntoIter<&PathBuf, 11> {
+    pub fn to_iter(&self) -> IntoIter<&PathBuf, 8> {
         [
             &self.esp,
             &self.efi,
             &self.nixos,
-            &self.kernel,
-            &self.initrd,
             &self.linux,
-            &self.lanzaboote_image,
             &self.efi_fallback_dir,
             &self.efi_fallback,
             &self.systemd,
             &self.systemd_boot,
         ]
         .into_iter()
+    }
+}
+
+/// Paths to the boot files of a specific generation.
+pub struct EspGenerationPaths {
+    pub kernel: PathBuf,
+    pub initrd: PathBuf,
+    pub lanzaboote_image: PathBuf,
+}
+
+impl EspGenerationPaths {
+    pub fn new(esp_paths: &EspPaths, generation: &Generation) -> Result<Self> {
+        let bootspec = &generation.spec.bootspec;
+
+        Ok(Self {
+            kernel: esp_paths
+                .nixos
+                .join(nixos_path(&bootspec.kernel, "bzImage")?),
+            initrd: esp_paths.nixos.join(nixos_path(
+                bootspec
+                    .initrd
+                    .as_ref()
+                    .context("Lanzaboote does not support missing initrd yet")?,
+                "initrd",
+            )?),
+            lanzaboote_image: esp_paths.linux.join(generation_path(generation)),
+        })
+    }
+
+    /// Return the used file paths to store as garbage collection roots.
+    pub fn to_iter(&self) -> IntoIter<&PathBuf, 3> {
+        [&self.kernel, &self.initrd, &self.lanzaboote_image].into_iter()
     }
 }
 
