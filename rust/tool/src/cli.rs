@@ -19,6 +19,10 @@ enum Commands {
 
 #[derive(Parser)]
 struct InstallCommand {
+    /// Systemd path
+    #[arg(long)]
+    systemd: PathBuf,
+
     /// sbsign Public Key
     #[arg(long)]
     public_key: PathBuf,
@@ -60,6 +64,7 @@ fn install(args: InstallCommand) -> Result<()> {
 
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
+        args.systemd,
         key_pair,
         args.configuration_limit,
         args.esp,

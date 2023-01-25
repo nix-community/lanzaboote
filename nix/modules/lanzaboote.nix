@@ -59,6 +59,7 @@ in
         ''}
   
         ${cfg.package}/bin/lzbt install \
+          --systemd ${pkgs.systemd} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \

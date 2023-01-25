@@ -180,6 +180,24 @@ fn file_size(path: impl AsRef<Path>) -> Result<u64> {
         .size())
 }
 
+/// Read the data from a section of a PE binary.
+///
+/// The binary is supplied as a `u8` slice.
+pub fn read_section_data<'a>(file_data: &'a [u8], section_name: &str) -> Option<&'a [u8]> {
+    let pe_binary = goblin::pe::PE::parse(file_data).ok()?;
+
+    pe_binary
+        .sections
+        .iter()
+        .find(|s| s.name().unwrap() == section_name)
+        .and_then(|s| {
+            let section_start: usize = s.pointer_to_raw_data.try_into().ok()?;
+            assert!(s.virtual_size <= s.size_of_raw_data);
+            let section_end: usize = section_start + usize::try_from(s.virtual_size).ok()?;
+            Some(&file_data[section_start..section_end])
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

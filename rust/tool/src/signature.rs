@@ -43,4 +43,30 @@ impl KeyPair {
 
         Ok(())
     }
+
+    /// Verify the signature of a PE binary. Return true if the signature was verified.
+    pub fn verify(&self, path: &Path) -> bool {
+        let args: Vec<OsString> = vec![
+            OsString::from("--cert"),
+            self.public_key.clone().into(),
+            path.as_os_str().to_owned(),
+        ];
+
+        let output = match Command::new("sbverify").args(&args).output() {
+            Ok(output) => output,
+            Err(_) => return false,
+        };
+
+        if !output.status.success() {
+            if std::io::stderr().write_all(&output.stderr).is_err() {
+                return false;
+            };
+            println!(
+                "Failed to verify signature using sbverify with args `{:?}`",
+                &args
+            );
+            return false;
+        }
+        true
+    }
 }
