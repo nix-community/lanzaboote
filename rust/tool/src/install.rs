@@ -1,9 +1,7 @@
-use std::ffi::CStr;
 use std::fs;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use nix::unistd::sync;
@@ -14,6 +12,7 @@ use crate::generation::{Generation, GenerationLink};
 use crate::os_release::OsRelease;
 use crate::pe;
 use crate::signature::KeyPair;
+use crate::systemd::SystemdVersion;
 use crate::utils::SecureTempDirExt;
 
 pub struct Installer {
@@ -330,43 +329,15 @@ fn newer_systemd_boot(from: &Path, to: &Path) -> Result<bool> {
     }
 
     // If the version from the source binary cannot be read, something is irrecoverably wrong.
-    let from_version = systemd_boot_version(from)
+    let from_version = SystemdVersion::from_systemd_boot_binary(from)
         .with_context(|| format!("Failed to read systemd-boot version from {from:?}."))?;
 
     // If the version cannot be read from the destination binary, it is malformed. It should be
     // forcibly reinstalled.
-    let to_version = match systemd_boot_version(to) {
+    let to_version = match SystemdVersion::from_systemd_boot_binary(to) {
         Ok(version) => version,
         _ => return Ok(true),
     };
 
     Ok(from_version > to_version)
-}
-
-/// Read the version of a systemd-boot binary from its `.osrel` section.
-///
-/// The version is parsed into a f32 because systemd does not follow strict semver conventions. A
-/// f32, however, should parse all systemd versions and enables usefully comparing them.
-/// This is a hack and we should replace it with a better solution once we find one.
-fn systemd_boot_version(path: &Path) -> Result<f32> {
-    let file_data = fs::read(path).with_context(|| format!("Failed to read file {path:?}"))?;
-    let section_data = pe::read_section_data(&file_data, ".osrel")
-        .with_context(|| format!("PE section '.osrel' is empty: {path:?}"))?;
-
-    // The `.osrel` section in the systemd-boot binary is a NUL terminated string and thus needs
-    // special handling.
-    let section_data_cstr =
-        CStr::from_bytes_with_nul(section_data).context("Failed to parse C string.")?;
-    let section_data_string = section_data_cstr
-        .to_str()
-        .context("Failed to convert C string to Rust string.")?;
-
-    let os_release = OsRelease::from_str(section_data_string)
-        .with_context(|| format!("Failed to parse os-release from {section_data_string}"))?;
-
-    let version_string = os_release
-        .0
-        .get("VERSION")
-        .context("Failed to extract VERSION key from: {os_release:#?}")?;
-    Ok(f32::from_str(version_string)?)
 }
