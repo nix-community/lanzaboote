@@ -6,6 +6,7 @@ mod install;
 mod os_release;
 mod pe;
 mod signature;
+mod systemd;
 mod utils;
 
 use anyhow::Result;
