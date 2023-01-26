@@ -61,9 +61,11 @@ fn keep_unrelated_files_on_esp() -> Result<()> {
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), generation_links.clone())?;
     assert!(output0.status.success());
 
+    let unrelated_loader_config = esp_mountpoint.path().join("loader/loader.conf");
     let unrelated_uki = esp_mountpoint.path().join("EFI/Linux/ubuntu.efi");
     let unrelated_os = esp_mountpoint.path().join("EFI/windows");
     let unrelated_firmware = esp_mountpoint.path().join("dell");
+    fs::File::create(&unrelated_loader_config)?;
     fs::File::create(&unrelated_uki)?;
     fs::create_dir(&unrelated_os)?;
     fs::create_dir(&unrelated_firmware)?;
@@ -72,6 +74,7 @@ fn keep_unrelated_files_on_esp() -> Result<()> {
     let output1 = common::lanzaboote_install(2, esp_mountpoint.path(), generation_links)?;
     assert!(output1.status.success());
 
+    assert!(unrelated_loader_config.exists());
     assert!(unrelated_uki.exists());
     assert!(unrelated_os.exists());
     assert!(unrelated_firmware.exists());

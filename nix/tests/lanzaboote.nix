@@ -154,4 +154,21 @@ in
       machine.succeed("efibootmgr")
     '';
   };
+
+  systemd-boot-loader-config = mkSecureBootTest {
+    name = "lanzaboote-systemd-boot-loader-config";
+    machine = {
+      boot.loader.timeout = 0;
+      boot.loader.systemd-boot.consoleMode = "auto";
+    };
+    testScript = ''
+      machine.start()
+
+      actual_loader_config = machine.succeed("cat /boot/loader/loader.conf")
+      expected_loader_config = "timeout 0\nconsole-mode auto\n"
+      
+      assert actual_loader_config == expected_loader_config, \
+        f"Actual: '{actual_loader_config}' is not equal to expected: '{expected_loader_config}'"
+    '';
+  };
 }

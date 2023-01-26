@@ -23,6 +23,10 @@ struct InstallCommand {
     #[arg(long)]
     systemd: PathBuf,
 
+    /// Systemd-boot loader config
+    #[arg(long)]
+    systemd_boot_loader_config: PathBuf,
+
     /// sbsign Public Key
     #[arg(long)]
     public_key: PathBuf,
@@ -65,6 +69,7 @@ fn install(args: InstallCommand) -> Result<()> {
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
         args.systemd,
+        args.systemd_boot_loader_config,
         key_pair,
         args.configuration_limit,
         args.esp,
