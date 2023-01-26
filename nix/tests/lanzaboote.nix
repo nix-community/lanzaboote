@@ -26,7 +26,7 @@ let
       boot.lanzaboote = {
         enable = true;
         enrollKeys = lib.mkDefault true;
-        pkiBundle = ../../pki;
+        pkiBundle = ./fixtures/uefi-keys;
       };
     };
   };
