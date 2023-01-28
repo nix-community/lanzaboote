@@ -31,9 +31,13 @@ let
     };
   };
 
-  # Execute a boot test that is intended to fail.
+  # Execute a SB test that is expected to fail because of a hash mismatch.
   #
-  mkUnsignedTest = { name, path, appendCrap ? false }: mkSecureBootTest {
+  # Takes a set `path` consisting of a `src` and a `dst` attribute. The file at
+  # `src` is copied to `dst` inside th VM. Optionally append some random data
+  # ("crap") to the end of the file at `dst`. This is useful to easily change
+  # the hash of a file and produce a hash mismatch when booting the stub.
+  mkHashMismatchTest = { name, path, appendCrap ? false }: mkSecureBootTest {
     inherit name;
     testScript = ''
       import json
@@ -65,16 +69,16 @@ in
 {
   # TODO: user mode: OK
   # TODO: how to get in: {deployed, audited} mode ?
-  lanzaboote-boot = mkSecureBootTest {
-    name = "signed-files-boot-under-secureboot";
+  basic = mkSecureBootTest {
+    name = "lanzaboote";
     testScript = ''
       machine.start()
       assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
     '';
   };
 
-  lanzaboote-boot-under-sd-stage1 = mkSecureBootTest {
-    name = "signed-files-boot-under-secureboot-systemd-stage-1";
+  systemd-initrd = mkSecureBootTest {
+    name = "lanzaboote-systemd-initrd";
     machine = { ... }: {
       boot.initrd.systemd.enable = true;
     };
@@ -84,15 +88,12 @@ in
     '';
   };
 
-  # So, this is the responsibility of the lanzatool install
-  # to run the append-initrd-secret script
-  # This test assert that lanzatool still do the right thing
-  # preDeviceCommands should not have any root filesystem mounted
-  # so it should not be able to find /etc/iamasecret, other than the
-  # initrd's one.
-  # which should exist IF lanzatool do the right thing.
-  lanzaboote-with-initrd-secrets = mkSecureBootTest {
-    name = "signed-files-boot-with-secrets-under-secureboot";
+  # Test that a secret is appended to the initrd during installation.
+  # 
+  # During the execution of `preDeviceCommands`, no filesystem should be
+  # mounted. The only place to find `/etc/iamasecret` then, is in the initrd.
+  initrd-secrets = mkSecureBootTest {
+    name = "lanzaboote-initrd-secrets";
     machine = { ... }: {
       boot.initrd.secrets = {
         "/etc/iamasecret" = (pkgs.writeText "iamsecret" "this is a very secure secret");
@@ -109,12 +110,12 @@ in
   };
 
   # The initrd is not directly signed. Its hash is embedded
-  # into lanzaboote. To make integrity verification fail, we
+  # into the UKI. To make integrity verification fail, we
   # actually have to modify the initrd. Appending crap to the
   # end is a harmless way that would make the kernel still
   # accept it.
-  is-initrd-secured = mkUnsignedTest {
-    name = "unsigned-initrd-do-not-boot-under-secureboot";
+  secured-initrd = mkHashMismatchTest {
+    name = "lanzaboote-secured-initrd";
     path = {
       src = "bootspec.get('initrd')";
       dst = "convert_to_esp(bootspec.get('initrd'))";
@@ -122,15 +123,16 @@ in
     appendCrap = true;
   };
 
-  is-kernel-secured = mkUnsignedTest {
-    name = "unsigned-kernel-do-not-boot-under-secureboot";
+  secured-kernel = mkHashMismatchTest {
+    name = "lanzaboote-secured-kernel";
     path = {
       src = "bootspec.get('kernel')";
       dst = "convert_to_esp(bootspec.get('kernel'))";
     };
   };
-  specialisation-works = mkSecureBootTest {
-    name = "specialisation-still-boot-under-secureboot";
+
+  specialisation = mkSecureBootTest {
+    name = "lanzaboote-specialisation";
     machine = { pkgs, ... }: {
       specialisation.variant.configuration = {
         environment.systemPackages = [
@@ -141,7 +143,6 @@ in
     testScript = ''
       machine.start()
       print(machine.succeed("ls -lah /boot/EFI/Linux"))
-      print(machine.succeed("cat /run/current-system/boot.json"))
       # TODO: make it more reliable to find this filename, i.e. read it from somewhere?
       machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant.efi")
       machine.succeed("sync")
@@ -149,7 +150,7 @@ in
       machine.crash()
       machine.start()
       print(machine.succeed("bootctl"))
-      # We have efibootmgr in this specialisation.
+      # Only the specialisation contains the efibootmgr binary.
       machine.succeed("efibootmgr")
     '';
   };
