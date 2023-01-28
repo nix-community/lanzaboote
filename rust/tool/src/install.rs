@@ -143,7 +143,7 @@ impl Installer {
         println!("Appending secrets to initrd...");
 
         let initrd_location = tempdir.path().join("initrd");
-        copy(
+        fs::copy(
             bootspec
                 .initrd
                 .as_ref()
@@ -241,25 +241,39 @@ fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
 /// Sign and forcibly install a PE file.
 ///
 /// If the file already exists at the destination, it is overwritten.
+///
+/// This is implemented as an atomic write. The file is first written to the destination with a
+/// `.tmp` suffix and then renamed to its final name. This is atomic, because a rename is an atomic
+/// operation on POSIX platforms.
 fn force_install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
     println!("Signing and installing {}...", to.display());
-    ensure_parent_dir(to);
+    let to_tmp = to.with_extension(".tmp");
+    ensure_parent_dir(&to_tmp);
     key_pair
-        .sign_and_copy(from, to)
+        .sign_and_copy(from, &to_tmp)
         .with_context(|| format!("Failed to copy and sign file from {from:?} to {to:?}"))?;
+    fs::rename(&to_tmp, to).with_context(|| {
+        format!("Failed to move temporary file {to_tmp:?} to final location {to:?}")
+    })?;
     Ok(())
 }
 
-/// Install an arbitrary file
+/// Install an arbitrary file.
 ///
-/// The file is only copied if it doesn't exist at the destination
+/// The file is only copied if it doesn't exist at the destination.
+///
+/// This function is only designed to copy files to the ESP. It sets the permission bits of the
+/// file at the destination to 0o755, the expected permissions for a vfat ESP. This is useful for
+/// producing file systems trees which can then be converted to a file system image.
 fn install(from: &Path, to: &Path) -> Result<()> {
     if to.exists() {
         println!("{} already exists, skipping...", to.display());
     } else {
         println!("Installing {}...", to.display());
         ensure_parent_dir(to);
-        copy(from, to)?;
+        atomic_copy(from, to)?;
+        set_permission_bits(to, 0o755)
+            .with_context(|| format!("Failed to set permission bits to 0o755 on file: {to:?}"))?;
     }
 
     Ok(())
@@ -293,20 +307,29 @@ fn assemble_kernel_cmdline(init: &Path, kernel_params: Vec<String>) -> Vec<Strin
     kernel_cmdline
 }
 
-fn copy(from: &Path, to: &Path) -> Result<()> {
-    ensure_parent_dir(to);
-    fs::copy(from, to)
-        .with_context(|| format!("Failed to copy from {} to {}", from.display(), to.display()))?;
+/// Atomically copy a file.
+///
+/// The file is first written to the destination with a `.tmp` suffix and then renamed to its final
+/// name. This is atomic, because a rename is an atomic operation on POSIX platforms.
+fn atomic_copy(from: &Path, to: &Path) -> Result<()> {
+    let to_tmp = to.with_extension(".tmp");
 
-    // Set permission of all files copied to 0o755
-    let mut perms = fs::metadata(to)
-        .with_context(|| format!("File {} doesn't have metadata", to.display()))?
+    fs::copy(from, &to_tmp)
+        .with_context(|| format!("Failed to copy from {from:?} to {to_tmp:?}",))?;
+
+    fs::rename(&to_tmp, to).with_context(|| {
+        format!("Failed to move temporary file {to_tmp:?} to final location {to:?}")
+    })
+}
+
+/// Set the octal permission bits of the specified file.
+fn set_permission_bits(path: &Path, permission_bits: u32) -> Result<()> {
+    let mut perms = fs::metadata(path)
+        .with_context(|| format!("File {path:?} doesn't have any metadata"))?
         .permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(to, perms)
-        .with_context(|| format!("Failed to set permissions to: {}", to.display()))?;
-
-    Ok(())
+    perms.set_mode(permission_bits);
+    fs::set_permissions(path, perms)
+        .with_context(|| format!("Failed to set permissions on {path:?}"))
 }
 
 // Ensures the parent directory of an arbitrary path exists
