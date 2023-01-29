@@ -7,6 +7,12 @@ let
   };
 
   configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
+  timeout = if config.boot.loader.timeout == null then 0 else config.boot.loader.timeout;
+
+  systemdBootLoaderConfig = pkgs.writeText "loader.conf" ''
+    timeout ${toString timeout}
+    console-mode ${config.boot.loader.systemd-boot.consoleMode}
+  '';
 in
 {
   options.boot.lanzaboote = {
@@ -60,6 +66,7 @@ in
   
         ${cfg.package}/bin/lzbt install \
           --systemd ${pkgs.systemd} \
+          --systemd-boot-loader-config ${systemdBootLoaderConfig} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \

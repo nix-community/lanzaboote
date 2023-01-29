@@ -19,6 +19,7 @@ pub struct Installer {
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
+    systemd_boot_loader_config: PathBuf,
     key_pair: KeyPair,
     configuration_limit: usize,
     esp_paths: EspPaths,
@@ -29,6 +30,7 @@ impl Installer {
     pub fn new(
         lanzaboote_stub: PathBuf,
         systemd: PathBuf,
+        systemd_boot_loader_config: PathBuf,
         key_pair: KeyPair,
         configuration_limit: usize,
         esp: PathBuf,
@@ -42,6 +44,7 @@ impl Installer {
             gc_roots,
             lanzaboote_stub,
             systemd,
+            systemd_boot_loader_config,
             key_pair,
             configuration_limit,
             esp_paths,
@@ -221,6 +224,18 @@ impl Installer {
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
             }
         }
+
+        install(
+            &self.systemd_boot_loader_config,
+            &self.esp_paths.systemd_boot_loader_config,
+        )
+        .with_context(|| {
+            format!(
+                "Failed to install systemd-boot loader.conf to {:?}",
+                &self.esp_paths.systemd_boot_loader_config
+            )
+        })?;
+
         Ok(())
     }
 }

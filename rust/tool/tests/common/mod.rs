@@ -107,12 +107,18 @@ pub fn lanzaboote_install(
     let test_systemd = systemd_location_from_env()?;
     let test_systemd_stub = format!("{test_systemd}/lib/systemd/boot/efi/linuxx64.efi.stub");
 
+    let test_loader_config_path = tempfile::NamedTempFile::new()?;
+    let test_loader_config = r"timeout 0\nconsole-mode 1\n";
+    fs::write(test_loader_config_path.path(), test_loader_config)?;
+
     let mut cmd = Command::cargo_bin("lzbt")?;
     let output = cmd
         .env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("install")
         .arg("--systemd")
         .arg(test_systemd)
+        .arg("--systemd-boot-loader-config")
+        .arg(test_loader_config_path.path())
         .arg("--public-key")
         .arg("tests/fixtures/uefi-keys/db.pem")
         .arg("--private-key")
