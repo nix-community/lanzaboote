@@ -10,6 +10,7 @@ mod linux_loader;
 mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
+mod uefi_log;
 
 use alloc::vec::Vec;
 use pe_loader::Image;
@@ -178,8 +179,18 @@ fn boot_linux_uefi(
 
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
+    // Initialize UEFI services (we need them for pretty much everything)
     uefi_services::init(&mut system_table).unwrap();
 
+    // Initialize logging. We do this asap to ensure we can properly use all log macros at any
+    // time.
+    if uefi_log::init_from_cmdline(&mut system_table).is_err() {
+        let _ = system_table.stdout().output_string(cstr16!(
+            "Failed to set up logging - will continue without log\r\n"
+        ));
+    }
+
+    // Print the startup logo
     print_logo(system_table.stdout()).unwrap();
 
     let config: EmbeddedConfiguration =

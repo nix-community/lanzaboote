@@ -70,7 +70,7 @@ sign all configurations that should be bootable.
 
 `lzbt` lives in `rust/tool`.
 
-### Stub 
+### Stub
 
 When the Linux kernel and initrd are packed into a UKI, they need an
 UEFI application stub. This role is typically filled by
@@ -88,6 +88,14 @@ signature on the Linux kernel and embedding a cryptographic hash of
 the initrd into the signed UKI.
 
 The stub lives in `rust/stub`.
+
+The stub can be configured using the regular Linux kernel command line, the
+following parameters are understood:
+- `quiet` - Sets the maximum log level to `error`, overrides the next parameter
+- `lanzaboote.loglevel` - Sets the log level of the stub (possible values: `error`, `warn`, `info`, `debug`, `trace`)
+- `lanzaboote.clearscreen` - Clears the screen before the first lines are logged
+
+The default log level is `info`. If an invalid log level is provided, the stub falls back to this log level.
 
 ## State of Upstreaming to Nixpkgs
 
