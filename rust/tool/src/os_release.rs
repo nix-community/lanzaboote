@@ -46,17 +46,31 @@ impl OsRelease {
     pub fn from_str(value: &str) -> Result<Self> {
         let mut map = BTreeMap::new();
 
-        let key_value_lines = value.lines().map(|x| x.split('=').collect::<Vec<&str>>());
-
+        // All valid lines
+        let lines = value
+            .lines()
+            .map(str::trim)
+            .filter(|x| !x.starts_with('#') && !x.is_empty());
+        // Split into keys/values
+        let key_value_lines = lines.map(|x| x.split('=').collect::<Vec<&str>>());
         for kv in key_value_lines {
             let k = kv
                 .first()
                 .with_context(|| format!("Failed to get first element from {kv:?}"))?;
             let v = kv
                 .get(1)
-                .map(|s| s.trim_matches('"'))
+                .map(|s| s.strip_prefix(|c| c == '"' || c == '\'').unwrap_or(s))
+                .map(|s| s.strip_suffix(|c| c == '"' || c == '\'').unwrap_or(s))
                 .with_context(|| format!("Failed to get second element from {kv:?}"))?;
-            map.insert(String::from(*k), v.into());
+            // Clean up the value. We already have the value without leading/tailing "
+            // so we just need to unescape the string.
+            let v = v
+                .replace("\\$", "$")
+                .replace("\\\"", "\"")
+                .replace("\\`", "`")
+                .replace("\\\\", "\\");
+
+            map.insert(String::from(*k), v);
         }
 
         Ok(Self(map))
@@ -86,6 +100,34 @@ mod tests {
 
         assert!(os_release.0["ID"] == "systemd-boot");
         assert!(os_release.0["VERSION"] == "252.1");
+
+        Ok(())
+    }
+
+    #[test]
+    fn escaping_works() -> Result<()> {
+        let teststring = r#"
+            NO_QUOTES=systemd-boot
+            DOUBLE_QUOTES="systemd-boot"
+            SINGLE_QUOTES='systemd-boot'
+            UNESCAPED_DOLLAR=$1.2
+            ESCAPED_DOLLAR=\$1.2
+            UNESCAPED_BACKTICK=`1.2
+            ESCAPED_BACKTICK=\`1.2
+            UNESCAPED_QUOTE=""1.2"
+            ESCAPED_QUOTE=\"1.2
+        "#;
+        let os_release = OsRelease::from_str(teststring)?;
+
+        assert!(os_release.0["NO_QUOTES"] == "systemd-boot");
+        assert!(os_release.0["DOUBLE_QUOTES"] == "systemd-boot");
+        assert!(os_release.0["SINGLE_QUOTES"] == "systemd-boot");
+        assert!(os_release.0["UNESCAPED_DOLLAR"] == "$1.2");
+        assert!(os_release.0["ESCAPED_DOLLAR"] == "$1.2");
+        assert!(os_release.0["UNESCAPED_BACKTICK"] == "`1.2");
+        assert!(os_release.0["ESCAPED_BACKTICK"] == "`1.2");
+        assert!(os_release.0["UNESCAPED_QUOTE"] == "\"1.2");
+        assert!(os_release.0["ESCAPED_QUOTE"] == "\"1.2");
 
         Ok(())
     }
