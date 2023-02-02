@@ -19,6 +19,7 @@ use uefi::{
     prelude::*,
     proto::{
         console::text::Output,
+        loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
     CStr16, CString16, Result,
@@ -129,6 +130,52 @@ fn boot_linux_unchecked(
     status.into()
 }
 
+/// Boot the Linux kernel via the UEFI PE loader.
+///
+/// This should only succeed when UEFI Secure Boot is off (or
+/// broken...), because the Lanzaboote tool does not sign the kernel.
+///
+/// In essence, we can use this routine to detect whether Secure Boot
+/// is actually enabled.
+fn boot_linux_uefi(
+    handle: Handle,
+    system_table: SystemTable<Boot>,
+    kernel_data: Vec<u8>,
+    kernel_cmdline: &CStr16,
+    initrd_data: Vec<u8>,
+) -> uefi::Result<()> {
+    let kernel_handle = system_table.boot_services().load_image(
+        handle,
+        uefi::table::boot::LoadImageSource::FromBuffer {
+            buffer: &kernel_data,
+            file_path: None,
+        },
+    )?;
+
+    let mut kernel_image = system_table
+        .boot_services()
+        .open_protocol_exclusive::<LoadedImage>(kernel_handle)?;
+
+    unsafe {
+        kernel_image.set_load_options(
+            kernel_cmdline.as_ptr() as *const u8,
+            // This unwrap is "safe" in the sense that any
+            // command-line that doesn't fit 4G is surely broken.
+            u32::try_from(kernel_cmdline.num_bytes()).unwrap(),
+        );
+    }
+
+    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)?;
+
+    let status = system_table
+        .boot_services()
+        .start_image(kernel_handle)
+        .status();
+
+    initrd_loader.uninstall(system_table.boot_services())?;
+    status.into()
+}
+
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
@@ -182,14 +229,14 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     if !is_kernel_hash_correct {
         system_table
             .stdout()
-            .output_string(cstr16!("Hash mismatch for kernel. Refusing to load!\r\n"))
+            .output_string(cstr16!("Hash mismatch for kernel!\r\n"))
             .unwrap();
     }
 
     if !is_initrd_hash_correct {
         system_table
             .stdout()
-            .output_string(cstr16!("Hash mismatch for initrd. Refusing to load!\r\n"))
+            .output_string(cstr16!("Hash mismatch for initrd!\r\n"))
             .unwrap();
     }
 
@@ -203,6 +250,39 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         )
         .status()
     } else {
-        Status::SECURITY_VIOLATION
+        // There is no good way to detect whether Secure Boot is
+        // enabled. This is unfortunate, because we want to give the
+        // user a way to recover from hash mismatches when Secure Boot
+        // is off.
+        //
+        // So in case we get a hash mismatch, we will try to load the
+        // Linux image using LoadImage. What happens then depends on
+        // whether Secure Boot is enabled:
+        //
+        // **With Secure Boot**, the firmware will reject loading the
+        // image with status::SECURITY_VIOLATION.
+        //
+        // **Without Secure Boot**, the firmware will just load the
+        // Linux kernel.
+        //
+        // This is the behavior we want. A slight turd is that we
+        // increase the attack surface here by exposing the unverfied
+        // Linux image to the UEFI firmware. But in case the PE loader
+        // of the firmware is broken, we have little hope of security
+        // anyway.
+
+        system_table
+            .stdout()
+            .output_string(cstr16!("WARNING: Trying to continue as non-Secure Boot. This will fail when Secure Boot is enabled.\r\n"))
+            .unwrap();
+
+        boot_linux_uefi(
+            handle,
+            system_table,
+            kernel_data,
+            &config.cmdline,
+            initrd_data,
+        )
+        .status()
     }
 }
