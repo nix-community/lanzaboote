@@ -17,7 +17,7 @@ boot.
 **We only recommend this to NixOS users that are comfortable using
 recovery tools to restore their system or have a backup ready.**
 
-## Requirements
+## Functional Requirements
 
 To be able to setup Secure Boot on your device, NixOS needs to be
 installed in UEFI mode and
@@ -42,6 +42,24 @@ Current Boot Loader:
 In the `bootctl` output, the firmware needs to be `UEFI` and the
 current boot loader needs to be `systemd-boot`. If this is the case,
 you are all set to continue.
+
+## Security Requirements
+
+These requirements are _optional_ for a development system. Feel free
+to skip them, if you just want to hack on Secure Boot support.
+
+To provide any security your system needs to defend against an
+attacker turning UEFI Secure Boot off or being able to sign binaries
+with the keys we are going to generate.
+
+The easiest way to achieve this is to:
+
+1. Enable a BIOS password in your system.
+2. Use full disk encryption.
+
+**The topic of security around Secure Boot is complex. We are only
+scratching the surface here and a comprehensive guide is out of
+scope.**
 
 ## Part 1: Preparing Your System
 
