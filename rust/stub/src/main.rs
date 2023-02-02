@@ -11,6 +11,7 @@ mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
 
+use alloc::vec::Vec;
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
@@ -20,7 +21,7 @@ use uefi::{
         console::text::Output,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
-    CString16, Result,
+    CStr16, CString16, Result,
 };
 
 use crate::{
@@ -106,6 +107,28 @@ impl EmbeddedConfiguration {
     }
 }
 
+/// Boot the Linux kernel without checking the PE signature.
+///
+/// We assume that the caller has made sure that the image is safe to
+/// be loaded using other means.
+fn boot_linux_unchecked(
+    handle: Handle,
+    system_table: SystemTable<Boot>,
+    kernel_data: Vec<u8>,
+    kernel_cmdline: &CStr16,
+    initrd_data: Vec<u8>,
+) -> uefi::Result<()> {
+    let kernel =
+        Image::load(system_table.boot_services(), &kernel_data).expect("Failed to load the kernel");
+
+    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)?;
+
+    let status = unsafe { kernel.start(handle, &system_table, kernel_cmdline) };
+
+    initrd_loader.uninstall(system_table.boot_services())?;
+    status.into()
+}
+
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
@@ -153,32 +176,33 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         initrd_data = read_all(&mut initrd_file).expect("Failed to read kernel file into memory");
     }
 
-    if Sha256::digest(&kernel_data) != config.kernel_hash {
+    let is_kernel_hash_correct = Sha256::digest(&kernel_data) == config.kernel_hash;
+    let is_initrd_hash_correct = Sha256::digest(&initrd_data) == config.initrd_hash;
+
+    if !is_kernel_hash_correct {
         system_table
             .stdout()
             .output_string(cstr16!("Hash mismatch for kernel. Refusing to load!\r\n"))
             .unwrap();
-        return Status::SECURITY_VIOLATION;
     }
 
-    if Sha256::digest(&initrd_data) != config.initrd_hash {
+    if !is_initrd_hash_correct {
         system_table
             .stdout()
             .output_string(cstr16!("Hash mismatch for initrd. Refusing to load!\r\n"))
             .unwrap();
-        return Status::SECURITY_VIOLATION;
     }
 
-    let kernel =
-        Image::load(system_table.boot_services(), &kernel_data).expect("Failed to load the kernel");
-
-    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)
-        .expect("Failed to load the initrd. It may not be there or it is not signed");
-
-    let status = unsafe { kernel.start(handle, &system_table, &config.cmdline) };
-
-    initrd_loader
-        .uninstall(system_table.boot_services())
-        .expect("Failed to uninstall the initrd protocols");
-    status
+    if is_kernel_hash_correct && is_initrd_hash_correct {
+        boot_linux_unchecked(
+            handle,
+            system_table,
+            kernel_data,
+            &config.cmdline,
+            initrd_data,
+        )
+        .status()
+    } else {
+        Status::SECURITY_VIOLATION
+    }
 }
