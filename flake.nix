@@ -54,6 +54,10 @@
           ];
 
           boot.lanzaboote.package = perSystem.config.packages.tool;
+          boot.lanzaboote.variant = let
+            grub = perSystem.config.packages.grub-efi-image;
+          in
+          lib.mkDefault "${grub}/boot.efi";
         }
       );
 

@@ -44,8 +44,8 @@ in
       description = "Private key to sign your boot files";
     };
     variant = mkOption {
-      type = types.enum [ "grub" "systemd-boot" ];
-      default = "systemd-boot";
+      type = types.string;
+      default = "${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootx64.efi";
       description = "Bootloader variant to use with lanzaboot";
     };
     package = mkOption {
@@ -63,11 +63,6 @@ in
     boot.loader.external = {
       enable = true;
       installHook = 
-        let
-          boot-path = if (cfg.variant == "systemd-boot") then
-            "${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootx64.efi"
-          else "${pkgs.grub-efi-image}/boot.efi";
-        in
           (pkgs.writeShellScript "bootinstall" ''
           ${optionalString cfg.enrollKeys ''
             mkdir -p /tmp/pki
@@ -80,7 +75,7 @@ in
             --systemd-boot-loader-config ${systemdBootLoaderConfig} \
             --public-key ${cfg.publicKeyFile} \
             --private-key ${cfg.privateKeyFile} \
-            --efi-boot-path ${boot-path} \
+            --efi-boot-path ${cfg.variant} \
             --configuration-limit ${toString configurationLimit} \
             ${config.boot.loader.efi.efiSysMountPoint} \
             /nix/var/nix/profiles/system-*-link
