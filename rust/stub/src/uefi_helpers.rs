@@ -56,15 +56,3 @@ pub fn booted_image_file(boot_services: &BootServices) -> Result<RegularFile> {
         .into_regular_file()
         .ok_or(Status::INVALID_PARAMETER)?)
 }
-
-/// Return the command line of the currently executing image.
-pub fn booted_image_cmdline(boot_services: &BootServices) -> Result<Vec<u8>> {
-    let loaded_image =
-        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
-
-    Ok(loaded_image
-        // If this fails, we have no load options and we return an empty string.
-        .load_options_as_bytes()
-        .map(|b| b.to_vec())
-        .unwrap_or_default())
-}

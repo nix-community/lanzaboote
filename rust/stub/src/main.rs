@@ -2,20 +2,22 @@
 #![no_std]
 #![feature(abi_efiapi)]
 #![feature(negative_impls)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 extern crate alloc;
 
 mod linux_loader;
+mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
 
+use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
 use uefi::{
     prelude::*,
     proto::{
         console::text::Output,
-        loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
     CString16, Result,
@@ -23,7 +25,7 @@ use uefi::{
 
 use crate::{
     linux_loader::InitrdLoader,
-    uefi_helpers::{booted_image_cmdline, booted_image_file, read_all},
+    uefi_helpers::{booted_image_file, read_all},
 };
 
 type Hash = sha2::digest::Output<Sha256>;
@@ -65,13 +67,16 @@ struct EmbeddedConfiguration {
     /// The cryptographic hash of the initrd. This hash is computed
     /// over the whole PE binary, not only the embedded initrd.
     initrd_hash: Hash,
+
+    /// The kernel command-line.
+    cmdline: CString16,
 }
 
-/// Extract a filename from a PE section. The filename is stored as UTF-8.
-fn extract_filename(file_data: &[u8], section: &str) -> Result<CString16> {
-    let filename = pe_section_as_string(file_data, section).ok_or(Status::INVALID_PARAMETER)?;
+/// Extract a string, stored as UTF-8, from a PE section.
+fn extract_string(file_data: &[u8], section: &str) -> Result<CString16> {
+    let string = pe_section_as_string(file_data, section).ok_or(Status::INVALID_PARAMETER)?;
 
-    Ok(CString16::try_from(filename.as_str()).map_err(|_| Status::INVALID_PARAMETER)?)
+    Ok(CString16::try_from(string.as_str()).map_err(|_| Status::INVALID_PARAMETER)?)
 }
 
 /// Extract a Blake3 hash from a PE section.
@@ -90,11 +95,13 @@ impl EmbeddedConfiguration {
         let file_data = read_all(file)?;
 
         Ok(Self {
-            kernel_filename: extract_filename(&file_data, ".kernelp")?,
+            kernel_filename: extract_string(&file_data, ".kernelp")?,
             kernel_hash: extract_hash(&file_data, ".kernelh")?,
 
-            initrd_filename: extract_filename(&file_data, ".initrdp")?,
+            initrd_filename: extract_string(&file_data, ".initrdp")?,
             initrd_hash: extract_hash(&file_data, ".initrdh")?,
+
+            cmdline: extract_string(&file_data, ".cmdline")?,
         })
     }
 }
@@ -162,40 +169,13 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         return Status::SECURITY_VIOLATION;
     }
 
-    let kernel_cmdline =
-        booted_image_cmdline(system_table.boot_services()).expect("Failed to fetch command line");
-
-    let kernel_handle = {
-        system_table
-            .boot_services()
-            .load_image(
-                handle,
-                uefi::table::boot::LoadImageSource::FromBuffer {
-                    buffer: &kernel_data,
-                    file_path: None,
-                },
-            )
-            .expect("UEFI refused to load the kernel image. It may not be signed or it may not have an EFI stub.")
-    };
-
-    let mut kernel_image = system_table
-        .boot_services()
-        .open_protocol_exclusive::<LoadedImage>(kernel_handle)
-        .expect("Failed to open the LoadedImage protocol");
-
-    unsafe {
-        kernel_image.set_load_options(
-            kernel_cmdline.as_ptr() as *const u8,
-            u32::try_from(kernel_cmdline.len()).unwrap(),
-        );
-    }
+    let kernel =
+        Image::load(system_table.boot_services(), &kernel_data).expect("Failed to load the kernel");
 
     let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)
         .expect("Failed to load the initrd. It may not be there or it is not signed");
-    let status = system_table
-        .boot_services()
-        .start_image(kernel_handle)
-        .status();
+
+    let status = unsafe { kernel.start(handle, &system_table, &config.cmdline) };
 
     initrd_loader
         .uninstall(system_table.boot_services())

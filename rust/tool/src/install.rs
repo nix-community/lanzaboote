@@ -157,8 +157,8 @@ impl Installer {
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
 
-        // The initrd doesn't need to be signed. The stub has its hash embedded and will refuse
-        // loading it when the hash mismatches.
+        // The initrd and kernel don't need to be signed.
+        // The stub has their hashes embedded and will refuse loading on hash mismatches.
         //
         // The initrd and kernel are not forcibly installed because they are not built
         // reproducibly. Forcibly installing (i.e. overwriting) them is likely to break older
@@ -166,7 +166,9 @@ impl Installer {
         // will not match anymore.
         install(&initrd_location, &esp_gen_paths.initrd)
             .context("Failed to install initrd to ESP")?;
-        install_signed(&self.key_pair, &bootspec.kernel, &esp_gen_paths.kernel)
+        // Do not sign the kernel.
+        // Boot loader specification could be used to make a signed kernel load an unprotected initrd.
+        install(&bootspec.kernel, &esp_gen_paths.kernel)
             .context("Failed to install kernel to ESP.")?;
 
         let lanzaboote_image = pe::lanzaboote_image(
