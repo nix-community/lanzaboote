@@ -129,6 +129,7 @@ in
       src = "bootspec.get('kernel')";
       dst = "convert_to_esp(bootspec.get('kernel'))";
     };
+    appendCrap = true;
   };
 
   specialisation = mkSecureBootTest {
