@@ -5,7 +5,7 @@ stdenvNoCC.mkDerivation rec {
 
   buildCommand = ''
     mkdir $out
-    ${grub2_efi}/bin/grub-mkimage -O x86_64-efi -p "" -o $out/boot.efi
+    ${grub2_efi}/bin/grub-mkstandalone -O x86_64-efi -o $out/boot.efi --modules="part_gpt part_msdos"
   '';
 
   meta = with lib; {
