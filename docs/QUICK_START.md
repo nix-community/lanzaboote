@@ -167,18 +167,20 @@ Verifying file database and EFI images in /boot...
 ✓ /boot/EFI/BOOT/BOOTX64.EFI is signed
 ✓ /boot/EFI/Linux/nixos-generation-355.efi is signed
 ✓ /boot/EFI/Linux/nixos-generation-356.efi is signed
-✓ /boot/EFI/nixos/0n01vj3mq06pc31i2yhxndvhv4kwl2vp-linux-6.1.3-bzImage.efi is signed
+✗ /boot/EFI/nixos/0n01vj3mq06pc31i2yhxndvhv4kwl2vp-linux-6.1.3-bzImage.efi is not signed
 ✓ /boot/EFI/systemd/systemd-bootx64.efi is signed
 ```
 
-🔪 **Sharp edge:** 🔪 In case something is **not** signed in the
-`sbctl verify` output, you have hit a bug
-([#39](https://github.com/nix-community/lanzaboote/issues/39)). You
-**have to fix this** to avoid ending up with an unbootable system
-([#58](https://github.com/nix-community/lanzaboote/issues/58)). The
-way to solve this is **deleting** the unsigned files indicated by
-`sbctl` and switching to the configuration again. This will copy and
-sign the missing files.
+It is expected that the files ending with `bzImage.efi` are _not_
+signed.
+
+🔪 **Sharp edge:** 🔪 In case any of the `nixos-generation-*.efi`
+files are not signed, you have hit a bug
+([#39](https://github.com/nix-community/lanzaboote/issues/39)).  This
+issue will prevent the system from booting successfully when Secure
+Boot is enabled. The way to solve this is **deleting** the unsigned
+files indicated by `sbctl` and switching to the configuration
+again. This will copy and sign the missing files.
 
 ## Part 2: Enabling Secure Boot
 
@@ -236,12 +238,19 @@ System:
 
 That's all! 🥳
 
+## Troubleshooting
+
+If your system doesn't boot with Secure Boot enabled, the most likely
+issue is that Lanzaboote could not verify a cryptographic hash. To
+recover from this, disable Secure Boot in your firmware
+settings. Please file a bug, if you hit this issue.
+
 ## Disabling Secure Boot and Lanzaboote
 
-When you want to get back to a system without the Secure Boot stack,
-**first** disable Secure Boot in your firmware settings. Then you can
-disable the Lanzaboote related settings in the NixOS configuration and
-rebuild.
+When you want to permanently get back to a system without the Secure
+Boot stack, **first** disable Secure Boot in your firmware
+settings. Then you can disable the Lanzaboote related settings in the
+NixOS configuration and rebuild.
 
 You may need to clean up the `EFI/Linux` directory in the ESP manually
 to get rid of stale boot entries. **Please backup your ESP, before you
