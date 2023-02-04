@@ -9,9 +9,9 @@ stdenvNoCC.mkDerivation rec {
     # this is very probably a terrible idea but grub doesn't allow to generate
     # at runtime menus like systemd-boot does, so we will need to wait for
     # lanzaboot to be ready to generate config for both sd-boot and grub.
-    echo -e 'chainloader (hd0,gpt1)/efi/Linux/nixos-generation-1.efi\nboot' > /tmp/grub.cfg
+    echo -e 'set root=(hd0,gpt2)\nchainloader (hd0,gpt1)/efi/Linux/nixos-generation-1.efi\nboot' > /tmp/grub.cfg
     ${grub2_efi}/bin/grub-mkstandalone -O x86_64-efi -o $out/boot.efi \
-    --disable-shim-lock --modules="part_gpt part_msdos" "boot/grub/grub.cfg=/tmp/grub.cfg"
+    --disable-shim-lock --modules="part_gpt part_msdos tpm" "boot/grub/grub.cfg=/tmp/grub.cfg"
   '';
 
   meta = with lib; {
