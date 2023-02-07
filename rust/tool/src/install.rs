@@ -18,7 +18,6 @@ use crate::utils::SecureTempDirExt;
 pub struct Installer {
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
-    systemd: PathBuf,
     systemd_boot_loader_config: PathBuf,
     key_pair: KeyPair,
     configuration_limit: usize,
@@ -30,7 +29,6 @@ pub struct Installer {
 impl Installer {
     pub fn new(
         lanzaboote_stub: PathBuf,
-        systemd: PathBuf,
         systemd_boot_loader_config: PathBuf,
         key_pair: KeyPair,
         configuration_limit: usize,
@@ -45,7 +43,6 @@ impl Installer {
         Self {
             gc_roots,
             lanzaboote_stub,
-            systemd,
             systemd_boot_loader_config,
             key_pair,
             configuration_limit,
@@ -220,10 +217,14 @@ impl Installer {
         ];
 
         for (from, to) in paths {
-            if newer_systemd_boot(from, to)? || !&self.key_pair.verify(to) {
-                force_install_signed(&self.key_pair, from, to)
-                    .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
-            }
+            // TODO(GovanifY): The tests currently fail because of an empty .osrel in my machine
+            // and can fail if using something else than systemd as an EFI binary, what to do with
+            // this?
+            force_install_signed(&self.key_pair, from, to)
+                .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
+
+            //if newer_systemd_boot(from, to)? || !&self.key_pair.verify(to) {
+            //}
         }
 
         install(
