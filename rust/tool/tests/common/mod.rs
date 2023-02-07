@@ -115,8 +115,6 @@ pub fn lanzaboote_install(
     let output = cmd
         .env("LANZABOOTE_STUB", &test_systemd_stub)
         .arg("install")
-        .arg("--systemd")
-        .arg(test_systemd)
         .arg("--systemd-boot-loader-config")
         .arg(test_loader_config_path.path())
         .arg("--public-key")

@@ -362,6 +362,7 @@ fn ensure_parent_dir(path: &Path) {
 ///   (1) no file exists at the destination,
 ///   (2) the file at the destination is malformed,
 ///   (3) a binary with a higher version is available.
+#[allow(dead_code)]
 fn newer_systemd_boot(from: &Path, to: &Path) -> Result<bool> {
     // If the file doesn't exists at the destination, it should be installed.
     if !to.exists() {

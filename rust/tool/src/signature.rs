@@ -45,6 +45,7 @@ impl KeyPair {
     }
 
     /// Verify the signature of a PE binary. Return true if the signature was verified.
+    #[allow(dead_code)]
     pub fn verify(&self, path: &Path) -> bool {
         let args: Vec<OsString> = vec![
             OsString::from("--cert"),
