@@ -54,10 +54,11 @@
           ];
 
           boot.lanzaboote.package = perSystem.config.packages.tool;
-          boot.lanzaboote.variant = let
-            grub = perSystem.config.packages.grub-efi-image;
-          in
-          lib.mkDefault "${grub}/boot.efi";
+          boot.lanzaboote.variant =
+            let
+              grub = perSystem.config.packages.grub-efi-image;
+            in
+            "${grub}/boot.efi";
         }
       );
 
@@ -151,7 +152,7 @@
             inherit stub;
             tool = wrappedTool;
             lzbt = wrappedTool;
-            grub-efi-image = pkgs.callPackage ./nix/packages/grub-efi-image.nix {};
+            grub-efi-image = pkgs.callPackage ./nix/packages/grub-efi-image.nix { };
           };
 
           overlayAttrs = {

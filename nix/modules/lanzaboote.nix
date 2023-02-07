@@ -44,7 +44,7 @@ in
       description = "Private key to sign your boot files";
     };
     variant = mkOption {
-      type = types.string;
+      type = types.str;
       default = "${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootx64.efi";
       description = "Bootloader variant to use with lanzaboot";
     };
@@ -62,8 +62,8 @@ in
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
       enable = true;
-      installHook = 
-          (pkgs.writeShellScript "bootinstall" ''
+      installHook =
+        (pkgs.writeShellScript "bootinstall" ''
           ${optionalString cfg.enrollKeys ''
             mkdir -p /tmp/pki
             cp -r ${cfg.pkiBundle}/* /tmp/pki
