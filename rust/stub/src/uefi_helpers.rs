@@ -29,7 +29,8 @@ pub fn read_all(file: &mut RegularFile) -> Result<Vec<u8>> {
 
 /// Open the currently executing image as a file.
 pub fn booted_image_file(boot_services: &BootServices) -> Result<RegularFile> {
-    let mut file_system = boot_services.get_image_file_system(boot_services.image_handle())?;
+    let mut file_system = boot_services.get_image_file_system(
+        boot_services.image_handle()).expect("Failed to open the boot file system");
 
     // The root directory of the volume where our binary lies.
     let mut root = file_system.open_volume()?;
