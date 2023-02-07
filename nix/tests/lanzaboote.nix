@@ -6,7 +6,7 @@
 let
   inherit (pkgs) lib;
 
-  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, testScript }: testPkgs.nixosTest {
+  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, useSystemd ? true, testScript }: testPkgs.nixosTest {
     inherit name testScript;
     nodes.machine = { lib, ... }: {
       imports = [
@@ -28,6 +28,7 @@ let
         enable = true;
         enrollKeys = lib.mkDefault true;
         pkiBundle = ./fixtures/uefi-keys;
+        variant = lib.mkIf useSystemd "${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootx64.efi";
       };
     };
   };
@@ -112,6 +113,17 @@ in
       assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
     '';
   };
+
+  grub = mkSecureBootTest {
+    name = "lanzaboote-grub";
+    useSystemd = false;
+    testScript = ''
+      machine.start()
+      assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+    '';
+  };
+
+
 
   systemd-initrd = mkSecureBootTest {
     name = "lanzaboote-systemd-initrd";

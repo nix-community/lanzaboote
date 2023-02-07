@@ -58,7 +58,7 @@
             let
               grub = perSystem.config.packages.grub-efi-image;
             in
-            "${grub}/boot.efi";
+            nixpkgs.lib.mkDefault "${grub}/boot.efi";
         }
       );
 
