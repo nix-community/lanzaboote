@@ -10,7 +10,7 @@ let
     };
 
 
-    prePatch = ''
+    postPatch = ''
       patchShebangs autogen.sh bootstrap
       # copy gnulib into build dir and make writable.
       # Otherwise ./bootstrap copies the non-writable files from nix store and fails to modify them
@@ -39,6 +39,10 @@ stdenvNoCC.mkDerivation rec {
     ${grub_uki}/bin/grub-mkstandalone -O x86_64-efi -o $out/boot.efi \
     --disable-shim-lock --modules="part_gpt part_msdos tpm boot_loader_interface" "boot/grub/grub.cfg=/tmp/grub.cfg"
   '';
+
+  nativeBuildInputs = [
+    grub_uki
+  ];
 
   meta = with lib; {
     platforms = platforms.all;
