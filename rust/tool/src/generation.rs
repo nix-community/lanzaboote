@@ -80,22 +80,12 @@ impl Generation {
     ///
     /// This is currently implemented by poking around the filesystem to find the necessary data.
     /// Ideally, the needed data should be included in the bootspec.
-    pub fn describe(&self) -> Result<String> {
-        let toplevel = &self.spec.bootspec.toplevel.0;
-
-        let nixos_version = fs::read_to_string(toplevel.join("nixos-version"))
-            .unwrap_or_else(|_| String::from("Unknown"));
-        let kernel_version =
-            read_kernel_version(toplevel).context("Failed to read kernel version.")?;
+    pub fn describe(&self) -> String {
         let build_time = self
             .build_time
             .map(|x| x.to_string())
             .unwrap_or_else(|| String::from("Unknown"));
-
-        Ok(format!(
-            "Generation {} NixOS {}, Linux Kernel {}, Built on {}",
-            self.version, nixos_version, kernel_version, build_time
-        ))
+        format!("Generation {}, Built on {}", self.version, build_time)
     }
 }
 
@@ -103,25 +93,6 @@ impl fmt::Display for Generation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.version)
     }
-}
-
-/// Read the kernel version from the name of a directory inside the toplevel directory.
-///
-/// The path looks something like this: $toplevel/kernel-modules/lib/modules/6.1.1
-fn read_kernel_version(toplevel: &Path) -> Result<String> {
-    let path = fs::read_dir(toplevel.join("kernel-modules/lib/modules"))?
-        .into_iter()
-        .next()
-        .transpose()?
-        .map(|x| x.path())
-        .with_context(|| format!("Failed to read directory {:?}.", toplevel))?;
-
-    let file_name = path
-        .file_name()
-        .and_then(|x| x.to_str())
-        .context("Failed to convert path to filename string.")?;
-
-    Ok(String::from(file_name))
 }
 
 fn read_build_time(path: &Path) -> Result<Date> {
