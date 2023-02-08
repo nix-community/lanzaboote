@@ -20,8 +20,6 @@ pub fn setup_generation_link(
     version: u64,
 ) -> Result<PathBuf> {
     let toplevel = setup_toplevel(tmpdir).context("Failed to setup toplevel")?;
-    // Explicitly set modification time so that snapshot test of os-release reliably works.
-    filetime::set_file_mtime(&toplevel, filetime::FileTime::zero())?;
 
     let bootspec = json!({
         "v1": {
@@ -55,6 +53,9 @@ pub fn setup_generation_link(
     let mut file = fs::File::create(bootspec_path)?;
     file.write_all(&serde_json::to_vec(&bootspec)?)?;
 
+    // Explicitly set modification time so that snapshot test of os-release reliably works.
+    // This has to happen after any modifications to the directory.
+    filetime::set_file_mtime(&generation_link_path, filetime::FileTime::zero())?;
     Ok(generation_link_path)
 }
 
