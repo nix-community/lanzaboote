@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use bootspec::generation::Generation as BootspecGeneration;
 use bootspec::BootJson;
 use bootspec::SpecialisationName;
+use time::Date;
 
 /// (Possibly) extended Bootspec.
 ///
@@ -29,6 +30,8 @@ pub struct ExtendedBootJson {
 pub struct Generation {
     /// Profile symlink index
     version: u64,
+    /// Build time
+    build_time: Option<Date>,
     /// Top-level specialisation name
     specialisation_name: Option<SpecialisationName>,
     /// Top-level extended boot specification
@@ -49,6 +52,7 @@ impl Generation {
 
         Ok(Self {
             version: link.version,
+            build_time: link.build_time,
             specialisation_name: None,
             spec: ExtendedBootJson { bootspec },
         })
@@ -57,6 +61,7 @@ impl Generation {
     pub fn specialise(&self, name: &SpecialisationName, bootspec: &BootJson) -> Result<Self> {
         Ok(Self {
             version: self.version,
+            build_time: self.build_time,
             specialisation_name: Some(name.clone()),
             spec: ExtendedBootJson {
                 bootspec: bootspec.clone(),
@@ -82,7 +87,10 @@ impl Generation {
             .unwrap_or_else(|_| String::from("Unknown"));
         let kernel_version =
             read_kernel_version(toplevel).context("Failed to read kernel version.")?;
-        let build_time = read_build_time(toplevel).unwrap_or_else(|_| String::from("Unknown"));
+        let build_time = self
+            .build_time
+            .map(|x| x.to_string())
+            .unwrap_or_else(|| String::from("Unknown"));
 
         Ok(format!(
             "Generation {} NixOS {}, Linux Kernel {}, Built on {}",
@@ -116,10 +124,8 @@ fn read_kernel_version(toplevel: &Path) -> Result<String> {
     Ok(String::from(file_name))
 }
 
-fn read_build_time(path: &Path) -> Result<String> {
-    let build_time = time::OffsetDateTime::from_unix_timestamp(fs::metadata(path)?.mtime())?
-        .date()
-        .to_string();
+fn read_build_time(path: &Path) -> Result<Date> {
+    let build_time = time::OffsetDateTime::from_unix_timestamp(fs::metadata(path)?.mtime())?.date();
     Ok(build_time)
 }
 
@@ -131,6 +137,7 @@ fn read_build_time(path: &Path) -> Result<String> {
 pub struct GenerationLink {
     pub version: u64,
     pub path: PathBuf,
+    pub build_time: Option<Date>,
 }
 
 impl GenerationLink {
@@ -138,6 +145,7 @@ impl GenerationLink {
         Ok(Self {
             version: parse_version(&path).context("Failed to parse version")?,
             path: PathBuf::from(path.as_ref()),
+            build_time: read_build_time(path.as_ref()).ok(),
         })
     }
 }
