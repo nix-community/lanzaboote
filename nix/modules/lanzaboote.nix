@@ -65,7 +65,7 @@ in
         ''}
   
         ${cfg.package}/bin/lzbt install \
-          --systemd ${pkgs.systemd} \
+          --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${systemdBootLoaderConfig} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
