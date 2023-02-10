@@ -30,7 +30,7 @@ fn generate_expected_os_release() -> Result<()> {
     let expected = expect![[r#"
         ID=lanza
         PRETTY_NAME=LanzaOS
-        VERSION_ID=Generation 1 NixOS 23.05, Linux Kernel 6.1.1, Built on 1970-01-01
+        VERSION_ID=Generation 1, Built on 1970-01-01
     "#]];
 
     expected.assert_eq(&String::from_utf8(os_release_section)?);
