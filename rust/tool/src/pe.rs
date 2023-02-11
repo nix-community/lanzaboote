@@ -6,13 +6,10 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 use goblin::pe::PE;
-use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 use crate::esp::EspGenerationPaths;
-use crate::utils::{tmpname, SecureTempDirExt};
-
-type Hash = sha2::digest::Output<Sha256>;
+use crate::utils::{file_hash, tmpname, SecureTempDirExt};
 
 /// Assemble a lanzaboote image.
 #[allow(clippy::too_many_arguments)]
@@ -59,11 +56,6 @@ pub fn lanzaboote_image(
     let image_path = tempdir.path().join(tmpname());
     wrap_in_pe(lanzaboote_stub, sections, &image_path)?;
     Ok(image_path)
-}
-
-/// Compute the SHA 256 hash of a file.
-fn file_hash(file: &Path) -> Result<Hash> {
-    Ok(Sha256::digest(fs::read(file)?))
 }
 
 /// Take a PE binary stub and attach sections to it.

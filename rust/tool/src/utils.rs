@@ -6,6 +6,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 /// The number of random alphanumeric characters in the tempfiles.
@@ -63,4 +64,13 @@ pub fn tmpname() -> OsString {
         buf.push(c.encode_utf8(&mut char_buf));
     }
     buf
+}
+
+type Hash = sha2::digest::Output<Sha256>;
+
+/// Compute the SHA 256 hash of a file.
+pub fn file_hash(file: &Path) -> Result<Hash> {
+    Ok(Sha256::digest(fs::read(file).with_context(|| {
+        format!("Failed to read file to hash: {file:?}")
+    })?))
 }
