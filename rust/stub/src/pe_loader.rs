@@ -2,6 +2,7 @@ use core::ffi::c_void;
 
 use alloc::vec::Vec;
 use goblin::pe::PE;
+use log::error;
 use uefi::{
     prelude::BootServices,
     proto::loaded_image::LoadedImage,
@@ -9,7 +10,7 @@ use uefi::{
         boot::{AllocateType, MemoryType},
         Boot, SystemTable,
     },
-    CStr16, Handle, Status,
+    CStr16, Error, Handle, Status,
 };
 
 /// UEFI mandates 4 KiB pages.
@@ -31,7 +32,10 @@ fn bytes_to_pages(bytes: usize) -> usize {
     bytes
         .checked_add(UEFI_PAGE_MASK)
         .map(|rounded_up| rounded_up >> UEFI_PAGE_BITS)
-        .unwrap_or(1 << (usize::try_from(usize::BITS).unwrap() - UEFI_PAGE_BITS))
+        .unwrap_or(
+            1 << (usize::try_from(usize::BITS).expect("Failed to convert bits to usize")
+                - UEFI_PAGE_BITS),
+        )
 }
 
 impl Image {
@@ -57,7 +61,8 @@ impl Image {
                 })
                 .collect::<Result<Vec<u32>, uefi::Status>>()?;
 
-            let length = usize::try_from(section_lengths.into_iter().max().unwrap_or(0)).unwrap();
+            let length = usize::try_from(section_lengths.into_iter().max().unwrap_or(0))
+                .expect("Failed to convert bits to usize");
 
             let base = boot_services.allocate_pages(
                 AllocateType::AnyPages,
@@ -74,10 +79,21 @@ impl Image {
         // Populate all sections in virtual memory.
         for section in &pe.sections {
             let copy_size =
-                usize::try_from(u32::min(section.virtual_size, section.size_of_raw_data)).unwrap();
-            let raw_start = usize::try_from(section.pointer_to_raw_data).unwrap();
+                usize::try_from(u32::min(section.virtual_size, section.size_of_raw_data)).map_err(
+                    |e| {
+                        error!("Failed to convert to usize: {}", e);
+                        Error::from(Status::ABORTED)
+                    },
+                )?;
+            let raw_start = usize::try_from(section.pointer_to_raw_data).map_err(|e| {
+                error!("Failed to convert to usize: {}", e);
+                Error::from(Status::ABORTED)
+            })?;
             let raw_end = raw_start.checked_add(copy_size).ok_or(Status::LOAD_ERROR)?;
-            let virt_start = usize::try_from(section.virtual_address).unwrap();
+            let virt_start = usize::try_from(section.virtual_address).map_err(|e| {
+                error!("Failed to convert to usize: {}", e);
+                Error::from(Status::ABORTED)
+            })?;
             let virt_end = virt_start
                 .checked_add(copy_size)
                 .ok_or(Status::LOAD_ERROR)?;
@@ -136,18 +152,26 @@ impl Image {
             .load_options_as_bytes()
             .map(|options| options.as_ptr_range());
 
+        let image_len = match self.image.len().try_into() {
+            Ok(l) => l,
+            Err(e) => {
+                error!("Failed to find image length: {}", e);
+                return Status::ABORTED;
+            }
+        };
+        let options_len = match u32::try_from(load_options.num_bytes()) {
+            Ok(l) => l,
+            Err(e) => {
+                error!("Failed to find load options length: {}", e);
+                return Status::ABORTED;
+            }
+        };
         // It seems to be impossible to allocate custom image handles.
         // Hence, we reuse our own for the kernel.
         // The shim does the same thing.
         unsafe {
-            loaded_image.set_image(
-                self.image.as_ptr() as *const c_void,
-                self.image.len().try_into().unwrap(),
-            );
-            loaded_image.set_load_options(
-                load_options.as_ptr() as *const u8,
-                u32::try_from(load_options.num_bytes()).unwrap(),
-            );
+            loaded_image.set_image(self.image.as_ptr() as *const c_void, image_len);
+            loaded_image.set_load_options(load_options.as_ptr() as *const u8, options_len);
         }
 
         let status = (self.entry)(handle, unsafe { system_table.unsafe_clone() });
@@ -163,10 +187,16 @@ impl Image {
         unsafe {
             loaded_image.set_image(our_data, our_size);
             match our_load_options {
-                Some(options) => loaded_image.set_load_options(
-                    options.start,
-                    options.end.offset_from(options.start).try_into().unwrap(),
-                ),
+                Some(options) => {
+                    let options_len = match options.end.offset_from(options.start).try_into() {
+                        Ok(l) => l,
+                        Err(e) => {
+                            error!("Failed to find load options length: {}", e);
+                            return Status::ABORTED;
+                        }
+                    };
+                    loaded_image.set_load_options(options.start, options_len)
+                }
                 None => loaded_image.set_load_options(core::ptr::null(), 0),
             }
         }

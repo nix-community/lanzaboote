@@ -3,6 +3,8 @@
 #![feature(abi_efiapi)]
 #![feature(negative_impls)]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![deny(clippy::panic)]
+#![deny(clippy::unwrap_used)]
 
 extern crate alloc;
 
@@ -23,7 +25,7 @@ use uefi::{
         loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
-    CStr16, CString16, Result,
+    CStr16, CString16, Error, Result,
 };
 
 use crate::{
@@ -153,11 +155,13 @@ fn boot_linux_uefi(
         .open_protocol_exclusive::<LoadedImage>(kernel_handle)?;
 
     unsafe {
+        let cmdline_len = u32::try_from(kernel_cmdline.num_bytes()).map_err(|e| {
+            warn!("Could not convert command line length to u32: {}", e);
+            Error::from(Status::BUFFER_TOO_SMALL)
+        })?;
         kernel_image.set_load_options(
             kernel_cmdline.as_ptr() as *const u8,
-            // This unwrap is "safe" in the sense that any
-            // command-line that doesn't fit 4G is surely broken.
-            u32::try_from(kernel_cmdline.num_bytes()).unwrap(),
+            cmdline_len,
         );
     }
 
@@ -174,8 +178,11 @@ fn boot_linux_uefi(
 
 #[entry]
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    // Initialize UEFI services (we need them for pretty much everything)
-    uefi_services::init(&mut system_table).unwrap();
+    // Initialize UEFI services (we need them for pretty much everything). We can not really print
+    // anything when this fails since there is nowhere to print to
+    if uefi_services::init(&mut system_table).is_err() {
+        return Status::ABORTED;
+    }
 
     // Initialize logging. We do this asap to ensure we can properly use all log macros at any
     // time.
@@ -188,8 +195,15 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Print the startup logo
     print_logo();
 
+    let mut booted_image_file = match booted_image_file(system_table.boot_services()) {
+        Ok(b) => b,
+        Err(e) => {
+            error!("Failed to find booted image file: {:?}", e);
+            return Status::LOAD_ERROR;
+        }
+    };
     let config: EmbeddedConfiguration =
-        EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
+        EmbeddedConfiguration::new(&mut booted_image_file)
             .expect("Failed to extract configuration from binary. Did you run lzbt?");
 
     let kernel_data;
