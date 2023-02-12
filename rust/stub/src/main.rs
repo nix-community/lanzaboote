@@ -13,13 +13,13 @@ mod uefi_helpers;
 mod uefi_log;
 
 use alloc::vec::Vec;
+use log::{error, info, warn};
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
 use uefi::{
     prelude::*,
     proto::{
-        console::text::Output,
         loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
@@ -34,20 +34,15 @@ use crate::{
 type Hash = sha2::digest::Output<Sha256>;
 
 /// Print the startup logo on boot.
-fn print_logo(output: &mut Output) -> Result<()> {
-    output.clear()?;
-
-    output.output_string(cstr16!(
-        "
-  _                      _                 _\r
- | |                    | |               | |\r
- | | __ _ _ __  ______ _| |__   ___   ___ | |_ ___\r
- | |/ _` | '_ \\|_  / _` | '_ \\ / _ \\ / _ \\| __/ _ \\\r
- | | (_| | | | |/ / (_| | |_) | (_) | (_) | ||  __/\r
- |_|\\__,_|_| |_/___\\__,_|_.__/ \\___/ \\___/ \\__\\___|\r
-\r
-"
-    ))
+fn print_logo() {
+    info!("");
+    info!("  _                      _                 _");
+    info!(" | |                    | |               | |");
+    info!(" | | __ _ _ __  ______ _| |__   ___   ___ | |_ ___");
+    info!(" | |/ _` | '_ \\|_  / _` | '_ \\ / _ \\ / _ \\| __/ _ \\");
+    info!(" | | (_| | | | |/ / (_| | |_) | (_) | (_) | ||  __/");
+    info!(" |_|\\__,_|_| |_/___\\__,_|_.__/ \\___/ \\___/ \\__\\___|");
+    info!("");
 }
 
 /// The configuration that is embedded at build time.
@@ -191,7 +186,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     }
 
     // Print the startup logo
-    print_logo(system_table.stdout()).unwrap();
+    print_logo();
 
     let config: EmbeddedConfiguration =
         EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
@@ -238,17 +233,11 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let is_initrd_hash_correct = Sha256::digest(&initrd_data) == config.initrd_hash;
 
     if !is_kernel_hash_correct {
-        system_table
-            .stdout()
-            .output_string(cstr16!("Hash mismatch for kernel!\r\n"))
-            .unwrap();
+        error!("Hash mismatch for kernel!");
     }
 
     if !is_initrd_hash_correct {
-        system_table
-            .stdout()
-            .output_string(cstr16!("Hash mismatch for initrd!\r\n"))
-            .unwrap();
+        error!("Hash mismatch for initrd!");
     }
 
     if is_kernel_hash_correct && is_initrd_hash_correct {
@@ -281,11 +270,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         // Linux image to the UEFI firmware. But in case the PE loader
         // of the firmware is broken, we have little hope of security
         // anyway.
-
-        system_table
-            .stdout()
-            .output_string(cstr16!("WARNING: Trying to continue as non-Secure Boot. This will fail when Secure Boot is enabled.\r\n"))
-            .unwrap();
+        warn!("Trying to continue as non-Secure Boot. This will fail when Secure Boot is enabled.");
 
         boot_linux_uefi(
             handle,
