@@ -51,7 +51,7 @@ fn print_logo(output: &mut Output) -> Result<()> {
 
 /// The configuration that is embedded at build time.
 ///
-/// After lanzaboote is built, lanzatool needs to embed configuration
+/// After lanzaboote is built, lzbt needs to embed configuration
 /// into the binary. This struct represents that information.
 struct EmbeddedConfiguration {
     /// The filename of the kernel to be booted. This filename is
@@ -184,7 +184,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     let config: EmbeddedConfiguration =
         EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
-            .expect("Failed to extract configuration from binary. Did you run lanzatool?");
+            .expect("Failed to extract configuration from binary. Did you run lzbt?");
 
     let kernel_data;
     let initrd_data;
