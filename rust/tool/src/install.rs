@@ -140,19 +140,20 @@ impl Installer {
         let os_release = OsRelease::from_generation(generation)
             .context("Failed to build OsRelease from generation.")?;
         let os_release_path = tempdir
-            .write_secure_file("os-release", os_release.to_string().as_bytes())
+            .write_secure_file(os_release.to_string().as_bytes())
             .context("Failed to write os-release file.")?;
 
         println!("Appending secrets to initrd...");
 
-        let initrd_location = tempdir.path().join("initrd");
-        fs::copy(
+        let initrd_content = fs::read(
             bootspec
                 .initrd
                 .as_ref()
                 .context("Lanzaboote does not support missing initrd yet")?,
-            &initrd_location,
         )?;
+        let initrd_location = tempdir
+            .write_secure_file(initrd_content)
+            .context("Failed to copy initrd to tempfile.")?;
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
