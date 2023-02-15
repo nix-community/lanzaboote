@@ -1,10 +1,12 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use tempfile::tempdir;
 
 mod common;
+
+use common::count_files;
 
 #[test]
 fn keep_only_configured_number_of_generations() -> Result<()> {
@@ -80,8 +82,4 @@ fn keep_unrelated_files_on_esp() -> Result<()> {
     assert!(unrelated_firmware.exists());
 
     Ok(())
-}
-
-fn count_files(path: &Path) -> Result<usize> {
-    Ok(fs::read_dir(path)?.count())
 }

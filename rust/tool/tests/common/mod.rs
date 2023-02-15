@@ -1,6 +1,12 @@
+// Utility code in this module can become marked as dead code if it is not used in every single
+// module in `tests/`. Thus we need to allow dead code here. See
+// https://stackoverflow.com/a/67902444
+#![allow(dead_code)]
+
 use std::ffi::OsStr;
 use std::fs;
 use std::io::Write;
+use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
@@ -9,6 +15,7 @@ use assert_cmd::Command;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 
 /// Create a mock generation link.
 ///
@@ -149,4 +156,42 @@ fn systemd_location_from_env() -> Result<String> {
     let error_msg = "TEST_SYSTEMD environment variable is not set. TEST_SYSTEMD has to point to a systemd installation.
 On a system with Nix installed, you can set it with: export TEST_SYSTEMD=$(nix-build '<nixpkgs>' -A systemd)";
     std::env::var("TEST_SYSTEMD").context(error_msg)
+}
+
+/// Look up the modification time (mtime) of a file.
+pub fn mtime(path: &Path) -> i64 {
+    fs::metadata(path)
+        .expect("Failed to read modification time.")
+        .mtime()
+}
+
+pub fn hash_file(path: &Path) -> sha2::digest::Output<Sha256> {
+    Sha256::digest(fs::read(path).expect("Failed to read file to hash."))
+}
+
+/// Remove signature from a signed PE file.
+pub fn remove_signature(path: &Path) -> Result<()> {
+    let output = Command::new("sbattach")
+        .arg("--remove")
+        .arg(path.as_os_str())
+        .output()?;
+    print!("{}", String::from_utf8(output.stdout)?);
+    print!("{}", String::from_utf8(output.stderr)?);
+    Ok(())
+}
+
+/// Verify signature of PE file.
+pub fn verify_signature(path: &Path) -> Result<bool> {
+    let output = Command::new("sbverify")
+        .arg(path.as_os_str())
+        .arg("--cert")
+        .arg("tests/fixtures/uefi-keys/db.pem")
+        .output()?;
+    print!("{}", String::from_utf8(output.stdout)?);
+    print!("{}", String::from_utf8(output.stderr)?);
+    Ok(output.status.success())
+}
+
+pub fn count_files(path: &Path) -> Result<usize> {
+    Ok(fs::read_dir(path)?.count())
 }
