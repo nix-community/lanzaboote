@@ -15,7 +15,7 @@ use crate::os_release::OsRelease;
 use crate::pe;
 use crate::signature::KeyPair;
 use crate::systemd::SystemdVersion;
-use crate::utils::SecureTempDirExt;
+use crate::utils::{file_hash, SecureTempDirExt};
 
 pub struct Installer {
     gc_roots: Roots,
@@ -381,14 +381,13 @@ impl GenerationArtifacts {
 
 /// Install a PE file. The PE gets signed in the process.
 ///
-/// The file is only signed and copied if it doesn't exist at the destination
+/// The file is only signed and copied if
+///     (1) it doesn't exist at the destination or,
+///     (2) the hash of the file at the destination does not match the hash of the source file.
 fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
-    if to.exists() {
-        println!("{} already exists, skipping...", to.display());
-    } else {
+    if !to.exists() || file_hash(from)? != file_hash(to)? {
         force_install_signed(key_pair, from, to)?;
     }
-
     Ok(())
 }
 
@@ -414,22 +413,29 @@ fn force_install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()
 
 /// Install an arbitrary file.
 ///
-/// The file is only copied if it doesn't exist at the destination.
+/// The file is only copied if
+///     (1) it doesn't exist at the destination or,
+///     (2) the hash of the file at the destination does not match the hash of the source file.
+fn install(from: &Path, to: &Path) -> Result<()> {
+    if !to.exists() || file_hash(from)? != file_hash(to)? {
+        force_install(from, to)?;
+    }
+    Ok(())
+}
+
+/// Forcibly install an arbitrary file.
+///
+/// If the file already exists at the destination, it is overwritten.
 ///
 /// This function is only designed to copy files to the ESP. It sets the permission bits of the
 /// file at the destination to 0o755, the expected permissions for a vfat ESP. This is useful for
 /// producing file systems trees which can then be converted to a file system image.
-fn install(from: &Path, to: &Path) -> Result<()> {
-    if to.exists() {
-        println!("{} already exists, skipping...", to.display());
-    } else {
-        println!("Installing {}...", to.display());
-        ensure_parent_dir(to);
-        atomic_copy(from, to)?;
-        set_permission_bits(to, 0o755)
-            .with_context(|| format!("Failed to set permission bits to 0o755 on file: {to:?}"))?;
-    }
-
+fn force_install(from: &Path, to: &Path) -> Result<()> {
+    println!("Installing {}...", to.display());
+    ensure_parent_dir(to);
+    atomic_copy(from, to)?;
+    set_permission_bits(to, 0o755)
+        .with_context(|| format!("Failed to set permission bits to 0o755 on file: {to:?}"))?;
     Ok(())
 }
 
