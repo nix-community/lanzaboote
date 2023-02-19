@@ -145,6 +145,52 @@ in
     '';
   };
 
+  # Test that the secrets configured to be appended to the initrd get updated
+  # when installing a new generation even if the initrd itself (i.e. its store
+  # path) does not change. 
+  #
+  # An unfortunate result of this NixOS feature is that updating the secrets
+  # without creating a new initrd might break previous generations. Lanzaboote
+  # has no control over that.
+  #
+  # This tests uses a specialisation to imitate a newer generation. This works
+  # because `lzbt` installs the specialisation of a generation AFTER installing
+  # the generation itself (thus making the specialisation "newer").
+  initrd-secrets-update =
+    let
+      originalSecret = (pkgs.writeText "oh-so-secure" "uhh-ooh-uhh-security");
+      newSecret = (pkgs.writeText "newly-secure" "so-much-better-now");
+    in
+    mkSecureBootTest {
+      name = "lanzaboote-initrd-secrets-update";
+      machine = { pkgs, lib, ... }: {
+        boot.initrd.secrets = {
+          "/test" = lib.mkDefault originalSecret;
+        };
+        boot.initrd.postMountCommands = ''
+          cp /test /mnt-root/secret-from-initramfs
+        '';
+
+        specialisation.variant.configuration = {
+          boot.initrd.secrets = {
+            "/test" = newSecret;
+          };
+        };
+      };
+      testScript = ''
+        machine.start()
+        machine.wait_for_unit("multi-user.target")
+
+        # Assert that only two boot files exists (a single kernel and a single
+        # initrd). If there are two initrds, the test would not be able to test
+        # updating the secret of an already existing initrd.
+        assert int(machine.succeed("ls -1 /boot/EFI/nixos | wc -l")) == 2
+
+        # It is expected that the initrd contains the new secret.
+        machine.succeed("cmp ${newSecret} /secret-from-initramfs")
+      '';
+    };
+
   modified-initrd-doesnt-boot-with-secure-boot = mkModifiedInitrdTest {
     name = "modified-initrd-doesnt-boot-with-secure-boot";
     useSecureBoot = true;
