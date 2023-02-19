@@ -61,16 +61,22 @@ impl Installer {
             .map(GenerationLink::from_path)
             .collect::<Result<Vec<GenerationLink>>>()?;
 
+        // Sort the links by version. The links need to always be sorted to ensure the secrets of
+        // the latest generation are appended to the initrd when multiple generations point to the
+        // same initrd.
+        links.sort_by_key(|l| l.version);
+
         // A configuration limit of 0 means there is no limit.
         if self.configuration_limit > 0 {
-            // Sort the links by version.
-            links.sort_by_key(|l| l.version);
-
-            // Only install the number of generations configured.
+            // Only install the number of generations configured. Reverse the list to only take the
+            // latest generations and then, after taking them, reverse the list again so that the
+            // generations are installed from oldest to newest, i.e. from smallest to largest
+            // generation version.
             links = links
                 .into_iter()
                 .rev()
                 .take(self.configuration_limit)
+                .rev()
                 .collect()
         };
         self.install_generations_from_links(&links)?;
