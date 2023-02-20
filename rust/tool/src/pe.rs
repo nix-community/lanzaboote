@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use goblin::pe::PE;
 use sha2::{Digest, Sha256};
 
-use crate::utils::SecureTempDirExt;
+use crate::utils::{tmpname, SecureTempDirExt};
 
 type Hash = sha2::digest::Output<Sha256>;
 
@@ -30,18 +30,13 @@ pub fn lanzaboote_image(
 ) -> Result<PathBuf> {
     // objcopy can only copy files into the PE binary. That's why we
     // have to write the contents of some bootspec properties to disk.
-    let kernel_cmdline_file =
-        tempdir.write_secure_file("kernel-cmdline", kernel_cmdline.join(" "))?;
+    let kernel_cmdline_file = tempdir.write_secure_file(kernel_cmdline.join(" "))?;
 
-    let kernel_path_file =
-        tempdir.write_secure_file("kernel-path", esp_relative_uefi_path(esp, kernel_path)?)?;
-    let kernel_hash_file =
-        tempdir.write_secure_file("kernel-hash", file_hash(kernel_path)?.as_slice())?;
+    let kernel_path_file = tempdir.write_secure_file(esp_relative_uefi_path(esp, kernel_path)?)?;
+    let kernel_hash_file = tempdir.write_secure_file(file_hash(kernel_path)?.as_slice())?;
 
-    let initrd_path_file =
-        tempdir.write_secure_file("initrd-path", esp_relative_uefi_path(esp, initrd_path)?)?;
-    let initrd_hash_file =
-        tempdir.write_secure_file("initrd-hash", file_hash(initrd_path)?.as_slice())?;
+    let initrd_path_file = tempdir.write_secure_file(esp_relative_uefi_path(esp, initrd_path)?)?;
+    let initrd_hash_file = tempdir.write_secure_file(file_hash(initrd_path)?.as_slice())?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
     let kernel_cmdline_offs = os_release_offs + file_size(os_release)?;
@@ -59,7 +54,7 @@ pub fn lanzaboote_image(
         s(".kernelh", kernel_hash_file, kernel_hash_offs),
     ];
 
-    let image_path = tempdir.path().join("lanzaboote-stub.efi");
+    let image_path = tempdir.path().join(tmpname());
     wrap_in_pe(lanzaboote_stub, sections, &image_path)?;
     Ok(image_path)
 }

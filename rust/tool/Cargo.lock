@@ -282,6 +282,7 @@ dependencies = [
  "bootspec",
  "clap",
  "expect-test",
+ "fastrand",
  "filetime",
  "goblin",
  "nix",
