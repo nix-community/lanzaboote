@@ -1,12 +1,12 @@
-use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::{fs, os::unix::prelude::MetadataExt};
+use std::fs;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use tempfile::tempdir;
 
 mod common;
+
+use common::{hash_file, mtime, remove_signature, verify_signature};
 
 #[test]
 fn keep_systemd_boot_binaries() -> Result<()> {
@@ -118,38 +118,4 @@ fn systemd_boot_path(esp: &tempfile::TempDir) -> PathBuf {
 
 fn systemd_boot_fallback_path(esp: &tempfile::TempDir) -> PathBuf {
     esp.path().join("EFI/BOOT/BOOTX64.EFI")
-}
-
-/// Look up the modification time (mtime) of a file.
-fn mtime(path: &Path) -> i64 {
-    fs::metadata(path)
-        .expect("Failed to read modification time.")
-        .mtime()
-}
-
-fn hash_file(path: &Path) -> sha2::digest::Output<Sha256> {
-    Sha256::digest(fs::read(path).expect("Failed to read file to hash."))
-}
-
-/// Remove signature from a signed PE file.
-pub fn remove_signature(path: &Path) -> Result<()> {
-    let output = Command::new("sbattach")
-        .arg("--remove")
-        .arg(path.as_os_str())
-        .output()?;
-    print!("{}", String::from_utf8(output.stdout)?);
-    print!("{}", String::from_utf8(output.stderr)?);
-    Ok(())
-}
-
-/// Verify signature of PE file.
-pub fn verify_signature(path: &Path) -> Result<bool> {
-    let output = Command::new("sbverify")
-        .arg(path.as_os_str())
-        .arg("--cert")
-        .arg("tests/fixtures/uefi-keys/db.pem")
-        .output()?;
-    print!("{}", String::from_utf8(output.stdout)?);
-    print!("{}", String::from_utf8(output.stderr)?);
-    Ok(output.status.success())
 }
