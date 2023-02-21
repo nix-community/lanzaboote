@@ -12,9 +12,9 @@ use uefi::{
     prelude::BootServices,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
-        Protocol,
+        unsafe_protocol,
     },
-    unsafe_guid, Handle, Identify, Result, ResultExt, Status,
+    Handle, Identify, Result, ResultExt, Status,
 };
 
 /// The Linux kernel's initrd loading device path.
@@ -49,8 +49,7 @@ static mut DEVICE_PATH_PROTOCOL: [u8; 24] = [
 ///
 /// This protocol has a single method to load a file.
 #[repr(C)]
-#[unsafe_guid("4006c0c1-fcb3-403e-996d-4a6c8724e06d")]
-#[derive(Protocol)]
+#[unsafe_protocol("4006c0c1-fcb3-403e-996d-4a6c8724e06d")]
 struct LoadFile2Protocol {
     load_file: unsafe extern "efiapi" fn(
         this: &mut LoadFile2Protocol,
@@ -123,6 +122,7 @@ impl InitrdLoader {
         let mut proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             initrd_data,
+            _no_send_or_sync: Default::default(),
         });
 
         // Linux finds the right handle by looking for something that

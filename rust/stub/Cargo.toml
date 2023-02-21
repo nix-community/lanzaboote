@@ -5,10 +5,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
-uefi = { version = "0.18.0", default-features = false, features = [ "alloc", "exts" ] }
-uefi-services = { version = "0.15.0", default-features = false, features = [ "panic_handler" ] }
+uefi = { version = "0.19.1", default-features = false, features = [ "alloc", "global_allocator", "unstable" ] }
+uefi-services = { version = "0.16.0", default-features = false, features = [ "panic_handler" ] }
 log = "0.4.17"
-ed25519-compact = { version = "2.0.2", default-features = false, features = [] }
 goblin = { version = "0.6.0", default-features = false, features = [ "pe64", "alloc" ]}
 
 # Use software implementation because the UEFI target seems to need it.
