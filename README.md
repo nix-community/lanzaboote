@@ -70,7 +70,7 @@ sign all configurations that should be bootable.
 
 `lzbt` lives in `rust/tool`.
 
-### Stub 
+### Stub
 
 When the Linux kernel and initrd are packed into a UKI, they need an
 UEFI application stub. This role is typically filled by
@@ -88,6 +88,11 @@ signature on the Linux kernel and embedding a cryptographic hash of
 the initrd into the signed UKI.
 
 The stub lives in `rust/stub`.
+
+### Fwupd
+
+When both Lanzaboote and `services.fwupd` are enabled, `fwupd.service` will get a `preStart` that
+ensures a signed fwupd binary in /run that fwupd will use.
 
 ## State of Upstreaming to Nixpkgs
 
