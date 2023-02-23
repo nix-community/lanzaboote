@@ -19,15 +19,25 @@ use sha2::{Digest, Sha256};
 
 /// Create a mock generation link.
 ///
-/// Creates the generation link using the specified version inside a mock profiles directory
-/// (mimicking /nix/var/nix/profiles). Returns the path to the generation link.
+/// Works like `setup_generation_link_from_toplevel` but already sets up toplevel.
 pub fn setup_generation_link(
     tmpdir: &Path,
     profiles_directory: &Path,
     version: u64,
 ) -> Result<PathBuf> {
     let toplevel = setup_toplevel(tmpdir).context("Failed to setup toplevel")?;
+    setup_generation_link_from_toplevel(&toplevel, profiles_directory, version)
+}
 
+/// Create a mock generation link.
+///
+/// Creates the generation link using the specified version inside a mock profiles directory
+/// (mimicking /nix/var/nix/profiles). Returns the path to the generation link.
+pub fn setup_generation_link_from_toplevel(
+    toplevel: &Path,
+    profiles_directory: &Path,
+    version: u64,
+) -> Result<PathBuf> {
     let bootspec = json!({
         "v1": {
           "init": format!("init-v{}", version),
@@ -70,7 +80,7 @@ pub fn setup_generation_link(
 ///
 /// Accepts the temporary directory as a parameter so that the invoking function retains control of
 /// it (and when it goes out of scope).
-fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
+pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     // Generate a random toplevel name so that multiple toplevel paths can live alongside each
     // other in the same directory.
     let toplevel = tmpdir.join(format!("toplevel-{}", random_string(8)));

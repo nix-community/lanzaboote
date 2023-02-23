@@ -6,36 +6,35 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 use goblin::pe::PE;
-use sha2::{Digest, Sha256};
+use tempfile::TempDir;
 
-use crate::utils::{tmpname, SecureTempDirExt};
+use crate::esp::EspGenerationPaths;
+use crate::utils::{file_hash, tmpname, SecureTempDirExt};
 
-type Hash = sha2::digest::Output<Sha256>;
-
-/// Attach all information that lanzaboote needs into the PE binary.
-///
-/// When this function is called the referenced files already need to
-/// be present in the ESP. This is required, because we need to read
-/// them to compute hashes.
+/// Assemble a lanzaboote image.
+#[allow(clippy::too_many_arguments)]
 pub fn lanzaboote_image(
     // Because the returned path of this function is inside the tempdir as well, the tempdir must
     // live longer than the function. This is why it cannot be created inside the function.
-    tempdir: &tempfile::TempDir,
+    tempdir: &TempDir,
     lanzaboote_stub: &Path,
     os_release: &Path,
     kernel_cmdline: &[String],
     kernel_path: &Path,
     initrd_path: &Path,
+    esp_gen_paths: &EspGenerationPaths,
     esp: &Path,
 ) -> Result<PathBuf> {
     // objcopy can only copy files into the PE binary. That's why we
     // have to write the contents of some bootspec properties to disk.
     let kernel_cmdline_file = tempdir.write_secure_file(kernel_cmdline.join(" "))?;
 
-    let kernel_path_file = tempdir.write_secure_file(esp_relative_uefi_path(esp, kernel_path)?)?;
+    let kernel_path_file =
+        tempdir.write_secure_file(esp_relative_uefi_path(esp, &esp_gen_paths.kernel)?)?;
     let kernel_hash_file = tempdir.write_secure_file(file_hash(kernel_path)?.as_slice())?;
 
-    let initrd_path_file = tempdir.write_secure_file(esp_relative_uefi_path(esp, initrd_path)?)?;
+    let initrd_path_file =
+        tempdir.write_secure_file(esp_relative_uefi_path(esp, &esp_gen_paths.initrd)?)?;
     let initrd_hash_file = tempdir.write_secure_file(file_hash(initrd_path)?.as_slice())?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
@@ -57,11 +56,6 @@ pub fn lanzaboote_image(
     let image_path = tempdir.path().join(tmpname());
     wrap_in_pe(lanzaboote_stub, sections, &image_path)?;
     Ok(image_path)
-}
-
-/// Compute the SHA 256 hash of a file.
-fn file_hash(file: &Path) -> Result<Hash> {
-    Ok(Sha256::digest(fs::read(file)?))
 }
 
 /// Take a PE binary stub and attach sections to it.
