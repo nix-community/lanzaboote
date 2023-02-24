@@ -332,10 +332,10 @@ impl Installer {
 /// because they are stored in a HashMap using the destination as the key. Thus, there is only
 /// unique destination paths.
 ///
-/// This enables a two step installaton process where all artifacts across all generations are
+/// This enables a two step installation process where all artifacts across all generations are
 /// first collected and then installed. This deduplication in the collection phase reduces the
 /// number of accesesses and writes to the ESP. More importantly, however, in the second step, all
-/// paths on the ESP are uniqely determined and the images can be generated while being sure that
+/// paths on the ESP are uniquely determined and the images can be generated while being sure that
 /// the hashes embedded in them will point to a valid file on the ESP because the file will not be
 /// overwritten by a later generation.
 struct GenerationArtifacts {
