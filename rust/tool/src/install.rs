@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -259,15 +259,17 @@ impl Installer {
             .write_secure_file(os_release.to_string().as_bytes())
             .context("Failed to write os-release file.")?;
 
-        let kernel_path = generation_artifacts
-            .unsigned_files
+        let kernel_path: &Path = generation_artifacts
+            .files
             .get(&esp_gen_paths.kernel)
-            .context("Failed to retrieve kernel path from GenerationArtifacts.")?;
+            .context("Failed to retrieve kernel path from GenerationArtifacts.")?
+            .into();
 
         let initrd_path = generation_artifacts
-            .unsigned_files
+            .files
             .get(&esp_gen_paths.initrd)
-            .context("Failed to retrieve initrd path from GenerationArtifacts.")?;
+            .context("Failed to retrieve initrd path from GenerationArtifacts.")?
+            .into();
 
         let lanzaboote_image = pe::lanzaboote_image(
             tempdir,
@@ -326,6 +328,22 @@ impl Installer {
     }
 }
 
+/// A location in the ESP together with information whether the file
+/// needs to be signed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FileSource {
+    SignedFile(PathBuf),
+    UnsignedFile(PathBuf),
+}
+
+impl<'a> From<&'a FileSource> for &'a Path {
+    fn from(value: &'a FileSource) -> Self {
+        match value {
+            FileSource::SignedFile(p) | FileSource::UnsignedFile(p) => p,
+        }
+    }
+}
+
 /// Stores the source and destination of all artifacts needed to install all generations.
 ///
 /// The key feature of this data structure is that the mappings are automatically deduplicated
@@ -342,19 +360,27 @@ struct GenerationArtifacts {
     /// Temporary directory that stores all temporary files that are created when building the
     /// GenerationArtifacts.
     tempdir: TempDir,
-    /// Mapping of signed files from their destinations to their source.
-    signed_files: HashMap<PathBuf, PathBuf>,
-    /// Mapping of unsigned files from their destinations to their source.
-    unsigned_files: HashMap<PathBuf, PathBuf>,
+
+    /// A mapping from target location to source.
+    files: BTreeMap<PathBuf, FileSource>,
 }
 
 impl GenerationArtifacts {
     fn new() -> Result<Self> {
         Ok(Self {
             tempdir: TempDir::new().context("Failed to create temporary directory.")?,
-            signed_files: HashMap::new(),
-            unsigned_files: HashMap::new(),
+            files: Default::default(),
         })
+    }
+
+    /// Add a file to be installed.
+    ///
+    /// Adding the same file multiple times with the same source is ok
+    /// and will drop the old source.
+    fn add_file(&mut self, from: FileSource, to: &Path) {
+        if let Some(_prev_from) = self.files.insert(to.to_path_buf(), from) {
+            // Should we log something here?
+        }
     }
 
     /// Add source and destination of a PE file to be signed.
@@ -362,25 +388,28 @@ impl GenerationArtifacts {
     /// Files are stored in the HashMap using their destination path as the key to ensure that the
     /// destination paths are unique.
     fn add_signed(&mut self, from: &Path, to: &Path) {
-        self.signed_files.insert(to.into(), from.into());
+        self.add_file(FileSource::SignedFile(from.to_path_buf()), to);
     }
 
     /// Add source and destination of an arbitrary file.
     fn add_unsigned(&mut self, from: &Path, to: &Path) {
-        self.unsigned_files.insert(to.into(), from.into());
+        self.add_file(FileSource::UnsignedFile(from.to_path_buf()), to);
     }
 
     /// Install all files to the ESP.
     fn install(&self, key_pair: &KeyPair) -> Result<()> {
-        for (to, from) in &self.signed_files {
-            install_signed(key_pair, from, to)
-                .with_context(|| format!("Failed to sign and install from {from:?} to {to:?}"))?;
+        for (to, from) in &self.files {
+            match from {
+                FileSource::SignedFile(from) => {
+                    install_signed(key_pair, from, to).with_context(|| {
+                        format!("Failed to sign and install from {from:?} to {to:?}")
+                    })?
+                }
+                FileSource::UnsignedFile(from) => install(from, to)
+                    .with_context(|| format!("Failed to install from {from:?} to {to:?}"))?,
+            }
         }
 
-        for (to, from) in &self.unsigned_files {
-            install(from, to)
-                .with_context(|| format!("Failed to install from {from:?} to {to:?}"))?;
-        }
         Ok(())
     }
 }
