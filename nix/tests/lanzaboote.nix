@@ -124,26 +124,31 @@ in
     '';
   };
 
-  # Test that a secret is appended to the initrd during installation.
-  # 
-  # During the execution of `preDeviceCommands`, no filesystem should be
-  # mounted. The only place to find `/etc/iamasecret` then, is in the initrd.
-  initrd-secrets = mkSecureBootTest {
-    name = "lanzaboote-initrd-secrets";
-    machine = { ... }: {
-      boot.initrd.secrets = {
-        "/etc/iamasecret" = (pkgs.writeText "iamsecret" "this is a very secure secret");
+  # Test that a secret is appended to the initrd during installation. Smilar to
+  # the initrd-secrets test in Nixpkgs:
+  # https://github.com/NixOS/nixpkgs/blob/master/nixos/tests/initrd-secrets.nix
+  initrd-secrets =
+    let
+      secret = (pkgs.writeText "oh-so-secure" "uhh-ooh-uhh-security");
+    in
+    mkSecureBootTest {
+      name = "lanzaboote-initrd-secrets";
+      machine = { ... }: {
+        boot.initrd.secrets = {
+          "/test" = secret;
+        };
+        boot.initrd.postMountCommands = ''
+          cp /test /mnt-root/secret-from-initramfs
+        '';
       };
+      testScript = ''
+        machine.start()
+        machine.wait_for_unit("multi-user.target")
 
-      boot.initrd.preDeviceCommands = ''
-        grep "this is a very secure secret" /etc/iamasecret
+        machine.succeed("cmp ${secret} /secret-from-initramfs")
+        assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
       '';
     };
-    testScript = ''
-      machine.start()
-      assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
-    '';
-  };
 
   # Test that the secrets configured to be appended to the initrd get updated
   # when installing a new generation even if the initrd itself (i.e. its store
