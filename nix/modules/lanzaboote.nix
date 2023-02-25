@@ -13,6 +13,10 @@ let
     timeout ${toString timeout}
     console-mode ${config.boot.loader.systemd-boot.consoleMode}
   '';
+
+  # This is the fwupd-efi package. We need to get it this way because a user might override services.fwupd.package,
+  # which may cause pkgs.fwupd-efi to be a different package than what the fwupd package has as dependency.
+  fwupd-efi = builtins.head (builtins.filter (x: x.pname == "fwupd-efi") config.services.fwupd.package.buildInputs);
 in
 {
   options.boot.lanzaboote = {
@@ -63,7 +67,7 @@ in
           cp -r ${cfg.pkiBundle}/* /tmp/pki
           ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
         ''}
-  
+
         ${cfg.package}/bin/lzbt install \
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${systemdBootLoaderConfig} \
@@ -72,6 +76,25 @@ in
           --configuration-limit ${toString configurationLimit} \
           ${config.boot.loader.efi.efiSysMountPoint} \
           /nix/var/nix/profiles/system-*-link
+      '';
+    };
+
+    systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
+      # Tell fwupd to load its efi files from /run
+      environment.FWUPD_EFIAPPDIR = "/run/fwupd-efi";
+      serviceConfig.RuntimeDirectory = "fwupd-efi";
+      # Place the fwupd efi files in /run and sign them
+      preStart = ''
+        cp ${fwupd-efi}/libexec/fwupd/efi/fwupd*.efi /run/fwupd-efi/
+        ${pkgs.sbsigntool}/bin/sbsign --key '${cfg.privateKeyFile}' --cert '${cfg.publicKeyFile}' /run/fwupd-efi/fwupd*.efi
+      '';
+    };
+
+    # Disable support for the shim since we sign the binaries directly
+    environment.etc."fwupd/uefi_capsule.conf" = lib.mkIf config.services.fwupd.enable {
+      text = ''
+        [uefi_capsule]
+        DisableShimForSecureBoot=true
       '';
     };
   };
