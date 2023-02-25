@@ -119,6 +119,50 @@ the ESP. `systemd-boot` will display these during boot. This can be
 confusing during boot. **After you made a backup of your ESP**, you
 may delete these entries in `/boot/loader/entries`.
 
+### Configuring NixOS (with [`niv`](https://github.com/nmattia/niv))
+
+Add `lanzaboote` as a dependency of your niv project and track a stable release tag (https://github.com/nix-community/lanzaboote/releases).
+
+```console
+$ niv add nix-community/lanzaboote -r v0.2.0 -v 0.2.0
+Adding package lanzaboote
+  Writing new sources file
+Done: Adding package lanzaboote
+```
+
+Below is a fragment of a NixOS configuration that enables the SecureBoot stack.
+
+```nix
+# file: configuration.nix
+{ pkgs, lib, ... }:
+let
+    sources = import ./nix/sources.nix;
+    lanzaboote = import sources.lanzaboote;
+in
+{
+  imports = [ lanzaboote.nixosModules.lanzaboote ];
+  # This should already be here from switching to bootspec earlier.
+  # It's not required anymore, but also doesn't do any harm.
+  boot.bootspec.enable = true;
+
+  environment.systemPackages = [
+    # For debugging and troubleshooting Secure Boot.
+    pkgs.sbctl
+  ];
+
+  # Lanzaboote currently replaces the systemd-boot module.
+  # This setting is usually set to true in configuration.nix
+  # generated at installation time. So we force it to false
+  # for now.
+  boot.loader.systemd-boot.enable = lib.mkForce false;
+
+  boot.lanzaboote = {
+    enable = true;
+    pkiBundle = "/etc/secureboot";
+  };
+}
+```
+
 ### Configuring NixOS (with Flakes)
 
 Below is a fragment of a NixOS configuration that enables the Secure
@@ -177,6 +221,8 @@ Boot stack.
   };
 }
 ```
+
+### Checking that your machine is ready for Secure Boot enforcement
 
 After you rebuild your system, check `sbctl verify` output:
 
