@@ -12,13 +12,13 @@ mod pe_section;
 mod uefi_helpers;
 
 use alloc::vec::Vec;
+use log::{info, warn};
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
 use uefi::{
     prelude::*,
     proto::{
-        console::text::Output,
         loaded_image::LoadedImage,
         media::file::{File, FileAttribute, FileMode, RegularFile},
     },
@@ -33,25 +33,23 @@ use crate::{
 type Hash = sha2::digest::Output<Sha256>;
 
 /// Print the startup logo on boot.
-fn print_logo(output: &mut Output) -> Result<()> {
-    output.clear()?;
-
-    output.output_string(cstr16!(
+fn print_logo() {
+    info!(
         "
-  _                      _                 _\r
- | |                    | |               | |\r
- | | __ _ _ __  ______ _| |__   ___   ___ | |_ ___\r
- | |/ _` | '_ \\|_  / _` | '_ \\ / _ \\ / _ \\| __/ _ \\\r
- | | (_| | | | |/ / (_| | |_) | (_) | (_) | ||  __/\r
- |_|\\__,_|_| |_/___\\__,_|_.__/ \\___/ \\___/ \\__\\___|\r
-\r
+  _                      _                 _
+ | |                    | |               | |
+ | | __ _ _ __  ______ _| |__   ___   ___ | |_ ___
+ | |/ _` | '_ \\|_  / _` | '_ \\ / _ \\ / _ \\| __/ _ \\
+ | | (_| | | | |/ / (_| | |_) | (_) | (_) | ||  __/
+ |_|\\__,_|_| |_/___\\__,_|_.__/ \\___/ \\___/ \\__\\___|
+
 "
-    ))
+    );
 }
 
 /// The configuration that is embedded at build time.
 ///
-/// After lanzaboote is built, lanzatool needs to embed configuration
+/// After lanzaboote is built, lzbt needs to embed configuration
 /// into the binary. This struct represents that information.
 struct EmbeddedConfiguration {
     /// The filename of the kernel to be booted. This filename is
@@ -180,11 +178,11 @@ fn boot_linux_uefi(
 fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
 
-    print_logo(system_table.stdout()).unwrap();
+    print_logo();
 
     let config: EmbeddedConfiguration =
         EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
-            .expect("Failed to extract configuration from binary. Did you run lanzatool?");
+            .expect("Failed to extract configuration from binary. Did you run lzbt?");
 
     let kernel_data;
     let initrd_data;
@@ -227,17 +225,11 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let is_initrd_hash_correct = Sha256::digest(&initrd_data) == config.initrd_hash;
 
     if !is_kernel_hash_correct {
-        system_table
-            .stdout()
-            .output_string(cstr16!("Hash mismatch for kernel!\r\n"))
-            .unwrap();
+        warn!("Hash mismatch for kernel!");
     }
 
     if !is_initrd_hash_correct {
-        system_table
-            .stdout()
-            .output_string(cstr16!("Hash mismatch for initrd!\r\n"))
-            .unwrap();
+        warn!("Hash mismatch for initrd!");
     }
 
     if is_kernel_hash_correct && is_initrd_hash_correct {
@@ -271,10 +263,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         // of the firmware is broken, we have little hope of security
         // anyway.
 
-        system_table
-            .stdout()
-            .output_string(cstr16!("WARNING: Trying to continue as non-Secure Boot. This will fail when Secure Boot is enabled.\r\n"))
-            .unwrap();
+        warn!("Trying to continue as non-Secure Boot. This will fail when Secure Boot is enabled.");
 
         boot_linux_uefi(
             handle,
