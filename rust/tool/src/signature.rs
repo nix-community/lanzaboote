@@ -34,11 +34,9 @@ impl KeyPair {
         if !output.status.success() {
             std::io::stderr()
                 .write_all(&output.stderr)
-                .context("Failed to write output of sbsign to stderr")?;
-            return Err(anyhow::anyhow!(
-                "Failed to sign file using sbsign with args `{:?}`",
-                &args
-            ));
+                .context("Failed to write output of sbsign to stderr.")?;
+            log::debug!("sbsign failed with args: `{args:?}`.");
+            return Err(anyhow::anyhow!("Failed to sign {to:?}."));
         }
 
         Ok(())
@@ -61,10 +59,7 @@ impl KeyPair {
             if std::io::stderr().write_all(&output.stderr).is_err() {
                 return false;
             };
-            println!(
-                "Failed to verify signature using sbverify with args `{:?}`",
-                &args
-            );
+            log::debug!("sbverify failed with args: `{args:?}`.");
             return false;
         }
         true

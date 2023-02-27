@@ -9,11 +9,10 @@ mod signature;
 mod systemd;
 mod utils;
 
-use anyhow::Result;
 use clap::Parser;
 
 use cli::Cli;
 
-fn main() -> Result<()> {
-    Cli::parse().call()
+fn main() {
+    Cli::parse().call(module_path!())
 }

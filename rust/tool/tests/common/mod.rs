@@ -132,6 +132,7 @@ pub fn lanzaboote_install(
     let mut cmd = Command::cargo_bin("lzbt")?;
     let output = cmd
         .env("LANZABOOTE_STUB", test_systemd_stub)
+        .arg("-vv")
         .arg("install")
         .arg("--systemd")
         .arg(test_systemd)

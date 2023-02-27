@@ -55,6 +55,8 @@ impl Installer {
     }
 
     pub fn install(&mut self) -> Result<()> {
+        log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
+
         let mut links = self
             .generation_links
             .iter()
@@ -83,6 +85,7 @@ impl Installer {
 
         self.install_systemd_boot()?;
 
+        log::info!("Collecting garbage...");
         // Only collect garbage in these two directories. This way, no files that do not belong to
         // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
         // directory and deletes ALL files that it doesn't know about. Dual- or multiboot setups
@@ -98,6 +101,7 @@ impl Installer {
                     .map_or(false, |n| n.starts_with("nixos-"))
             })?;
 
+        log::info!("Successfully installed Lanzaboote.");
         Ok(())
     }
 
@@ -164,11 +168,15 @@ impl Installer {
                 .with_context(|| format!("Failed to build generation from link: {link:?}"));
 
             // Ignore failing to read a generation so that old malformed generations do not stop
-            // lanzatool from working.
+            // lzbt from working.
             let generation = match generation_result {
                 Ok(generation) => generation,
                 Err(e) => {
-                    println!("Malformed generation: {:?}", e);
+                    log::info!(
+                        "Ignoring generation {} because it's malformed.",
+                        link.version
+                    );
+                    log::debug!("{e:#}");
                     continue;
                 }
             };
@@ -307,7 +315,16 @@ impl Installer {
         ];
 
         for (from, to) in paths {
-            if newer_systemd_boot(from, to)? || !&self.key_pair.verify(to) {
+            let newer_systemd_boot_available = newer_systemd_boot(from, to)?;
+            if newer_systemd_boot_available {
+                log::info!("Updating systemd-boot...")
+            };
+            let systemd_boot_is_signed = &self.key_pair.verify(to);
+            if !systemd_boot_is_signed {
+                log::warn!("systemd-boot is not signed. Replacing it with a signed binary...")
+            };
+
+            if newer_systemd_boot_available || !systemd_boot_is_signed {
                 force_install_signed(&self.key_pair, from, to)
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
             }
@@ -434,7 +451,7 @@ fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
 /// `.tmp` suffix and then renamed to its final name. This is atomic, because a rename is an atomic
 /// operation on POSIX platforms.
 fn force_install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
-    println!("Signing and installing {}...", to.display());
+    log::debug!("Signing and installing {to:?}...");
     let to_tmp = to.with_extension(".tmp");
     ensure_parent_dir(&to_tmp);
     key_pair
@@ -466,7 +483,7 @@ fn install(from: &Path, to: &Path) -> Result<()> {
 /// file at the destination to 0o755, the expected permissions for a vfat ESP. This is useful for
 /// producing file systems trees which can then be converted to a file system image.
 fn force_install(from: &Path, to: &Path) -> Result<()> {
-    println!("Installing {}...", to.display());
+    log::debug!("Installing {to:?}...");
     ensure_parent_dir(to);
     atomic_copy(from, to)?;
     set_permission_bits(to, 0o755)
