@@ -172,7 +172,7 @@ impl Installer {
             let generation = match generation_result {
                 Ok(generation) => generation,
                 Err(e) => {
-                    log::info!(
+                    log::debug!(
                         "Ignoring generation {} because it's malformed.",
                         link.version
                     );
@@ -317,11 +317,11 @@ impl Installer {
         for (from, to) in paths {
             let newer_systemd_boot_available = newer_systemd_boot(from, to)?;
             if newer_systemd_boot_available {
-                log::info!("Updating systemd-boot...")
+                log::info!("Updating {to:?}...")
             };
             let systemd_boot_is_signed = &self.key_pair.verify(to);
             if !systemd_boot_is_signed {
-                log::warn!("systemd-boot is not signed. Replacing it with a signed binary...")
+                log::warn!("${to:?} is not signed. Replacing it with a signed binary...")
             };
 
             if newer_systemd_boot_available || !systemd_boot_is_signed {
