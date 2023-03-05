@@ -64,7 +64,7 @@ impl Roots {
         for e in entries_not_in_use {
             let entry = e?;
             let path = entry.path();
-            println!("'{}' not in use anymore. Removing...", path.display());
+            log::debug!("Garbage collecting {path:?}...");
 
             if path.is_dir() {
                 // If a directory is marked as unused all its children can be deleted too.

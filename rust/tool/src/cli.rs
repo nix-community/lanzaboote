@@ -6,8 +6,19 @@ use clap::{Parser, Subcommand};
 use crate::install;
 use crate::signature::KeyPair;
 
+/// The default log level.
+///
+/// 2 corresponds to the level INFO.
+const DEFAULT_LOG_LEVEL: usize = 2;
+
 #[derive(Parser)]
 pub struct Cli {
+    /// Silence all output
+    #[arg(short, long)]
+    quiet: bool,
+    /// Verbose mode (-v, -vv, etc.)
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
     #[clap(subcommand)]
     commands: Commands,
 }
@@ -47,8 +58,19 @@ struct InstallCommand {
 }
 
 impl Cli {
-    pub fn call(self) -> Result<()> {
-        self.commands.call()
+    pub fn call(self, module: &str) {
+        stderrlog::new()
+            .module(module)
+            .show_level(false)
+            .quiet(self.quiet)
+            .verbosity(DEFAULT_LOG_LEVEL + usize::from(self.verbose))
+            .init()
+            .expect("Failed to setup logger.");
+
+        if let Err(e) = self.commands.call() {
+            log::error!("{e:#}");
+            std::process::exit(1);
+        };
     }
 }
 

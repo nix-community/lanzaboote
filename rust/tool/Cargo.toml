@@ -25,6 +25,8 @@ sha2 = "0.10.6"
 # Keep the fastrand version aligned with the one from tempfile to avoid two
 # different versions.
 fastrand = "1.9.0"
+log = { version = "0.4.17", features = ["std"] }
+stderrlog = "0.5.4"
 
 [dev-dependencies]
 assert_cmd = "2.0.8"
