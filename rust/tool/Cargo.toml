@@ -11,11 +11,11 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.69"
-clap = { version = "4.1.6", features = ["derive"] }
+clap = { version = "4.1.8", features = ["derive"] }
 goblin = "0.6.1"
 nix = { version = "0.26.2", default-features = false, features = [ "fs" ] }
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.93"
+serde = { version = "1.0.155", features = ["derive"] }
+serde_json = "1.0.94"
 tempfile = "3.4.0"
 # TODO: wait for a upstream release and pin it.
 bootspec = { git = "https://github.com/DeterminateSystems/bootspec" }
@@ -30,6 +30,6 @@ stderrlog = "0.5.4"
 
 [dev-dependencies]
 assert_cmd = "2.0.8"
-expect-test = "1.4.0"
+expect-test = "1.4.1"
 filetime = "0.2.20"
 rand = "0.8.5"
