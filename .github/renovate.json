@@ -5,6 +5,12 @@
     "group:all",
     "schedule:weekly"
   ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "extends": [
+    "schedule:weekly"
+   ]
+  },
   "dependencyDashboard": false,
   "nix": {
     "enabled": true
