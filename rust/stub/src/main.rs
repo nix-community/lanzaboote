@@ -20,7 +20,7 @@ use uefi::{
     prelude::*,
     proto::{
         loaded_image::LoadedImage,
-        media::file::{File, FileAttribute, FileMode, RegularFile},
+        media::file::{File, FileAttribute, FileMode},
     },
     CStr16, CString16, Result,
 };
@@ -73,15 +73,15 @@ struct EmbeddedConfiguration {
 }
 
 /// Extract a string, stored as UTF-8, from a PE section.
-fn extract_string(file_data: &[u8], section: &str) -> Result<CString16> {
-    let string = pe_section_as_string(file_data, section).ok_or(Status::INVALID_PARAMETER)?;
+fn extract_string(pe_data: &[u8], section: &str) -> Result<CString16> {
+    let string = pe_section_as_string(pe_data, section).ok_or(Status::INVALID_PARAMETER)?;
 
     Ok(CString16::try_from(string.as_str()).map_err(|_| Status::INVALID_PARAMETER)?)
 }
 
 /// Extract a Blake3 hash from a PE section.
-fn extract_hash(file_data: &[u8], section: &str) -> Result<Hash> {
-    let array: [u8; 32] = pe_section(file_data, section)
+fn extract_hash(pe_data: &[u8], section: &str) -> Result<Hash> {
+    let array: [u8; 32] = pe_section(pe_data, section)
         .ok_or(Status::INVALID_PARAMETER)?
         .try_into()
         .map_err(|_| Status::INVALID_PARAMETER)?;
@@ -90,18 +90,15 @@ fn extract_hash(file_data: &[u8], section: &str) -> Result<Hash> {
 }
 
 impl EmbeddedConfiguration {
-    fn new(file: &mut RegularFile) -> Result<Self> {
-        file.set_position(0)?;
-        let file_data = read_all(file)?;
-
+    fn new(file_data: &[u8]) -> Result<Self> {
         Ok(Self {
-            kernel_filename: extract_string(&file_data, ".kernelp")?,
-            kernel_hash: extract_hash(&file_data, ".kernelh")?,
+            kernel_filename: extract_string(file_data, ".kernelp")?,
+            kernel_hash: extract_hash(file_data, ".kernelh")?,
 
-            initrd_filename: extract_string(&file_data, ".initrdp")?,
-            initrd_hash: extract_hash(&file_data, ".initrdh")?,
+            initrd_filename: extract_string(file_data, ".initrdp")?,
+            initrd_hash: extract_hash(file_data, ".initrdh")?,
 
-            cmdline: extract_string(&file_data, ".cmdline")?,
+            cmdline: extract_string(file_data, ".cmdline")?,
         })
     }
 }
@@ -180,9 +177,14 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     print_logo();
 
-    let config: EmbeddedConfiguration =
-        EmbeddedConfiguration::new(&mut booted_image_file(system_table.boot_services()).unwrap())
-            .expect("Failed to extract configuration from binary. Did you run lzbt?");
+    let config: EmbeddedConfiguration = unsafe {
+        EmbeddedConfiguration::new(
+            booted_image_file(system_table.boot_services())
+                .unwrap()
+                .as_slice(),
+        )
+        .expect("Failed to extract configuration from binary. Did you run lzbt?")
+    };
 
     let kernel_data;
     let initrd_data;

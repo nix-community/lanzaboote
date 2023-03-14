@@ -1,12 +1,10 @@
+use core::ffi::c_void;
+
 use alloc::vec::Vec;
 use uefi::{
     prelude::BootServices,
-    proto::{
-        device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly},
-        loaded_image::LoadedImage,
-        media::file::{File, FileAttribute, FileMode, RegularFile},
-    },
-    Result, Status,
+    proto::{loaded_image::LoadedImage, media::file::RegularFile},
+    Result,
 };
 
 /// Read the whole file into a vector.
@@ -27,32 +25,36 @@ pub fn read_all(file: &mut RegularFile) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct PeInMemory {
+    image_base: *const c_void,
+    image_size: usize,
+}
+
+impl PeInMemory {
+    /// Return a reference to the currently running image.
+    ///
+    /// # Safety
+    ///
+    /// The returned slice covers the whole loaded image in which we
+    /// currently execute. This means the safety guarantees of
+    /// [`core::slice::from_raw_parts`] that we use in this function
+    /// are only guaranteed, if we we don't mutate anything in this
+    /// range. This means no modification of global variables or
+    /// anything.
+    pub unsafe fn as_slice(&self) -> &'static [u8] {
+        unsafe { core::slice::from_raw_parts(self.image_base as *const u8, self.image_size) }
+    }
+}
+
 /// Open the currently executing image as a file.
-pub fn booted_image_file(boot_services: &BootServices) -> Result<RegularFile> {
-    let mut file_system = boot_services.get_image_file_system(boot_services.image_handle())?;
-
-    // The root directory of the volume where our binary lies.
-    let mut root = file_system.open_volume()?;
-
+pub fn booted_image_file(boot_services: &BootServices) -> Result<PeInMemory> {
     let loaded_image =
         boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
+    let (image_base, image_size) = loaded_image.info();
 
-    let file_path = loaded_image.file_path().ok_or(Status::NOT_FOUND)?;
-
-    let to_text = boot_services.open_protocol_exclusive::<DevicePathToText>(
-        boot_services.get_handle_for_protocol::<DevicePathToText>()?,
-    )?;
-
-    let file_path = to_text.convert_device_path_to_text(
-        boot_services,
-        file_path,
-        DisplayOnly(false),
-        AllowShortcuts(false),
-    )?;
-
-    let our_image = root.open(&file_path, FileMode::Read, FileAttribute::empty())?;
-
-    Ok(our_image
-        .into_regular_file()
-        .ok_or(Status::INVALID_PARAMETER)?)
+    Ok(PeInMemory {
+        image_base,
+        image_size: usize::try_from(image_size).map_err(|_| uefi::Status::INVALID_PARAMETER)?,
+    })
 }
