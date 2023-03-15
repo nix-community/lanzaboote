@@ -177,6 +177,10 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     print_logo();
 
+    // SAFETY: We get a slice that represents our currently running
+    // image and then parse the PE data structures from it. This is
+    // safe, because we don't touch any data in the data sections that
+    // might conceivably change while we look at the slice.
     let config: EmbeddedConfiguration = unsafe {
         EmbeddedConfiguration::new(
             booted_image_file(system_table.boot_services())
