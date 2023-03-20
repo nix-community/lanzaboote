@@ -10,16 +10,16 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.69"
-clap = { version = "4.1.8", features = ["derive"] }
+anyhow = "1.0.70"
+clap = { version = "4.1.11", features = ["derive"] }
 goblin = "0.6.1"
 nix = { version = "0.26.2", default-features = false, features = [ "fs" ] }
-serde = { version = "1.0.155", features = ["derive"] }
+serde = { version = "1.0.157", features = ["derive"] }
 serde_json = "1.0.94"
 tempfile = "3.4.0"
 # TODO: wait for a upstream release and pin it.
 bootspec = { git = "https://github.com/DeterminateSystems/bootspec" }
-walkdir = "2.3.2"
+walkdir = "2.3.3"
 time = "0.3.20"
 sha2 = "0.10.6"
 # Keep the fastrand version aligned with the one from tempfile to avoid two
@@ -29,7 +29,7 @@ log = { version = "0.4.17", features = ["std"] }
 stderrlog = "0.5.4"
 
 [dev-dependencies]
-assert_cmd = "2.0.8"
+assert_cmd = "2.0.10"
 expect-test = "1.4.1"
 filetime = "0.2.20"
 rand = "0.8.5"
