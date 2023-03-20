@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
-    nixpkgs-test.url = "github:RaitoBezarius/nixpkgs/simplified-qemu-boot-disks";
+    nixpkgs-test.url = "github:NixOS/nixpkgs/qemu-boot-disk-using-make-disk-image";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
