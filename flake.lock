@@ -181,16 +181,16 @@
     },
     "nixpkgs-test": {
       "locked": {
-        "lastModified": 1671812130,
-        "narHash": "sha256-GALBK+qB9rhnB+lVnxdgtMoXCySXughZZ3+qGO1Ke/k=",
-        "owner": "RaitoBezarius",
+        "lastModified": 1679009563,
+        "narHash": "sha256-jizICiQOqUcYFNHRNNOo69bfyNo36iyuRAHem5z68LQ=",
+        "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "e51bf8cc8e2c75192e930ad83ed272938729e7be",
+        "rev": "371d3778c4f9cee7d5cf014e6ce400d57366570f",
         "type": "github"
       },
       "original": {
-        "owner": "RaitoBezarius",
-        "ref": "simplified-qemu-boot-disks",
+        "owner": "NixOS",
+        "ref": "qemu-boot-disk-using-make-disk-image",
         "repo": "nixpkgs",
         "type": "github"
       }
