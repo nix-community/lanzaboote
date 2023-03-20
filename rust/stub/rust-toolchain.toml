@@ -1,4 +1,4 @@
 [toolchain]
-channel = "nightly-2022-11-21"
+channel = "nightly-2023-03-10"
 components = [ "rust-src" ]
 targets = [ "x86_64-unknown-uefi" ]

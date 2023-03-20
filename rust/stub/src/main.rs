@@ -1,6 +1,5 @@
 #![no_main]
 #![no_std]
-#![feature(abi_efiapi)]
 #![feature(negative_impls)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
