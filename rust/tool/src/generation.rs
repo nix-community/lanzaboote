@@ -95,7 +95,7 @@ impl fmt::Display for Generation {
 }
 
 fn read_build_time(path: &Path) -> Result<Date> {
-    let build_time = time::OffsetDateTime::from(fs::metadata(path)?.created().unwrap()).date();
+    let build_time = time::OffsetDateTime::from(fs::metadata(path)?.created()?).date();
     Ok(build_time)
 }
 
