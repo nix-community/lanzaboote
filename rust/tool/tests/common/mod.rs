@@ -70,9 +70,6 @@ pub fn setup_generation_link_from_toplevel(
     let mut file = fs::File::create(bootspec_path)?;
     file.write_all(&serde_json::to_vec(&bootspec)?)?;
 
-    // Explicitly set modification time so that snapshot test of os-release reliably works.
-    // This has to happen after any modifications to the directory.
-    filetime::set_file_mtime(&generation_link_path, filetime::FileTime::zero())?;
     Ok(generation_link_path)
 }
 
