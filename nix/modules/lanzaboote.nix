@@ -2,51 +2,90 @@
 with lib;
 let
   cfg = config.boot.lanzaboote;
+
   sbctlWithPki = pkgs.sbctl.override {
     databasePath = "/tmp/pki";
   };
 
-  configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
-  timeout = if config.boot.loader.timeout == null then 0 else config.boot.loader.timeout;
+  loaderSettingsFormat = pkgs.formats.keyValue {
+    mkKeyValue = k: v: if v == null then "" else
+    lib.generators.mkKeyValueDefault { } " " k v;
+  };
 
-  systemdBootLoaderConfig = pkgs.writeText "loader.conf" ''
-    timeout ${toString timeout}
-    console-mode ${config.boot.loader.systemd-boot.consoleMode}
-  '';
+  loaderConfigFile = loaderSettingsFormat.generate "loader.conf" cfg.settings;
+
+  configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
 in
 {
   options.boot.lanzaboote = {
     enable = mkEnableOption "Enable the LANZABOOTE";
+
     enrollKeys = mkEnableOption "Automatic enrollment of the keys using sbctl";
+
     configurationLimit = mkOption {
-      default = null;
+      default = config.boot.loader.systemd-boot.configurationLimit;
       example = 120;
       type = types.nullOr types.int;
       description = lib.mdDoc ''
         Maximum number of latest generations in the boot menu.
         Useful to prevent boot partition running out of disk space.
+
         `null` means no limit i.e. all generations
         that were not garbage collected yet.
       '';
     };
+
     pkiBundle = mkOption {
       type = types.nullOr types.path;
       description = "PKI bundle containing db, PK, KEK";
     };
+
     publicKeyFile = mkOption {
       type = types.path;
       default = "${cfg.pkiBundle}/keys/db/db.pem";
       description = "Public key to sign your boot files";
     };
+
     privateKeyFile = mkOption {
       type = types.path;
       default = "${cfg.pkiBundle}/keys/db/db.key";
       description = "Private key to sign your boot files";
     };
+
     package = mkOption {
       type = types.package;
       default = pkgs.lzbt;
       description = "Lanzaboote tool (lzbt) package";
+    };
+
+    settings = mkOption rec {
+      type = types.submodule {
+        freeformType = loaderSettingsFormat.type;
+      };
+
+      apply = recursiveUpdate default;
+
+      default = {
+        timeout = config.boot.loader.timeout;
+        console-mode = config.boot.loader.systemd-boot.consoleMode;
+        editor = config.boot.loader.systemd-boot.editor;
+        default = "nixos-*";
+      };
+
+      example = literalExpression ''
+        {
+          editor = null; # null value removes line from the loader.conf
+          beep = true;
+          default = "@saved";
+          timeout = 10;
+        }
+      '';
+
+      description = ''
+        Configuration for the `systemd-boot`
+
+        See `loader.conf(5)` for supported values.
+      '';
     };
   };
 
@@ -66,7 +105,7 @@ in
 
         ${cfg.package}/bin/lzbt install \
           --systemd ${config.systemd.package} \
-          --systemd-boot-loader-config ${systemdBootLoaderConfig} \
+          --systemd-boot-loader-config ${loaderConfigFile} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \

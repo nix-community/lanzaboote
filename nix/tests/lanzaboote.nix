@@ -249,11 +249,11 @@ in
     testScript = ''
       machine.start()
 
-      actual_loader_config = machine.succeed("cat /boot/loader/loader.conf")
-      expected_loader_config = "timeout 0\nconsole-mode auto\n"
+      actual_loader_config = machine.succeed("cat /boot/loader/loader.conf").split("\n")
+      expected_loader_config = ["timeout 0", "console-mode auto"]
       
-      assert actual_loader_config == expected_loader_config, \
-        f"Actual: '{actual_loader_config}' is not equal to expected: '{expected_loader_config}'"
+      assert all(cfg in actual_loader_config for cfg in expected_loader_config), \
+        f"Expected: {expected_loader_config} is not included in actual config: '{actual_loader_config}'"
     '';
   };
 }
