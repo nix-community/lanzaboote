@@ -15,7 +15,7 @@ fn generate_expected_os_release() -> Result<()> {
         .expect("Failed to setup generation link");
 
     // Expect the 'Built on' date in VERSION_ID to be from the birth time of generation_link
-    let expected_built_on = time::OffsetDateTime::from(fs::metadata(generation_link.as_path())?.created().unwrap()).date();
+    let expected_built_on = time::OffsetDateTime::from(fs::metadata(generation_link.as_path())?.created()?).date();
 
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), vec![generation_link])?;
     assert!(output0.status.success());
