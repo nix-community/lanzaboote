@@ -1,7 +1,6 @@
 use std::fs;
 
 use anyhow::{Context, Result};
-use expect_test::expect;
 use tempfile::tempdir;
 
 mod common;
@@ -15,6 +14,9 @@ fn generate_expected_os_release() -> Result<()> {
     let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1)
         .expect("Failed to setup generation link");
 
+    // Expect the 'Built on' date in VERSION_ID to be from the birth time of generation_link
+    let expected_built_on = time::OffsetDateTime::from(fs::metadata(generation_link.as_path())?.created()?).date();
+
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), vec![generation_link])?;
     assert!(output0.status.success());
 
@@ -27,13 +29,12 @@ fn generate_expected_os_release() -> Result<()> {
         .context("Failed to read .osrelease PE section.")?
         .to_owned();
 
-    let expected = expect![[r#"
-        ID=lanza
-        PRETTY_NAME=LanzaOS
-        VERSION_ID=Generation 1, Built on 1970-01-01
-    "#]];
+    let expected_os_release_section = format!(r#"ID=lanza
+PRETTY_NAME=LanzaOS
+VERSION_ID=Generation 1, Built on {}
+"#, expected_built_on.to_string());
 
-    expected.assert_eq(&String::from_utf8(os_release_section)?);
+    assert_eq!(&expected_os_release_section, &String::from_utf8(os_release_section)?);
 
     Ok(())
 }
