@@ -6,12 +6,9 @@
     "schedule:weekly"
   ],
   "lockFileMaintenance": {
-    "enabled": true,
-    "extends": [
-    "schedule:weekly"
-   ]
+    "enabled": true
   },
-  "dependencyDashboard": false,
+  "dependencyDashboard": true,
   "nix": {
     "enabled": true
   }
