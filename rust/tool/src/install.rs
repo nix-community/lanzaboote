@@ -325,7 +325,7 @@ impl Installer {
             };
 
             if newer_systemd_boot_available || !systemd_boot_is_signed {
-                force_install_signed(&self.key_pair, from, to)
+                install_signed(&self.key_pair, from, to)
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
             }
         }
@@ -433,24 +433,12 @@ impl GenerationArtifacts {
 
 /// Install a PE file. The PE gets signed in the process.
 ///
-/// The file is only signed and copied if
-///     (1) it doesn't exist at the destination or,
-///     (2) the hash of the file at the destination does not match the hash of the source file.
-fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
-    if !to.exists() || file_hash(from)? != file_hash(to)? {
-        force_install_signed(key_pair, from, to)?;
-    }
-    Ok(())
-}
-
-/// Sign and forcibly install a PE file.
-///
 /// If the file already exists at the destination, it is overwritten.
 ///
 /// This is implemented as an atomic write. The file is first written to the destination with a
 /// `.tmp` suffix and then renamed to its final name. This is atomic, because a rename is an atomic
 /// operation on POSIX platforms.
-fn force_install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
+fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
     log::debug!("Signing and installing {to:?}...");
     let to_tmp = to.with_extension(".tmp");
     ensure_parent_dir(&to_tmp);
