@@ -117,10 +117,23 @@ in
     systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
       # Tell fwupd to load its efi files from /run
       environment.FWUPD_EFIAPPDIR = "/run/fwupd-efi";
+    };
+
+    systemd.services.fwupd-efi = lib.mkIf config.services.fwupd.enable {
+      description = "Sign fwupd EFI app";
+      # Exist with the lifetime of the fwupd service
+      wantedBy = [ "fwupd.service" ];
+      partOf = [ "fwupd.service" ];
+      before = [ "fwupd.service" ];
+      # Create runtime directory for signed efi app
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        RuntimeDirectory = "fwupd-efi";
+      };
       # Place the fwupd efi files in /run and sign them
-      preStart = ''
-        mkdir -p /run/fwupd-efi
-        cp ${config.services.fwupd.package.fwupd-efi}/libexec/fwupd/efi/fwupd*.efi /run/fwupd-efi/
+      script = ''
+        ln -sf ${config.services.fwupd.package.fwupd-efi}/libexec/fwupd/efi/fwupd*.efi /run/fwupd-efi/
         ${pkgs.sbsigntool}/bin/sbsign --key '${cfg.privateKeyFile}' --cert '${cfg.publicKeyFile}' /run/fwupd-efi/fwupd*.efi
       '';
     };
