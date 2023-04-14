@@ -3,9 +3,11 @@ name = "lanzaboote_stub"
 version = "0.1.0"
 edition = "2021"
 publish = false
+# For UEFI target
+rust_version = "1.68"
 
 [dependencies]
-uefi = { version = "0.20.0", default-features = false, features = [ "alloc", "global_allocator", "unstable" ] }
+uefi = { version = "0.20.0", default-features = false, features = [ "alloc", "global_allocator" ] }
 uefi-services = { version = "0.17.0", default-features = false, features = [ "panic_handler", "logger" ] }
 goblin = { version = "0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
 
