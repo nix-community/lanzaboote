@@ -71,7 +71,7 @@ pub struct EspGenerationPaths {
 
 impl EspGenerationPaths {
     pub fn new(esp_paths: &EspPaths, generation: &Generation) -> Result<Self> {
-        let bootspec = &generation.spec.bootspec;
+        let bootspec = &generation.spec.bootspec.bootspec;
 
         Ok(Self {
             kernel: esp_paths

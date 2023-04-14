@@ -26,7 +26,7 @@ impl OsRelease {
         // Because the ID field here does not have the same meaning as in a real os-release file,
         // it is fine to use a dummy value.
         map.insert("ID".into(), String::from("lanza"));
-        map.insert("PRETTY_NAME".into(), generation.spec.bootspec.label.clone());
+        map.insert("PRETTY_NAME".into(), generation.spec.bootspec.bootspec.label.clone());
         map.insert("VERSION_ID".into(), generation.describe());
 
         Ok(Self(map))

@@ -4,8 +4,9 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use bootspec::generation::Generation as BootspecGeneration;
+use bootspec::BootSpec;
 use bootspec::BootJson;
+use bootspec::generation::Generation as BootspecGeneration;
 use bootspec::SpecialisationName;
 use time::Date;
 
@@ -15,7 +16,7 @@ use time::Date;
 /// easy if/when we have to do it.
 #[derive(Debug, Clone)]
 pub struct ExtendedBootJson {
-    pub bootspec: BootJson,
+    pub bootspec: BootSpec,
 }
 
 /// A system configuration.
@@ -41,14 +42,16 @@ pub struct Generation {
 impl Generation {
     pub fn from_link(link: &GenerationLink) -> Result<Self> {
         let bootspec_path = link.path.join("boot.json");
-        let generation: BootspecGeneration = serde_json::from_slice(
+        let boot_json: BootJson = serde_json::from_slice(
             &fs::read(bootspec_path).context("Failed to read bootspec file")?,
         )
         .context("Failed to parse bootspec json")?;
 
-        let bootspec: BootJson = generation
-            .try_into()
-            .map_err(|err: &'static str| anyhow!(err))?;
+        // TODO: replace me when https://github.com/DeterminateSystems/bootspec/pull/109 lands.
+        let bootspec: BootSpec = match boot_json.generation {
+            BootspecGeneration::V1(bootspec) => bootspec,
+            _ => return Err(anyhow!("Unsupported bootspec schema"))
+        };
 
         Ok(Self {
             version: link.version,
@@ -58,7 +61,7 @@ impl Generation {
         })
     }
 
-    pub fn specialise(&self, name: &SpecialisationName, bootspec: &BootJson) -> Result<Self> {
+    pub fn specialise(&self, name: &SpecialisationName, bootspec: &BootSpec) -> Result<Self> {
         Ok(Self {
             version: self.version,
             build_time: self.build_time,

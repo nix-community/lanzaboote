@@ -17,8 +17,7 @@ nix = { version = "0.26.2", default-features = false, features = [ "fs" ] }
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
 tempfile = "3.5.0"
-# TODO: wait for a upstream release and pin it.
-bootspec = { git = "https://github.com/DeterminateSystems/bootspec" }
+bootspec = "0.1.0"
 walkdir = "2.3.3"
 time = "0.3.20"
 sha2 = "0.10.6"

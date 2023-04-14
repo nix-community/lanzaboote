@@ -208,7 +208,7 @@ impl Installer {
             build_generation_artifacts(self, &generation, generation_artifacts)
                 .context("Failed to build generation artifacts.")?;
 
-            for (name, bootspec) in &generation.spec.bootspec.specialisation {
+            for (name, bootspec) in &generation.spec.bootspec.specialisations {
                 let specialised_generation = generation.specialise(name, bootspec)?;
 
                 build_generation_artifacts(self, &specialised_generation, generation_artifacts)
@@ -233,7 +233,7 @@ impl Installer {
     ) -> Result<()> {
         let tempdir = &generation_artifacts.tempdir;
 
-        let bootspec = &generation.spec.bootspec;
+        let bootspec = &generation.spec.bootspec.bootspec;
 
         let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation)?;
         self.gc_roots.extend(esp_gen_paths.to_iter());
@@ -279,7 +279,7 @@ impl Installer {
     ) -> Result<()> {
         let tempdir = &generation_artifacts.tempdir;
 
-        let bootspec = &generation.spec.bootspec;
+        let bootspec = &generation.spec.bootspec.bootspec;
 
         let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation)?;
 
