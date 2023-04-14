@@ -77,8 +77,8 @@
 
           inherit (pkgs) lib;
 
-          rust-nightly = pkgs.rust-bin.fromRustupToolchainFile ./rust/stub/rust-toolchain.toml;
-          craneLib = crane.lib.x86_64-linux.overrideToolchain rust-nightly;
+          uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/stub/rust-toolchain.toml;
+          craneLib = crane.lib.x86_64-linux.overrideToolchain uefi-rust-stable;
 
           # Build attributes for a Rust application.
           buildRustApp =
