@@ -17,7 +17,7 @@ const UEFI_PAGE_BITS: usize = 12;
 const UEFI_PAGE_MASK: usize = (1 << UEFI_PAGE_BITS) - 1;
 
 #[cfg(target_arch = "x86_64")]
-fn flush_instruction_cache(_start: *const u8, _length: usize) {
+fn make_instruction_cache_coherent(_start: *const u8, _length: usize) {
     // x86_64 mandates coherent instruction cache
 }
 
@@ -98,7 +98,10 @@ impl Image {
             return Err(Status::INCOMPATIBLE_VERSION.into());
         }
 
-        flush_instruction_cache(image.as_ptr(), image.len());
+        // On some platforms, the instruction cache is not coherent with the data cache.
+        // We don't want to execute stale icache contents instead of the code we just loaded.
+        // Platform-specific flushes need to be performed to prevent this from happening.
+        make_instruction_cache_coherent(image.as_ptr(), image.len());
 
         if pe.entry >= image.len() {
             return Err(Status::LOAD_ERROR.into());
