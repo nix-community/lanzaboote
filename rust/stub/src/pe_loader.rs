@@ -16,8 +16,55 @@ use uefi::{
 const UEFI_PAGE_BITS: usize = 12;
 const UEFI_PAGE_MASK: usize = (1 << UEFI_PAGE_BITS) - 1;
 
+#[cfg(target_arch = "aarch64")]
+fn make_instruction_cache_coherent(memory: &[u8]) {
+    use core::arch::asm;
+    // Minimum cache line size is 16 bits per the CSSIDR_EL0 format.
+    // For simplicity, we issue flushes in this stride unconditonally.
+    const CACHE_LINE_SIZE: usize = 16;
+
+    // The start address gets rounded down, while the end address gets rounded up.
+    // This guarantees we flush precisely every cache line touching the passed slice.
+    let start_address = memory.as_ptr() as usize & CACHE_LINE_SIZE.wrapping_neg();
+    let end_address = ((memory.as_ptr() as usize + memory.len() - 1) | (CACHE_LINE_SIZE - 1)) + 1;
+
+    // Compare the ARM Architecture Reference Manual, B2.4.4.
+
+    // Make the writes to every address in the range visible at PoU.
+    for address in (start_address..end_address).step_by(CACHE_LINE_SIZE) {
+        unsafe {
+            // SAFETY: The addressed cache line overlaps `memory`, so it must be mapped.
+            asm!("dc cvau, {address}", address = in(reg) address);
+        }
+    }
+    unsafe {
+        // SAFETY: Barriers are always safe to execute.
+        asm!("dsb ish");
+    }
+
+    // Force reloading the written instructions.
+    for address in (start_address..end_address).step_by(4) {
+        unsafe {
+            // SAFETY: The addressed cache line overlaps `memory`, so it must be mapped.
+            asm!("ic ivau, {address}", address = in(reg) address);
+        }
+    }
+    unsafe {
+        // SAFETY: Barriers are always safe to execute.
+        asm! {
+            "dsb ish",
+            "isb",
+        }
+    }
+}
+
+#[cfg(target_arch = "x86")]
+fn make_instruction_cache_coherent(_memory: &[u8]) {
+    // x86 has coherent instruction cache for legacy compatibility reasons
+}
+
 #[cfg(target_arch = "x86_64")]
-fn flush_instruction_cache(_start: *const u8, _length: usize) {
+fn make_instruction_cache_coherent(_memory: &[u8]) {
     // x86_64 mandates coherent instruction cache
 }
 
@@ -98,7 +145,10 @@ impl Image {
             return Err(Status::INCOMPATIBLE_VERSION.into());
         }
 
-        flush_instruction_cache(image.as_ptr(), image.len());
+        // On some platforms, the instruction cache is not coherent with the data cache.
+        // We don't want to execute stale icache contents instead of the code we just loaded.
+        // Platform-specific flushes need to be performed to prevent this from happening.
+        make_instruction_cache_coherent(image);
 
         if pe.entry >= image.len() {
             return Err(Status::LOAD_ERROR.into());
