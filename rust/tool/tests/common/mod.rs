@@ -39,7 +39,7 @@ pub fn setup_generation_link_from_toplevel(
     version: u64,
 ) -> Result<PathBuf> {
     let bootspec = json!({
-        "v1": {
+        "org.nixos.bootspec.v1": {
           "init": format!("init-v{}", version),
           "initrd": toplevel.join("initrd"),
           "kernel": toplevel.join("kernel"),
@@ -56,11 +56,8 @@ pub fn setup_generation_link_from_toplevel(
           "label": "LanzaOS",
           "toplevel": toplevel,
           "system": "x86_64-linux",
-          "specialisation": {},
-          "extensions": {
-            "lanzaboote": { "osRelease": toplevel.join("os-release") }
-          }
-        }
+        },
+        "org.nixos-community.lanzaboote": { "osRelease": toplevel.join("os-release") }
     });
 
     let generation_link_path = profiles_directory.join(format!("system-{}-link", version));

@@ -54,7 +54,7 @@ let
           return f'/boot/EFI/nixos/{store_dir}-{filename}.efi'
 
       machine.start()
-      bootspec = json.loads(machine.succeed("cat /run/current-system/boot.json")).get('v1')
+      bootspec = json.loads(machine.succeed("cat /run/current-system/boot.json")).get('org.nixos.bootspec.v1')
       assert bootspec is not None, "Unsupported bootspec version!"
       src_path = ${path.src}
       dst_path = ${path.dst}
