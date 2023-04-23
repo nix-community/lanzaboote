@@ -4,7 +4,7 @@ use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use nix::unistd::sync;
 use tempfile::TempDir;
 
@@ -163,24 +163,31 @@ impl Installer {
     where
         F: FnMut(&mut Self, &Generation, &mut GenerationArtifacts) -> Result<()>,
     {
-        for link in links {
-            let generation_result = Generation::from_link(link)
-                .with_context(|| format!("Failed to build generation from link: {link:?}"));
+        let generations = links
+            .iter()
+            .filter_map(|link| {
+                let generation_result = Generation::from_link(link)
+                    .with_context(|| format!("Failed to build generation from link: {link:?}"));
 
-            // Ignore failing to read a generation so that old malformed generations do not stop
-            // lzbt from working.
-            let generation = match generation_result {
-                Ok(generation) => generation,
-                Err(e) => {
-                    log::debug!(
-                        "Ignoring generation {} because it's malformed.",
+                // Ignore failing to read a generation so that old malformed generations do not stop
+                // lzbt from working.
+                if let Err(e) = &generation_result {
+                    log::warn!(
+                        "Ignoring generation {} because it's malformed: {e:#}",
                         link.version
                     );
-                    log::debug!("{e:#}");
-                    continue;
                 }
-            };
 
+                generation_result.ok()
+            })
+            .collect::<Vec<Generation>>();
+
+        if generations.is_empty() {
+            // We can't continue, because we would remove all boot entries, if we did.
+            return Err(anyhow!("No bootable generations found! Aborting to avoid unbootable system. Please check for Lanzaboote updates!"));
+        }
+
+        for generation in generations {
             build_generation_artifacts(self, &generation, generation_artifacts)
                 .context("Failed to build generation artifacts.")?;
 
@@ -191,6 +198,7 @@ impl Installer {
                     .context("Failed to build generation artifacts for specialisation.")?;
             }
         }
+
         Ok(())
     }
 
