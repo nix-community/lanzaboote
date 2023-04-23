@@ -172,7 +172,7 @@ impl Installer {
                 // Ignore failing to read a generation so that old malformed generations do not stop
                 // lzbt from working.
                 if let Err(e) = &generation_result {
-                    log::warn!(
+                    log::debug!(
                         "Ignoring generation {} because it's malformed: {e:#}",
                         link.version
                     );
