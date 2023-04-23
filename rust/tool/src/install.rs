@@ -172,6 +172,10 @@ impl Installer {
                 // Ignore failing to read a generation so that old malformed generations do not stop
                 // lzbt from working.
                 if let Err(e) = &generation_result {
+                    // Semantically, this message should be a warning. However, since users might
+                    // have hundreds of old and thus malformed generations and can do little about
+                    // it, this should remain a debug message. This way the user is not spammed
+                    // with no-op warnings while still enabling debugging.
                     log::debug!(
                         "Ignoring generation {} because it's malformed: {e:#}",
                         link.version
