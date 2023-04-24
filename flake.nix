@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
-    nixpkgs-test.url = "github:NixOS/nixpkgs/qemu-boot-disk-using-make-disk-image";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
@@ -39,7 +38,7 @@
     };
   };
 
-  outputs = inputs@{ self, nixpkgs, nixpkgs-test, crane, rust-overlay, flake-parts, ... }:
+  outputs = inputs@{ self, nixpkgs, crane, rust-overlay, flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } ({ moduleWithSystem, ... }: {
       imports = [
         # Derive the output overlay automatically from all packages that we define.
@@ -75,8 +74,6 @@
               rust-overlay.overlays.default
             ];
           };
-
-          testPkgs = import nixpkgs-test { system = "x86_64-linux"; };
 
           inherit (pkgs) lib;
 
@@ -178,7 +175,7 @@
             toolClippy = toolCrane.clippy;
             stubClippy = stubCrane.clippy;
           } // (import ./nix/tests/lanzaboote.nix {
-            inherit pkgs testPkgs;
+            inherit pkgs;
             lanzabooteModule = self.nixosModules.lanzaboote;
           });
 

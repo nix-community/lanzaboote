@@ -103,11 +103,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1681109905,
-        "narHash": "sha256-2dBz4WSjYzkjCzDgepH5i2BsN0fVQOlLseG/kt6FhZg=",
+        "lastModified": 1682347030,
+        "narHash": "sha256-HYpAMGhF82mEaozCPz7FrHRCMJK5rOGA9Ed/kyszgmY=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "4fba351146e26d9e09d455687b75089ac50b9b13",
+        "rev": "8dd0f0a459b206fc4209570f6b7ce44ae66f264e",
         "type": "github"
       },
       "original": {
@@ -129,22 +129,6 @@
       "original": {
         "owner": "NixOS",
         "ref": "nixos-22.11",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs-test": {
-      "locked": {
-        "lastModified": 1679009563,
-        "narHash": "sha256-jizICiQOqUcYFNHRNNOo69bfyNo36iyuRAHem5z68LQ=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "371d3778c4f9cee7d5cf014e6ce400d57366570f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "qemu-boot-disk-using-make-disk-image",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -184,7 +168,6 @@
         "flake-parts": "flake-parts",
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
-        "nixpkgs-test": "nixpkgs-test",
         "pre-commit-hooks-nix": "pre-commit-hooks-nix",
         "rust-overlay": "rust-overlay"
       }
