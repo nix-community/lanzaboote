@@ -1,12 +1,11 @@
 { pkgs
-, testPkgs
 , lanzabooteModule
 }:
 
 let
   inherit (pkgs) lib;
 
-  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, testScript }: testPkgs.nixosTest {
+  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, testScript }: pkgs.nixosTest {
     inherit name testScript;
     nodes.machine = { lib, ... }: {
       imports = [
