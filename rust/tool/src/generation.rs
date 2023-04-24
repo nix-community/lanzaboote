@@ -96,7 +96,7 @@ impl fmt::Display for Generation {
 }
 
 fn read_build_time(path: &Path) -> Result<Date> {
-    let build_time = time::OffsetDateTime::from_unix_timestamp(fs::metadata(path)?.mtime())?.date();
+    let build_time = time::OffsetDateTime::from_unix_timestamp(fs::symlink_metadata(path)?.mtime())?.date();
     Ok(build_time)
 }
 
