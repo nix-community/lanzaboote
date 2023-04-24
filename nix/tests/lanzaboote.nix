@@ -239,6 +239,18 @@ in
     '';
   };
 
+  # We test if we can install Lanzaboote without Bootspec support.
+  synthesis = mkSecureBootTest {
+    name = "lanzaboote-synthesis";
+    machine = { lib, ... }: {
+      boot.bootspec.enable = lib.mkForce false;
+    };
+    testScript = ''
+      machine.start()
+      assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+    '';
+  };
+
   systemd-boot-loader-config = mkSecureBootTest {
     name = "lanzaboote-systemd-boot-loader-config";
     machine = {
