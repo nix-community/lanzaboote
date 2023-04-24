@@ -3,9 +3,45 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::generation::Generation;
+
+/// Supported system
+#[allow(dead_code)]
+#[non_exhaustive]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Architecture {
+    X86,
+    AArch64,
+}
+
+impl System {
+    pub fn systemd_filename(&self) -> &Path {
+        Path::new(match self {
+            Self::X86 => "systemd-bootx64.efi",
+            Self::AArch64 => "systemd-bootaa64.efi"
+        })
+    }
+
+    pub fn efi_fallback_filename(&self) -> &Path {
+        Path::new(match self {
+            Self::X86 => "BOOTX64.EFI",
+            Self::AArch64 => "BOOTAA64.EFI",
+        })
+    }
+}
+
+impl Architecture {
+    /// Converts from a NixOS system double to a supported system
+    pub fn from_nixos_system(system_double: &str) -> Result<Self> {
+        Ok(match system_double {
+            "x86_64-linux" => Self::X86,
+            "aarch64-linux" => Self::AArch64,
+            _ => bail!("Unsupported NixOS system double: {}, please open an issue or a PR if you think this should be supported.", system_double)
+        })
+    }
+}
 
 /// Generic ESP paths which can be specific to a bootloader
 pub trait EspPaths<const N: usize> {
@@ -35,6 +71,12 @@ impl EspGenerationPaths {
         generation: &Generation,
     ) -> Result<Self> {
         let bootspec = &generation.spec.bootspec.bootspec;
+        let bootspec_system: Architecture = Architecture::from_nixos_system(&bootspec.system)?;
+
+        assert_eq!(
+            system, bootspec_system,
+            "Bootspec's system differs from provided target system, unsupported usecase!"
+        );
 
         Ok(Self {
             kernel: esp_paths

@@ -12,7 +12,7 @@ use tempfile::TempDir;
 
 use crate::esp::SystemdEspPaths;
 use crate::version::SystemdVersion;
-use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths};
+use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths, Architecture};
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
@@ -335,7 +335,8 @@ impl Installer {
     fn install_systemd_boot(&self) -> Result<()> {
         let systemd_boot = self
             .systemd
-            .join("lib/systemd/boot/efi/systemd-bootx64.efi");
+            .join("lib/systemd/boot/efi")
+            .join(self.arch.systemd_filename());
 
         let paths = [
             (&systemd_boot, &self.esp_paths.efi_fallback),
