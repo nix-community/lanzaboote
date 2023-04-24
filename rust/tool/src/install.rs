@@ -18,6 +18,7 @@ use crate::systemd::SystemdVersion;
 use crate::utils::{file_hash, SecureTempDirExt};
 
 pub struct Installer {
+    enable_gc: bool,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
@@ -43,6 +44,7 @@ impl Installer {
         gc_roots.extend(esp_paths.to_iter());
 
         Self {
+            enable_gc: true,
             gc_roots,
             lanzaboote_stub,
             systemd,
@@ -85,21 +87,34 @@ impl Installer {
 
         self.install_systemd_boot()?;
 
-        log::info!("Collecting garbage...");
-        // Only collect garbage in these two directories. This way, no files that do not belong to
-        // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
-        // directory and deletes ALL files that it doesn't know about. Dual- or multiboot setups
-        // that need files in this directory will NOT work.
-        self.gc_roots.collect_garbage(&self.esp_paths.nixos)?;
-        // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
-        // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
-        // deleted).
-        self.gc_roots
-            .collect_garbage_with_filter(&self.esp_paths.linux, |p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .map_or(false, |n| n.starts_with("nixos-"))
-            })?;
+        if self.enable_gc {
+            log::info!("Collecting garbage...");
+            // Only collect garbage in these two directories. This way, no files that do not belong to
+            // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
+            // directory and deletes ALL files that it doesn't know about. Dual- or multiboot setups
+            // that need files in this directory will NOT work.
+            self.gc_roots.collect_garbage(&self.esp_paths.nixos)?;
+            // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
+            // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
+            // deleted).
+            self.gc_roots
+                .collect_garbage_with_filter(&self.esp_paths.linux, |p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .map_or(false, |n| n.starts_with("nixos-"))
+                })?;
+        } else {
+            // Garbage collection can only be disabled if there are malformed generations. If
+            // garbage collection can ever be disabled differently, the below log message most
+            // likely does not make sense anymore.
+            log::warn!(indoc::indoc! {"
+                Garbage collection is disabled because you have malformed NixOS generations that do
+                not contain a readable bootspec document.
+
+                Remove the malformed generations with `nix-env --delete-generations` to re-enable
+                garbage collection.
+            "})
+        };
 
         log::info!("Successfully installed Lanzaboote.");
         Ok(())
@@ -171,15 +186,13 @@ impl Installer {
 
                 // Ignore failing to read a generation so that old malformed generations do not stop
                 // lzbt from working.
-                if let Err(e) = &generation_result {
-                    // Semantically, this message should be a warning. However, since users might
-                    // have hundreds of old and thus malformed generations and can do little about
-                    // it, this should remain a debug message. This way the user is not spammed
-                    // with no-op warnings while still enabling debugging.
-                    log::debug!(
-                        "Ignoring generation {} because it's malformed: {e:#}",
-                        link.version
-                    );
+                if generation_result.is_err() {
+                    // If there is ANY malformed generation present, completely disable all garbage
+                    // collection to protect the old generations from being deleted. The user has
+                    // to manually intervene by getting rid of the old generations to re-enable
+                    // garbage collection. This safeguard against catastrophic failure in case of
+                    // unhandled upstream changes to NixOS.
+                    self.enable_gc = false;
                 }
 
                 generation_result.ok()

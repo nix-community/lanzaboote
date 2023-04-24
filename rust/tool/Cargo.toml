@@ -27,6 +27,7 @@ sha2 = "0.10.6"
 fastrand = "1.9.0"
 log = { version = "0.4.17", features = ["std"] }
 stderrlog = "0.5.4"
+indoc = "2.0.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.11"
