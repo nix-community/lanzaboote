@@ -6,7 +6,7 @@ use tempfile::tempdir;
 
 mod common;
 
-use common::{hash_file, mtime, remove_signature, verify_signature};
+use common::{hash_file, mtime, remove_signature, verify_signature, TARGET_SYSTEM_DOUBLE};
 
 #[test]
 fn keep_systemd_boot_binaries() -> Result<()> {
