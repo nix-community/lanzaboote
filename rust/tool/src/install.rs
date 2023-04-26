@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::string::ToString;
 
 use anyhow::{anyhow, Context, Result};
 use nix::unistd::sync;
@@ -18,7 +19,7 @@ use crate::systemd::SystemdVersion;
 use crate::utils::{file_hash, SecureTempDirExt};
 
 pub struct Installer {
-    enable_gc: bool,
+    broken_gens: BTreeSet<u64>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
@@ -44,7 +45,7 @@ impl Installer {
         gc_roots.extend(esp_paths.to_iter());
 
         Self {
-            enable_gc: true,
+            broken_gens: BTreeSet::new(),
             gc_roots,
             lanzaboote_stub,
             systemd,
@@ -87,7 +88,7 @@ impl Installer {
 
         self.install_systemd_boot()?;
 
-        if self.enable_gc {
+        if self.broken_gens.is_empty() {
             log::info!("Collecting garbage...");
             // Only collect garbage in these two directories. This way, no files that do not belong to
             // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
@@ -104,16 +105,15 @@ impl Installer {
                         .map_or(false, |n| n.starts_with("nixos-"))
                 })?;
         } else {
-            // Garbage collection can only be disabled if there are malformed generations. If
-            // garbage collection can ever be disabled differently, the below log message most
-            // likely does not make sense anymore.
-            log::warn!(indoc::indoc! {"
+            // This might produce a ridiculous message if you have a lot of malformed generations.
+            let warning = indoc::formatdoc! {"
                 Garbage collection is disabled because you have malformed NixOS generations that do
                 not contain a readable bootspec document.
 
-                Remove the malformed generations with `nix-env --delete-generations` to re-enable
-                garbage collection.
-            "})
+                Remove the malformed generations to re-enable garbage collection with 
+                `nix-env --delete-generations {}` 
+            ", self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" ")};
+            log::warn!("{warning}");
         };
 
         log::info!("Successfully installed Lanzaboote.");
@@ -192,7 +192,7 @@ impl Installer {
                     // to manually intervene by getting rid of the old generations to re-enable
                     // garbage collection. This safeguard against catastrophic failure in case of
                     // unhandled upstream changes to NixOS.
-                    self.enable_gc = false;
+                    self.broken_gens.insert(link.version);
                 }
 
                 generation_result.ok()
