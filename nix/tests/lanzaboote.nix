@@ -267,4 +267,63 @@ in
         f"Expected: {expected_loader_config} is not included in actual config: '{actual_loader_config}'"
     '';
   };
+
+  export-efi-variables = mkSecureBootTest {
+    name = "lanzaboote-exports-efi-variables";
+    testScript = ''
+      import struct
+
+      machine.start()
+      SD_LOADER_GUID = "4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+      expected_variables = ["LoaderDevicePartUUID",
+        "LoaderImageIdentifier",
+        "LoaderFirmwareInfo",
+        "LoaderFirmwareType",
+        "StubInfo",
+        "StubFeatures"
+      ]
+
+      def read_raw_variable(var: str) -> bytes:
+          attr_var = machine.succeed(f"cat /sys/firmware/efi/efivars/{var}-{SD_LOADER_GUID}").encode('raw_unicode_escape')
+          _ = attr_var[:4] # First 4 bytes are attributes according to https://www.kernel.org/doc/html/latest/filesystems/efivarfs.html
+          value = attr_var[4:]
+          return value
+      def read_string_variable(var: str, encoding='utf-16-le') -> str:
+          return read_raw_variable(var).decode(encoding)
+      def assert_variable_string(var: str, expected: str):
+          value = read_string_variable(var)
+          assert value == expected, f"Unexpected variable value in `{var}`, expected: `{expected.encode()!r}`, actual: `{value.encode()!r}`"
+      def assert_variable_string_contains(var: str, expected_substring: str):
+          value = read_string_variable(var).strip()
+          assert expected_substring in value, f"Did not find expected substring in `{var}`, expected substring: `{expected_substring}`, actual value: `{value}`"
+
+
+      print(machine.succeed(f"ls /sys/firmware/efi/efivars/*-{SD_LOADER_GUID}"))
+
+      with subtest("Check if variables are exported"):
+          for expected_var in expected_variables:
+              machine.succeed(f"test -e /sys/firmware/efi/efivars/{expected_var}-{SD_LOADER_GUID}")
+
+      with subtest("Is `StubInfo` correctly set"):
+          assert "lanzastub" in read_string_variable("StubInfo", 'utf8'), "Unexpected stub information, provenance is not lanzaboote project!"
+
+      with subtest("Is `LoaderImageIdentifier` correctly set"):
+        assert_variable_string("LoaderImageIdentifier", "\\EFI\\BOOT\\BOOTX64.EFI")
+
+      with subtest("Is `LoaderDevicePartUUID` correctly set"):
+        # TODO: exploit QEMU test infrastructure to pass the good value all the time.
+        assert_variable_string("LoaderImagePartUUID", "1c06f03b-704e-4657-b9cd-681a087a2fdc")
+
+      with subtest("Is `LoaderFirmwareInfo` correctly set"):
+        # OVMF tests are using EDK II tree.
+        assert_variable_string_contains("LoaderFirmwareInfo", "EDK II")
+
+      with subtest("Is `LoaderFirmwareType` reporting UEFI"):
+        assert_variable_string_contains("LoaderFirmwareType", "UEFI")
+
+      with subtest("Is `StubFeatures` non-zero"):
+          print(read_raw_variable("StubFeatures"))
+          assert struct.unpack('<Q', read_raw_variable("StubFeatures")) != 0
+    '';
+  };
 }
