@@ -19,7 +19,7 @@ use bitflags::bitflags;
 pub const SD_LOADER: VariableVendor = VariableVendor(guid!("4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"));
 
 /// Lanzaboote stub name
-pub static STUB_INFO_STRING: &'static str = concat!("lanzastub ", env!("CARGO_PKG_VERSION"));
+pub static STUB_INFO_STRING: &str = concat!("lanzastub ", env!("CARGO_PKG_VERSION"));
 
 bitflags! {
     #[repr(transparent)]
@@ -78,7 +78,7 @@ bitflags! {
 
 /// Ensures that an UEFI variable is set or set it with a fallback value
 /// computed in a lazy way.
-pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
+pub fn ensure_efi_variable<F>(runtime_services: &RuntimeServices,
     name: &CStr16,
     vendor: &VariableVendor,
     attributes: VariableAttributes,
@@ -86,10 +86,10 @@ pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
     where F: FnOnce() -> uefi::Result<Vec<u8>>
 {
     // If we get a variable size, a variable already exist.
-    if let Err(_) = runtime_services.get_variable_size(name, vendor) {
+    if runtime_services.get_variable_size(name, vendor).is_err() {
         runtime_services.set_variable(
             name,
-            &vendor,
+            vendor,
             attributes,
             get_fallback_value()?.as_slice()
         )?;
@@ -116,7 +116,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
         cstr16!("LoaderDevicePartUUID"),
         &SD_LOADER,
         default_attributes,
-        || disk_get_part_uuid(&boot_services, loaded_image.device()).map(|c| c.to_string().into_bytes())
+        || disk_get_part_uuid(boot_services, loaded_image.device()).map(|c| c.to_string().into_bytes())
     );
     // LoaderImageIdentifier
     let _ = ensure_efi_variable(runtime_services,
@@ -129,7 +129,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
                     boot_services.get_handle_for_protocol::<DevicePathToText>()?
                 )?;
                 dp_protocol.convert_device_path_to_text(
-                    &boot_services,
+                    boot_services,
                     dp,
                     DisplayOnly(false),
                     AllowShortcuts(false)
@@ -152,7 +152,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
         cstr16!("LoaderFirmwareType"),
         &SD_LOADER,
         default_attributes,
-        || Ok(format!("UEFI {}", system_table.uefi_revision().to_string()).into_bytes())
+        || Ok(format!("UEFI {}", system_table.uefi_revision()).into_bytes())
     );
     // StubInfo
     // FIXME: ideally, no one should be able to overwrite `StubInfo`, but that would require
