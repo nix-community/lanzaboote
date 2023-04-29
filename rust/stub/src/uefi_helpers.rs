@@ -13,10 +13,13 @@ use uefi::{
 use crate::part_discovery::disk_get_part_uuid;
 use bitflags::bitflags;
 
-// systemd loader's GUID
-// != systemd's GUID
-// https://github.com/systemd/systemd/blob/main/src/boot/efi/util.h#L114-L121
+/// systemd loader's GUID
+/// != systemd's GUID
+/// https://github.com/systemd/systemd/blob/main/src/boot/efi/util.h#L114-L121
 pub const SD_LOADER: VariableVendor = VariableVendor(guid!("4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"));
+
+/// Lanzaboote stub name
+pub static STUB_INFO_STRING: &'static str = concat!("lanzastub ", env!("CARGO_PKG_VERSION"));
 
 bitflags! {
     #[repr(transparent)]
@@ -105,20 +108,21 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
 
     let loaded_image =
         boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
-    // TODO: figure out the right variable attributes
+
+    let default_attributes = VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS;
+
     // LoaderDevicePartUUID
     let _ = ensure_efi_variable(runtime_services,
         cstr16!("LoaderDevicePartUUID"),
         &SD_LOADER,
-        VariableAttributes::from_bits_truncate(0x0),
-        // FIXME: eeh, can we have CString16 -> Vec<u8> in LE-style ?
+        default_attributes,
         || disk_get_part_uuid(&boot_services, loaded_image.device()).map(|c| c.to_string().into_bytes())
     );
     // LoaderImageIdentifier
     let _ = ensure_efi_variable(runtime_services,
         cstr16!("LoaderImageIdentifier"),
         &SD_LOADER,
-        VariableAttributes::from_bits_truncate(0x0),
+        default_attributes,
         || {
             if let Some(dp) = loaded_image.file_path() {
                 let dp_protocol = boot_services.open_protocol_exclusive::<DevicePathToText>(
@@ -131,7 +135,8 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
                     AllowShortcuts(false)
                 ).map(|ps| ps.to_string().into_bytes())
             } else {
-                // FIXME: I take any advice here.
+                // If we cannot retrieve the filepath of the loaded image
+                // Then, we cannot set `LoaderImageIdentifier`.
                 Err(uefi::Status::UNSUPPORTED.into())
             }
         });
@@ -139,24 +144,24 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
     let _ = ensure_efi_variable(runtime_services,
         cstr16!("LoaderFirmwareInfo"),
         &SD_LOADER,
-        VariableAttributes::from_bits_truncate(0x0),
-        // FIXME: respect https://github.com/systemd/systemd/blob/main/src/boot/efi/stub.c#L117
-        || Ok(format!("{} {}.{}", system_table.firmware_vendor(), system_table.firmware_revision() >> 16, system_table.firmware_revision() & 0xFFFFF).into_bytes())
+        default_attributes,
+        || Ok(format!("{} {}.{:02}", system_table.firmware_vendor(), system_table.firmware_revision() >> 16, system_table.firmware_revision() & 0xFFFFF).into_bytes())
     );
     // LoaderFirmwareType
     let _ = ensure_efi_variable(runtime_services,
         cstr16!("LoaderFirmwareType"),
         &SD_LOADER,
-        VariableAttributes::from_bits_truncate(0x0),
+        default_attributes,
         || Ok(format!("UEFI {}", system_table.uefi_revision().to_string()).into_bytes())
     );
     // StubInfo
+    // FIXME: ideally, no one should be able to overwrite `StubInfo`, but that would require
+    // constructing an EFI authenticated variable payload. This seems overcomplicated for now.
     let _ = runtime_services.set_variable(
         cstr16!("StubInfo"),
         &SD_LOADER,
-        // FIXME: what do we want here? I think it should be locked at that moment.
-        VariableAttributes::from_bits_truncate(0x0),
-        "lanzastub".as_bytes() // FIXME: add version numbers and even git revision if available.
+        default_attributes,
+        STUB_INFO_STRING.as_bytes()
     );
 
     // StubFeatures
@@ -164,7 +169,6 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
         cstr16!("StubFeatures"),
         &SD_LOADER,
         VariableAttributes::from_bits_truncate(0x0),
-        // FIXME: LE? idk (4AM)
         &stub_features.bits().to_le_bytes()
     );
 
