@@ -9,9 +9,12 @@ mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
 mod part_discovery;
+mod measure;
+mod unified_sections;
 
 use alloc::vec::Vec;
 use log::{info, warn, debug};
+use measure::measure_image;
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
@@ -244,6 +247,16 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             debug!("Random seed is available, but lanzaboote does not support it yet.");
         }
     }
+
+    unsafe {
+        // Iterate over unified sections and measure them
+        let _ = measure_image(system_table.runtime_services(), booted_image_file(
+            system_table.boot_services()
+        ).unwrap()).expect("Failed to measure the image");
+        // TODO: Measure kernel parameters
+        // TODO: Measure sysexts
+    }
+
     export_efi_variables(&system_table)
         .expect("Failed to export stub EFI variables");
 
