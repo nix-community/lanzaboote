@@ -42,10 +42,15 @@ pub struct Generation {
 impl Generation {
     pub fn from_link(link: &GenerationLink) -> Result<Self> {
         let bootspec_path = link.path.join("boot.json");
-        let boot_json: BootJson = serde_json::from_slice(
-            &fs::read(bootspec_path).context("Failed to read bootspec file")?,
-        )
-        .context("Failed to parse bootspec json")?;
+        let boot_json: BootJson = fs::read(bootspec_path)
+            .context("Failed to read bootspec file")
+            .and_then(|raw| serde_json::from_slice(&raw).context("Failed to read bootspec JSON"))
+            // TODO: this should be much easier, add a From<GenerationVX> for BootspecGeneration
+            // this should enable us to do `into()` on the Result
+            // anyhow compatibility of bootspec would be nice too.
+            .or_else(|_err| BootJson::synthesize_latest(&link.path)
+                    .map_err(|err| anyhow!(err))
+                    .context("Failed to read a bootspec (missing bootspec?) and failed to synthesize a valid replacement bootspec."))?;
 
         // TODO: replace me when https://github.com/DeterminateSystems/bootspec/pull/109 lands.
         let bootspec: BootSpec = match boot_json.generation {
