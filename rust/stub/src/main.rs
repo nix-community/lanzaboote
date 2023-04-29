@@ -8,6 +8,8 @@ mod linux_loader;
 mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
+mod part_discovery;
+mod device_path_util;
 
 use alloc::vec::Vec;
 use log::{info, warn};
@@ -22,6 +24,7 @@ use uefi::{
     },
     CStr16, CString16, Result,
 };
+use uefi_helpers::export_efi_variables;
 
 use crate::{
     linux_loader::InitrdLoader,
@@ -235,6 +238,8 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     if !is_initrd_hash_correct {
         warn!("Hash mismatch for initrd!");
     }
+
+    export_efi_variables(&system_table)?;
 
     if is_kernel_hash_correct && is_initrd_hash_correct {
         boot_linux_unchecked(

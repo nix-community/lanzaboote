@@ -1,11 +1,103 @@
 use core::ffi::c_void;
 
+use alloc::format;
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use uefi::{
-    prelude::BootServices,
+    prelude::{BootServices, RuntimeServices},
     proto::{loaded_image::LoadedImage, media::file::RegularFile},
-    Result,
+    Result, table::{runtime::{VariableVendor, VariableAttributes}, SystemTable, Boot}, CStr16, cstr16,
 };
+
+use crate::{part_discovery::disk_get_part_uuid, device_path_util::device_path_to_str};
+
+// systemd's GUID
+const SD_LOADER: VariableVendor = "";
+// const STUB_FEATURES: ???
+
+pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
+    name: &CStr16,
+    vendor: &VariableVendor,
+    attributes: VariableAttributes,
+    get_fallback_value: F) -> uefi::Result
+    where F: FnOnce() -> uefi::Result<&'a [u8]>
+{
+    // If we get a variable size, a variable already exist.
+    if let Err(_) = runtime_services.get_variable_size(name, vendor) {
+        runtime_services.set_variable(
+            name,
+            &vendor,
+            attributes,
+            get_fallback_value()?
+        )?;
+    }
+
+    uefi::Status::SUCCESS.into()
+}
+
+/// Exports systemd-stub style EFI variables
+pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
+    let boot_services = system_table.boot_services();
+    let runtime_services = system_table.runtime_services();
+
+    let loaded_image =
+        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
+    // TODO: figure out the right variable attributes
+    // LoaderDevicePartUUID
+    let _ = ensure_efi_variable(runtime_services,
+        cstr16!("LoaderDevicePartUUID"),
+        &SD_LOADER,
+        VariableAttributes::from_bits_truncate(0x0),
+        // FIXME: eeh, can we have CString16 -> &[u8] ?
+        || disk_get_part_uuid(loaded_image.device()).map(|c| c.to_string().as_bytes())
+    );
+    // LoaderImageIdentifier
+    let _ = ensure_efi_variable(runtime_services,
+        cstr16!("LoaderImageIdentifier"),
+        &SD_LOADER,
+        VariableAttributes::from_bits_truncate(0x0),
+        || {
+            if let Some(dp) = loaded_image.file_path() {
+                device_path_to_str(dp).map(|s| s.to_string().as_bytes())
+            } else {
+                // FIXME: I take any advice here.
+                Err(uefi::Status::UNSUPPORTED.into())
+            }
+        });
+    // LoaderFirmwareInfo
+    let _ = ensure_efi_variable(runtime_services,
+        cstr16!("LoaderFirmwareInfo"),
+        &SD_LOADER,
+        VariableAttributes::from_bits_truncate(0x0),
+        // FIXME: respect https://github.com/systemd/systemd/blob/main/src/boot/efi/stub.c#L117
+        || Ok(format!("{} {}.{}", system_table.firmware_vendor(), system_table.firmware_revision() >> 16, system_table.firmware_revision() & 0xFFFFF).as_bytes())
+    );
+    // LoaderFirmwareType
+    let _ = ensure_efi_variable(runtime_services,
+        cstr16!("LoaderFirmwareType"),
+        &SD_LOADER,
+        VariableAttributes::from_bits_truncate(0x0),
+        || Ok(format!("UEFI {}", system_table.uefi_revision().to_string()).as_bytes())
+    );
+    // StubInfo
+    let _ = runtime_services.set_variable(
+        cstr16!("StubInfo"),
+        &SD_LOADER,
+        // FIXME: what do we want here? I think it should be locked at that moment.
+        VariableAttributes::from_bits_truncate(0x0),
+        "lanzastub".as_bytes() // FIXME: add version numbers and even git revision if available.
+    );
+
+    // StubFeatures
+    /*let _ = runtime_services.set_variable(
+        cstr16!("StubFeatures"),
+        &SD_LOADER,
+        VariableAttributes::from_bits_truncate(0x0),
+        STUB_FEATURES
+    );*/
+
+    Ok(())
+}
 
 /// Read the whole file into a vector.
 pub fn read_all(file: &mut RegularFile) -> Result<Vec<u8>> {
