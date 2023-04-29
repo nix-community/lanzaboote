@@ -23,11 +23,11 @@ use uefi::{
     },
     CStr16, CString16, Result,
 };
-use uefi_helpers::export_efi_variables;
+use uefi_helpers::SystemdLoaderFeatures;
 
 use crate::{
     linux_loader::InitrdLoader,
-    uefi_helpers::{booted_image_file, read_all},
+    uefi_helpers::{booted_image_file, read_all, export_efi_variables, get_loader_features},
 };
 
 type Hash = sha2::digest::Output<Sha256>;
@@ -238,7 +238,13 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         warn!("Hash mismatch for initrd!");
     }
 
-    export_efi_variables(&system_table)?;
+    if let Ok(features) = get_loader_features(system_table.runtime_services()) {
+        if features.contains(SystemdLoaderFeatures::RandomSeed) {
+            // FIXME: process random seed then on the disk.
+        }
+    }
+    export_efi_variables(&system_table)
+        .expect("Failed to export stub EFI variables");
 
     if is_kernel_hash_correct && is_initrd_hash_correct {
         boot_linux_unchecked(

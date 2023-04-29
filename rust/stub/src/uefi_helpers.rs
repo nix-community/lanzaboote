@@ -2,7 +2,7 @@ use core::ffi::c_void;
 
 use alloc::format;
 use alloc::string::ToString;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use uefi::Guid;
 use uefi::{
     prelude::{BootServices, RuntimeServices},
@@ -26,7 +26,8 @@ const SD_LOADER: VariableVendor = VariableVendor(Guid::from_values(
     ));
 
 bitflags! {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    #[repr(transparent)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
     pub struct SystemdLoaderFeatures: u64 {
        const ConfigTimeout = 1 << 0;
        const ConfigTimeoutOneShot = 1 << 1;
@@ -40,6 +41,26 @@ bitflags! {
        const SavedEntry = 1 << 9;
        const DeviceTree = 1 << 10;
     }
+}
+
+/// Get the SystemdLoaderFeatures if they do exist.
+pub fn get_loader_features(runtime_services: &RuntimeServices) -> Result<SystemdLoaderFeatures> {
+    if let Ok(size) = runtime_services.get_variable_size(cstr16!("LoaderFeatures"), &SD_LOADER) {
+        let mut buffer = vec![0; size].into_boxed_slice();
+        runtime_services.get_variable(
+            cstr16!("LoaderFeatures"),
+            &SD_LOADER,
+            &mut buffer)?;
+
+        return SystemdLoaderFeatures::from_bits(
+            u64::from_le_bytes(
+                (*buffer).try_into()
+                .map_err(|_err| uefi::Status::BAD_BUFFER_SIZE)?
+            ))
+            .ok_or_else(|| uefi::Status::INCOMPATIBLE_VERSION.into());
+    }
+
+    Ok(Default::default())
 }
 
 bitflags! {
@@ -59,6 +80,8 @@ bitflags! {
     }
 }
 
+/// Ensures that an UEFI variable is set or set it with a fallback value
+/// computed in a lazy way.
 pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
     name: &CStr16,
     vendor: &VariableVendor,
