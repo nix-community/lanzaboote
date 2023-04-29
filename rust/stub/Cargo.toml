@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 # For UEFI target
-rust_version = "1.68"
+rust-version = "1.68"
 
 [dependencies]
 uefi = { version = "0.20.0", default-features = false, features = [ "alloc", "global_allocator" ] }
