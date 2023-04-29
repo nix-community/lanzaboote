@@ -11,6 +11,7 @@ use uefi::{
 };
 
 use crate::part_discovery::disk_get_part_uuid;
+use bitflags::bitflags;
 
 // systemd loader's GUID
 // != systemd's GUID
@@ -23,7 +24,40 @@ const SD_LOADER: VariableVendor = VariableVendor(Guid::from_values(
         u16::from_le_bytes([0xb6, 0xC7]),
         u64::from_le_bytes([0xb6, 0xc7, 0x44, 0x0b, 0x29, 0xbb, 0x8c, 0x4f])
     ));
-// const STUB_FEATURES: ???
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct SystemdLoaderFeatures: u64 {
+       const ConfigTimeout = 1 << 0;
+       const ConfigTimeoutOneShot = 1 << 1;
+       const EntryDefault = 1 << 2;
+       const EntryOneshot = 1 << 3;
+       const BootCounting = 1 << 4;
+       const XBOOTLDR = 1 << 5;
+       const RandomSeed = 1 << 6;
+       const LoadDriver = 1 << 7;
+       const SortKey = 1 << 8;
+       const SavedEntry = 1 << 9;
+       const DeviceTree = 1 << 10;
+    }
+}
+
+bitflags! {
+    #[repr(transparent)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct SystemdStubFeatures: u64 {
+       /// Is `LoaderDevicePartUUID` loaded in UEFI variables?
+       const ReportBootPartition = 1 << 0;
+       /// Are credentials picked up from the boot partition?
+       const PickUpCredentials = 1 << 1;
+       /// Are system extensions picked up from the boot partition?
+       const PickUpSysExts = 1 << 2;
+       /// Are we able to measure kernel image, parameters and sysexts?
+       const ThreePcrs = 1 << 3;
+       /// Can we pass a random seed to the kernel?
+       const RandomSeed = 1 << 4;
+    }
+}
 
 pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
     name: &CStr16,
@@ -49,6 +83,9 @@ pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
 pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
     let boot_services = system_table.boot_services();
     let runtime_services = system_table.runtime_services();
+
+    let stub_features: SystemdStubFeatures =
+        SystemdStubFeatures::ReportBootPartition | SystemdStubFeatures::ThreePcrs | SystemdStubFeatures::RandomSeed;
 
     let loaded_image =
         boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
@@ -107,12 +144,13 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
     );
 
     // StubFeatures
-    /*let _ = runtime_services.set_variable(
+    let _ = runtime_services.set_variable(
         cstr16!("StubFeatures"),
         &SD_LOADER,
         VariableAttributes::from_bits_truncate(0x0),
-        STUB_FEATURES
-    );*/
+        // FIXME: LE? idk (4AM)
+        &stub_features.bits().to_le_bytes()
+    );
 
     Ok(())
 }
