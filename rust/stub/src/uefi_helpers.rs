@@ -49,7 +49,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
         &SD_LOADER,
         VariableAttributes::from_bits_truncate(0x0),
         // FIXME: eeh, can we have CString16 -> &[u8] ?
-        || disk_get_part_uuid(loaded_image.device()).map(|c| c.to_string().as_bytes())
+        || disk_get_part_uuid(&boot_services, loaded_image.device()).map(|c| c.to_string().as_bytes())
     );
     // LoaderImageIdentifier
     let _ = ensure_efi_variable(runtime_services,
