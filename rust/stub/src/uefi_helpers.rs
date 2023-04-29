@@ -168,7 +168,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
     let _ = runtime_services.set_variable(
         cstr16!("StubFeatures"),
         &SD_LOADER,
-        VariableAttributes::from_bits_truncate(0x0),
+        default_attributes,
         &stub_features.bits().to_le_bytes()
     );
 
