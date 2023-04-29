@@ -11,6 +11,7 @@ mod uefi_helpers;
 mod part_discovery;
 mod measure;
 mod unified_sections;
+mod tpm;
 
 use alloc::vec::Vec;
 use log::{info, warn, debug};
@@ -250,7 +251,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     unsafe {
         // Iterate over unified sections and measure them
-        let _ = measure_image(system_table.runtime_services(), booted_image_file(
+        let _ = measure_image(&system_table, booted_image_file(
             system_table.boot_services()
         ).unwrap()).expect("Failed to measure the image");
         // TODO: Measure kernel parameters
