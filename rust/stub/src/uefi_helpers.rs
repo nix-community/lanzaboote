@@ -5,11 +5,11 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use uefi::{
     prelude::{BootServices, RuntimeServices},
-    proto::{loaded_image::LoadedImage, media::file::RegularFile},
+    proto::{loaded_image::LoadedImage, media::file::RegularFile, device_path::text::{DevicePathToText, DisplayOnly, AllowShortcuts}},
     Result, table::{runtime::{VariableVendor, VariableAttributes}, SystemTable, Boot}, CStr16, cstr16,
 };
 
-use crate::{part_discovery::disk_get_part_uuid, device_path_util::device_path_to_str};
+use crate::{part_discovery::disk_get_part_uuid};
 
 // systemd's GUID
 const SD_LOADER: VariableVendor = "";
@@ -58,7 +58,15 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
         VariableAttributes::from_bits_truncate(0x0),
         || {
             if let Some(dp) = loaded_image.file_path() {
-                device_path_to_str(dp).map(|s| s.to_string().as_bytes())
+                let dp_protocol = boot_services.open_protocol_exclusive::<DevicePathToText>(
+                    boot_services.get_handle_for_protocol::<DevicePathToText>()?
+                )?;
+                dp_protocol.convert_device_path_to_text(
+                    &boot_services,
+                    dp,
+                    DisplayOnly(false),
+                    AllowShortcuts(false)
+                ).map(|ps| ps.to_string().as_bytes())
             } else {
                 // FIXME: I take any advice here.
                 Err(uefi::Status::UNSUPPORTED.into())

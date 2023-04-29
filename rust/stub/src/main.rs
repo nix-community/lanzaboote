@@ -9,7 +9,6 @@ mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
 mod part_discovery;
-mod device_path_util;
 
 use alloc::vec::Vec;
 use log::{info, warn};
