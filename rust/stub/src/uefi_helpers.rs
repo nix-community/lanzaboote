@@ -3,16 +3,26 @@ use core::ffi::c_void;
 use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
+use uefi::Guid;
 use uefi::{
     prelude::{BootServices, RuntimeServices},
     proto::{loaded_image::LoadedImage, media::file::RegularFile, device_path::text::{DevicePathToText, DisplayOnly, AllowShortcuts}},
     Result, table::{runtime::{VariableVendor, VariableAttributes}, SystemTable, Boot}, CStr16, cstr16,
 };
 
-use crate::{part_discovery::disk_get_part_uuid};
+use crate::part_discovery::disk_get_part_uuid;
 
-// systemd's GUID
-const SD_LOADER: VariableVendor = "";
+// systemd loader's GUID
+// != systemd's GUID
+// FIXME: please fix me, I hate UEFI.
+// https://github.com/systemd/systemd/blob/main/src/boot/efi/util.h#L114-L121
+const SD_LOADER: VariableVendor = VariableVendor(Guid::from_values(
+        0x4a67b082,
+        0x0a4c,
+        0x41cf,
+        u16::from_le_bytes([0xb6, 0xC7]),
+        u64::from_le_bytes([0xb6, 0xc7, 0x44, 0x0b, 0x29, 0xbb, 0x8c, 0x4f])
+    ));
 // const STUB_FEATURES: ???
 
 pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
