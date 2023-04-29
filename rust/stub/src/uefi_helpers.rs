@@ -3,8 +3,8 @@ use core::ffi::c_void;
 use alloc::format;
 use alloc::string::ToString;
 use alloc::{vec, vec::Vec};
-use uefi::Guid;
 use uefi::{
+    guid,
     prelude::{BootServices, RuntimeServices},
     proto::{loaded_image::LoadedImage, media::file::RegularFile, device_path::text::{DevicePathToText, DisplayOnly, AllowShortcuts}},
     Result, table::{runtime::{VariableVendor, VariableAttributes}, SystemTable, Boot}, CStr16, cstr16,
@@ -15,15 +15,8 @@ use bitflags::bitflags;
 
 // systemd loader's GUID
 // != systemd's GUID
-// FIXME: please fix me, I hate UEFI.
 // https://github.com/systemd/systemd/blob/main/src/boot/efi/util.h#L114-L121
-const SD_LOADER: VariableVendor = VariableVendor(Guid::from_values(
-        0x4a67b082,
-        0x0a4c,
-        0x41cf,
-        u16::from_le_bytes([0xb6, 0xC7]),
-        u64::from_le_bytes([0xb6, 0xc7, 0x44, 0x0b, 0x29, 0xbb, 0x8c, 0x4f])
-    ));
+pub const SD_LOADER: VariableVendor = VariableVendor(guid!("4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"));
 
 bitflags! {
     #[repr(transparent)]
@@ -87,7 +80,7 @@ pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
     vendor: &VariableVendor,
     attributes: VariableAttributes,
     get_fallback_value: F) -> uefi::Result
-    where F: FnOnce() -> uefi::Result<&'a [u8]>
+    where F: FnOnce() -> uefi::Result<Vec<u8>>
 {
     // If we get a variable size, a variable already exist.
     if let Err(_) = runtime_services.get_variable_size(name, vendor) {
@@ -95,7 +88,7 @@ pub fn ensure_efi_variable<'a, F>(runtime_services: &RuntimeServices,
             name,
             &vendor,
             attributes,
-            get_fallback_value()?
+            get_fallback_value()?.as_slice()
         )?;
     }
 
@@ -108,7 +101,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
     let runtime_services = system_table.runtime_services();
 
     let stub_features: SystemdStubFeatures =
-        SystemdStubFeatures::ReportBootPartition | SystemdStubFeatures::ThreePcrs | SystemdStubFeatures::RandomSeed;
+        SystemdStubFeatures::ReportBootPartition;
 
     let loaded_image =
         boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
@@ -118,8 +111,8 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
         cstr16!("LoaderDevicePartUUID"),
         &SD_LOADER,
         VariableAttributes::from_bits_truncate(0x0),
-        // FIXME: eeh, can we have CString16 -> &[u8] ?
-        || disk_get_part_uuid(&boot_services, loaded_image.device()).map(|c| c.to_string().as_bytes())
+        // FIXME: eeh, can we have CString16 -> Vec<u8> in LE-style ?
+        || disk_get_part_uuid(&boot_services, loaded_image.device()).map(|c| c.to_string().into_bytes())
     );
     // LoaderImageIdentifier
     let _ = ensure_efi_variable(runtime_services,
@@ -136,7 +129,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
                     dp,
                     DisplayOnly(false),
                     AllowShortcuts(false)
-                ).map(|ps| ps.to_string().as_bytes())
+                ).map(|ps| ps.to_string().into_bytes())
             } else {
                 // FIXME: I take any advice here.
                 Err(uefi::Status::UNSUPPORTED.into())
@@ -148,14 +141,14 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
         &SD_LOADER,
         VariableAttributes::from_bits_truncate(0x0),
         // FIXME: respect https://github.com/systemd/systemd/blob/main/src/boot/efi/stub.c#L117
-        || Ok(format!("{} {}.{}", system_table.firmware_vendor(), system_table.firmware_revision() >> 16, system_table.firmware_revision() & 0xFFFFF).as_bytes())
+        || Ok(format!("{} {}.{}", system_table.firmware_vendor(), system_table.firmware_revision() >> 16, system_table.firmware_revision() & 0xFFFFF).into_bytes())
     );
     // LoaderFirmwareType
     let _ = ensure_efi_variable(runtime_services,
         cstr16!("LoaderFirmwareType"),
         &SD_LOADER,
         VariableAttributes::from_bits_truncate(0x0),
-        || Ok(format!("UEFI {}", system_table.uefi_revision().to_string()).as_bytes())
+        || Ok(format!("UEFI {}", system_table.uefi_revision().to_string()).into_bytes())
     );
     // StubInfo
     let _ = runtime_services.set_variable(

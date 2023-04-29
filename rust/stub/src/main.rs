@@ -11,7 +11,7 @@ mod uefi_helpers;
 mod part_discovery;
 
 use alloc::vec::Vec;
-use log::{info, warn};
+use log::{info, warn, debug};
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
@@ -241,6 +241,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     if let Ok(features) = get_loader_features(system_table.runtime_services()) {
         if features.contains(SystemdLoaderFeatures::RandomSeed) {
             // FIXME: process random seed then on the disk.
+            debug!("Random seed is available, but lanzaboote does not support it yet.");
         }
     }
     export_efi_variables(&system_table)

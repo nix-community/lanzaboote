@@ -8,7 +8,8 @@ pub fn disk_get_part_uuid(boot_services: &BootServices, disk_handle: Handle) -> 
             continue;
         }
 
-        let hd_path: &HardDrive = node.try_into().map_err(|err| uefi::Status::UNSUPPORTED)?;
+        // FIXME: is that enough? shouldn't we map _err correctly?
+        let hd_path: &HardDrive = node.try_into().map_err(|_err| uefi::Status::UNSUPPORTED)?;
         if let PartitionSignature::Guid(guid) = hd_path.partition_signature() {
             return Ok(guid);
         }
