@@ -3,33 +3,92 @@
 }:
 
 let
-  inherit (pkgs) lib;
+  inherit (pkgs) lib system;
 
-  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, testScript }: pkgs.nixosTest {
-    inherit name testScript;
-    nodes.machine = { lib, ... }: {
-      imports = [
-        lanzabooteModule
-        machine
-      ];
-
-      virtualisation = {
-        useBootLoader = true;
-        useEFIBoot = true;
-
-        inherit useSecureBoot;
+  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, useTPM2 ? false, testScript }:
+    let
+      tpmSocketPath = "/tmp/swtpm-sock";
+      tpmDeviceModels = {
+        x86_64-linux = "tpm-tis";
+        aarch64-linux = "tpm-tis-device";
       };
+      # Should go to nixpkgs.
+      tpm2Initialization = ''
+        # From systemd-initrd-luks-tpm2.nix
+        class Tpm:
+            def __init__(self):
+                self.state_dir = TemporaryDirectory()
+                self.start()
 
-      boot.loader.efi = {
-        canTouchEfiVariables = true;
-      };
-      boot.lanzaboote = {
-        enable = true;
-        enrollKeys = lib.mkDefault true;
-        pkiBundle = ./fixtures/uefi-keys;
+            def start(self):
+                self.proc = subprocess.Popen(["${pkgs.swtpm}/bin/swtpm",
+                    "socket",
+                    "--tpmstate", f"dir={self.state_dir.name}",
+                    "--ctrl", "type=unixio,path=${tpmSocketPath}",
+                    "--tpm2",
+                    ])
+
+                # Check whether starting swtpm failed
+                try:
+                    exit_code = self.proc.wait(timeout=0.2)
+                    if exit_code is not None and exit_code != 0:
+                        raise Exception("failed to start swtpm")
+                except subprocess.TimeoutExpired:
+                    pass
+
+            """Check whether the swtpm process exited due to an error"""
+            def check(self):
+                exit_code = self.proc.poll()
+                if exit_code is not None and exit_code != 0:
+                  raise Exception("swtpm process died")
+
+        tpm = Tpm()
+
+        @polling_condition
+        def swtpm_running():
+          tpm.check()
+      '';
+    in
+    pkgs.nixosTest {
+      inherit name;
+
+      testScript = ''
+        ${lib.optionalString useTPM2 tpm2Initialization}
+        ${testScript}
+      '';
+
+
+      nodes.machine = { lib, ... }: {
+        imports = [
+          lanzabooteModule
+          machine
+        ];
+
+        virtualisation = {
+          useBootLoader = true;
+          useEFIBoot = true;
+
+          qemu.options = lib.mkIf useTPM2 [
+            "-chardev socket,id=chrtpm,path=${tpmSocketPath}"
+            "-tpmdev emulator,id=tpm_dev_0,chardev=chrtpm"
+            "-device ${tpmDeviceModels.${system}},tpmdev=tpm_dev_0"
+          ];
+
+          inherit useSecureBoot;
+        };
+
+        boot.initrd.availableKernelModules = lib.mkIf useTPM2 [ "tpm_tis" ];
+
+        boot.loader.efi = {
+          canTouchEfiVariables = true;
+        };
+        boot.lanzaboote = {
+          enable = true;
+          enrollKeys = lib.mkDefault true;
+          pkiBundle = ./fixtures/uefi-keys;
+        };
       };
     };
-  };
 
   # Execute a boot test that has an intentionally broken secure boot
   # chain. This test is expected to fail with Secure Boot and should
