@@ -12,7 +12,7 @@ pub unsafe fn measure_image(
 
     let pe_binary = unsafe { image.as_slice() };
     let pe = goblin::pe::PE::parse(pe_binary)
-        .map_err(|err| uefi::Status::LOAD_ERROR)?;
+        .map_err(|_err| uefi::Status::LOAD_ERROR)?;
 
     let mut measurements = 0;
     for section in pe.sections {
