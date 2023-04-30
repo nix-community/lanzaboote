@@ -11,7 +11,7 @@ pub enum CompanionInitrd {
 }
 
 pub fn export_pcr_efi_variables(runtime_services: &RuntimeServices,
-    initrds: Vec<CompanionInitrd>) -> uefi::Result {
+    initrds: &Vec<CompanionInitrd>) -> uefi::Result {
     // Do we have kernel parameters that were measured
     if initrds.iter().any(|e| match e {
         CompanionInitrd::Credentials(_) => true,

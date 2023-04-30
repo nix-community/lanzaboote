@@ -31,6 +31,7 @@ use uefi::{
     CStr16, CString16, Result,
 };
 use uefi_helpers::SystemdLoaderFeatures;
+use unified_sections::UnifiedSection;
 
 use crate::{
     linux_loader::InitrdLoader,
@@ -257,12 +258,11 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         }
     }
 
-    unsafe {
-        // Iterate over unified sections and measure them
-        let _ = measure_image(&system_table, booted_image_file(
+    // Iterate over unified sections and measure them
+    let (_, discovered_unified_sections) = unsafe { measure_image(&system_table, booted_image_file(
             system_table.boot_services()
-        ).unwrap()).expect("Failed to measure the image");
-    }
+        ).unwrap()).expect("Failed to measure the image")
+    };
 
     export_efi_variables(&system_table)
         .expect("Failed to export stub EFI variables");
@@ -307,7 +307,42 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     }
 
     // Let's export any StubPcr EFI variable we might need.
-    let _ = initrd::export_pcr_efi_variables(&system_table.runtime_services(), initrds);
+    let _ = initrd::export_pcr_efi_variables(&system_table.runtime_services(), &initrds);
+
+    // Pack relevant left CPIOs:
+    // - TPM2 PCR signatures
+    // - TPM2 PCR public keys
+    for uf_section in discovered_unified_sections {
+        match uf_section {
+            UnifiedSection::PcrSig(pcrsig_data) => {
+                if let Ok(pcrsig_initrd) = cpio::pack_cpio_literal(system_table.boot_services(),
+                    pcrsig_data,
+                    ".extra",
+                    cstr16!("tpm2-pcr-signature.json"),
+                    0o555,
+                    0o444,
+                    // Do not perform any measurement.
+                    uefi::proto::tcg::PcrIndex(u32::MAX),
+                    "") {
+                    initrds.push(CompanionInitrd::PcrSignature(pcrsig_initrd));
+                }
+            }
+            UnifiedSection::PcrPkey(pcrpkey_data) => {
+                if let Ok(pcrpkey_initrd) = cpio::pack_cpio_literal(system_table.boot_services(),
+                    pcrpkey_data,
+                    ".extra",
+                    cstr16!("tpm2-pcr-public-key.pem"),
+                    0o555,
+                    0o444,
+                    // Do not perform any measurement.
+                    uefi::proto::tcg::PcrIndex(u32::MAX),
+                    "") {
+                    initrds.push(CompanionInitrd::PcrPublicKey(pcrpkey_initrd));
+                }
+            }
+            _ => continue,
+        }
+    }
 
     if is_kernel_hash_correct && is_initrd_hash_correct {
         boot_linux_unchecked(

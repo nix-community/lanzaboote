@@ -1,5 +1,5 @@
 use uefi::{table::{runtime::VariableAttributes, Boot, SystemTable}, cstr16, proto::tcg::PcrIndex};
-
+use alloc::vec::Vec;
 use crate::{uefi_helpers::{PeInMemory, SD_LOADER}, pe_section::pe_section_data, unified_sections::UnifiedSection, tpm::tpm_log_event_ascii};
 
 /// This is the TPM PCR where lanzastub extends its payload into, before using them.
@@ -20,7 +20,7 @@ pub const TPM_PCR_INDEX_VOLUME_KEY: PcrIndex = PcrIndex(15);
 
 pub unsafe fn measure_image(
     system_table: &SystemTable<Boot>,
-    image: PeInMemory) -> uefi::Result<u32> {
+    image: PeInMemory) -> uefi::Result<(u32, Vec<UnifiedSection>)> {
     let runtime_services = system_table.runtime_services();
     let boot_services = system_table.boot_services();
 
@@ -29,9 +29,12 @@ pub unsafe fn measure_image(
         .map_err(|_err| uefi::Status::LOAD_ERROR)?;
 
     let mut measurements = 0;
+    // We would like to use core::mem::variant_count
+    // https://github.com/rust-lang/rust/issues/73662
+    let mut unified_sections = Vec::with_capacity(8);
     for section in pe.sections {
         let section_name = section.name().map_err(|_err| uefi::Status::UNSUPPORTED)?;
-        if let Ok(unified_section) = UnifiedSection::try_from(section_name) {
+        if let Ok(unified_section) = UnifiedSection::from_section_table(&pe_binary, &section) {
             // UNSTABLE: && in the previous if is an unstable feature
             // https://github.com/rust-lang/rust/issues/53667
             if unified_section.should_be_measured() {
@@ -42,6 +45,10 @@ pub unsafe fn measure_image(
                     }
                 }
             }
+            // We would like to use push_within_capacity and err out correctly
+            // if the capacity is exceeded.
+            // https://github.com/rust-lang/rust/issues/100486
+            unified_sections.push(unified_section);
         }
     }
 
@@ -56,5 +63,5 @@ pub unsafe fn measure_image(
         )?;
     }
 
-    Ok(measurements)
+    Ok((measurements, unified_sections))
 }

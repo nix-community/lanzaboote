@@ -286,7 +286,7 @@ pub fn pack_cpio(
 
 pub fn pack_cpio_literal(
     boot_services: &BootServices,
-    data: &Vec<u8>,
+    data: &[u8],
     target_dir_prefix: &str,
     target_filename: &CStr16,
     dir_mode: u32,
