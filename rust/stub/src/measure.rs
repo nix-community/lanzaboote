@@ -16,7 +16,7 @@ pub unsafe fn measure_image(
 
     let mut measurements = 0;
     for section in pe.sections {
-        let section_name = section.name().map_err(|err| uefi::Status::UNSUPPORTED)?;
+        let section_name = section.name().map_err(|_err| uefi::Status::UNSUPPORTED)?;
         if let Ok(unified_section) = UnifiedSection::try_from(section_name) {
             // UNSTABLE: && in the previous if is an unstable feature
             // https://github.com/rust-lang/rust/issues/53667
