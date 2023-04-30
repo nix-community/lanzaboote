@@ -19,6 +19,7 @@ use measure::measure_image;
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
+use tpm::tpm_available;
 use uefi::{
     prelude::*,
     proto::{
@@ -240,6 +241,10 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     if !is_initrd_hash_correct {
         warn!("Hash mismatch for initrd!");
+    }
+
+    if tpm_available(system_table.boot_services()) {
+        debug!("TPM available, will proceed to measurements.");
     }
 
     if let Ok(features) = get_loader_features(system_table.runtime_services()) {
