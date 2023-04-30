@@ -1,12 +1,12 @@
-use uefi::{CStr16, proto::{loaded_image::LoadedImage, tcg::PcrIndex, media::fs::SimpleFileSystem}, CString16, prelude::BootServices};
-use alloc::{vec::Vec, string::String};
-use acid_io::{byteorder::WriteBytesExt, {Cursor, Write}, Result};
+use uefi::{CStr16, cstr16, proto::{tcg::PcrIndex, media::fs::SimpleFileSystem}, CString16, prelude::BootServices, table::boot::ScopedProtocol};
+use alloc::{vec, vec::Vec, string::String, format};
+use acid_io::{{Cursor, Write}, Result};
 
 use crate::tpm::tpm_log_event_ascii;
 
-const MAGIC_NUMBER: &[u8; _] = b"070701";
+const MAGIC_NUMBER: &[u8; 6] = b"070701";
 const TRAILER_NAME: &str= "TRAILER!!!";
-const CPIO_HEX: &[u8; _] = "0123456789abcdef";
+const CPIO_HEX: &[u8; 16] = b"0123456789abcdef";
 
 struct Entry {
     name: String,
@@ -25,7 +25,9 @@ struct Entry {
 
 const STATIC_HEADER_LEN: usize = core::mem::size_of::<Entry>()
     - core::mem::size_of::<String>() // remove `name` size, which cannot be derived statically
-    + core::mem::size_of_val(MAGIC_NUMBER)
+    // unstable for const fn yet: https://github.com/rust-lang/rust/issues/46571
+    // + core::mem::size_of_val(MAGIC_NUMBER)
+    + core::mem::size_of::<&[u8; 6]>() // = 6
     + core::mem::size_of::<usize>() // filename size
     + 1                             // NULL-terminator for filename (\0)
     + core::mem::size_of::<u32>(); // CRC
@@ -42,22 +44,36 @@ fn compute_pad4(len: usize) -> Option<Vec<u8>> {
     }
 }
 
+/// Align on N-byte boundary a value.
+fn align<const A: usize>(value: usize) -> usize {
+    // Assert if A is a power of 2.
+    // assert!(A & (A - 1) == 0);
+
+    if value > usize::MAX - (A - 1) {
+        usize::MAX
+    } else {
+        (value + A - 1) & !(A - 1)
+    }
+}
+
 trait WriteBytesExt : Write {
-    fn write_cpio_word(&mut self, word: u32) -> Result<(), acid_io::Error> {
+    fn write_cpio_word(&mut self, word: u32) -> Result<()> {
         // A CPIO word is the hex(word) written as chars.
         // We do it manually because format! will allocate.
         self.write_all(
-            word.to_le_bytes()
+            &word.to_le_bytes()
             .into_iter()
             .enumerate()
-            .map(|(i, c)| CPIO_HEX[(c >> (4 * i)) & 0xF])
+            // u8 -> usize is always safe.
+            .map(|(i, c)| CPIO_HEX[((c >> (4 * i)) & 0xF) as usize])
             .rev()
+            .collect::<Vec<u8>>()
         )
     }
 
-    fn write_cpio_header(&mut self, entry: Entry) -> Result<usize, acid_io::Error> {
+    fn write_cpio_header(&mut self, entry: Entry) -> Result<usize> {
         let mut header_size = STATIC_HEADER_LEN;
-        self.write_cpio_word(MAGIC_NUMBER)?;
+        self.write_all(MAGIC_NUMBER)?;
         self.write_cpio_word(entry.ino)?;
         self.write_cpio_word(entry.mode)?;
         self.write_cpio_word(entry.uid)?;
@@ -69,31 +85,31 @@ trait WriteBytesExt : Write {
         self.write_cpio_word(entry.dev_minor)?;
         self.write_cpio_word(entry.rdev_major)?;
         self.write_cpio_word(entry.rdev_minor)?;
-        self.write_cpio_word(entry.name.len() + 1)?;
+        self.write_cpio_word((entry.name.len() + 1).try_into().expect("Filename cannot be longer than a 32-bits size"))?;
         self.write_cpio_word(0u32)?; // CRC
-        self.write(entry.name)?;
-        header_size += entry.name();
-        self.write(0u8)?; // Write \0 for the string.
+        self.write_all(entry.name.as_bytes())?;
+        header_size += entry.name.len();
+        self.write(&[0u8])?; // Write \0 for the string.
         // Pad to a multiple of 4 bytes
-        if let Some(pad) = compute_pad4(STATIC_HEADER_LEN + name.len()) {
-            self.write_all(pad)?;
+        if let Some(pad) = compute_pad4(STATIC_HEADER_LEN + entry.name.len()) {
+            self.write_all(&pad)?;
             header_size += pad.len();
         }
         Ok(header_size)
     }
 
-    fn write_cpio_contents(&mut self, header_size: usize, contents: &[u8]) -> Result<usize, acid_io::Error> {
+    fn write_cpio_contents(&mut self, header_size: usize, contents: &[u8]) -> Result<usize> {
         let mut total_size = header_size + contents.len();
         self.write_all(contents)?;
         if let Some(pad) = compute_pad4(total_size) {
-            self.write_all(pad)?;
+            self.write_all(&pad)?;
             total_size += pad.len();
         }
         Ok(total_size)
     }
 
-    fn write_cpio_entry(&mut self, header: Entry, contents: &[u8]) -> Result<usize, acid_io::Error> {
-        let header_size = self.write_cpio_header(entry)?;
+    fn write_cpio_entry(&mut self, header: Entry, contents: &[u8]) -> Result<usize> {
+        let header_size = self.write_cpio_header(header)?;
 
         self.write_cpio_contents(header_size, contents)
     }
@@ -103,7 +119,7 @@ impl <W: Write + ?Sized> WriteBytesExt for W {}
 
 // A Cpio archive with convenience methods
 // to pack stuff into it.
-struct Cpio {
+pub struct Cpio {
     buffer: Vec<u8>,
     inode_counter: u32
 }
@@ -123,7 +139,6 @@ impl Cpio {
                 return Err(uefi::Status::OUT_OF_RESOURCES.into());
             }
 
-            // replace by mem::size_of
             let mut current_len = STATIC_HEADER_LEN + 1; // 1 for the `/` separator
 
             if current_len > usize::MAX - target_dir_prefix.len() {
@@ -144,13 +159,13 @@ impl Cpio {
             }
 
             // Perform 4-byte alignment of current_len
-
+            current_len = align::<4>(current_len);
             if current_len == usize::MAX {
                 return Err(uefi::Status::OUT_OF_RESOURCES.into());
             }
 
             // Perform 4-byte alignment of contents.len()
-            let aligned_contents_len = contents.len();
+            let aligned_contents_len = align::<4>(contents.len());
             if aligned_contents_len == usize::MAX {
                 return Err(uefi::Status::OUT_OF_RESOURCES.into());
             }
@@ -167,28 +182,29 @@ impl Cpio {
 
             // Perform re-allocation now.
             let mut elt_buffer: Vec<u8> = Vec::with_capacity(current_len);
-            let cur = Cursor::new(&mut elt_buffer);
+            let mut cur = Cursor::new(&mut elt_buffer);
 
             self.inode_counter += 1;
             // TODO: perform the concat properly
             // transform fname to string
             cur.write_cpio_entry(Entry {
-                name: target_dir_prefix + "/" + fname,
+                name: format!("{}/{}", target_dir_prefix, fname),
                 ino: self.inode_counter,
                 mode: access_mode | 0100000, // S_IFREG
                 uid: 0,
                 gid: 0,
                 nlink: 1,
                 mtime: 0,
-                file_size: contents.len(),
+                // This was checked previously.
+                file_size: contents.len().try_into().unwrap(),
                 dev_major: 0,
                 dev_minor: 0,
                 rdev_major: 0,
                 rdev_minor: 0
-            }, contents)?;
+            }, contents).map_err(|_err| uefi::Status::BAD_BUFFER_SIZE)?;
 
             // Concat the element buffer.
-            self.buffer.append(&mut element_buffer);
+            self.buffer.append(&mut elt_buffer);
 
             Ok(())
         }
@@ -198,7 +214,7 @@ impl Cpio {
             return Err(uefi::Status::OUT_OF_RESOURCES.into());
         }
 
-        let current_len = STATIC_HEADER_LEN;
+        let mut current_len = STATIC_HEADER_LEN;
         if current_len > usize::MAX - path.len() {
             return Err(uefi::Status::OUT_OF_RESOURCES.into());
         }
@@ -206,12 +222,13 @@ impl Cpio {
         current_len += path.len();
 
         // Align the whole header
+        current_len = align::<4>(current_len);
         if self.buffer.len() == usize::MAX || self.buffer.len() > usize::MAX - current_len {
             return Err(uefi::Status::OUT_OF_RESOURCES.into());
         }
 
         let mut elt_buffer: Vec<u8> = Vec::with_capacity(current_len);
-        let cur = Cursor::new(&mut elt_buffer);
+        let mut cur = Cursor::new(&mut elt_buffer);
 
         self.inode_counter += 1;
         cur.write_cpio_header(Entry {
@@ -227,10 +244,10 @@ impl Cpio {
             dev_minor: 0,
             rdev_major: 0,
             rdev_minor: 0
-        })?;
+        }).map_err(|_err| uefi::Status::BAD_BUFFER_SIZE)?;
 
         // Concat the element buffer.
-        self.buffer.append(&mut element_buffer);
+        self.buffer.append(&mut elt_buffer);
 
         Ok(())
     }
@@ -242,14 +259,14 @@ impl Cpio {
     }
 
     fn pack_trailer(&mut self) -> uefi::Result {
-        self.pack_one("", TRAILER_NAME, "", 0x0)
+        self.pack_one(cstr16!("."), TRAILER_NAME.as_bytes(), "", 0)
     }
 }
 
 
-fn pack_cpio(
+pub fn pack_cpio(
     boot_services: &BootServices,
-    fs: SimpleFileSystem,
+    fs: &mut ScopedProtocol<SimpleFileSystem>,
     dropin_dir: Option<&CStr16>,
     match_suffix: &CStr16,
     target_dir_prefix: &str,
@@ -258,17 +275,16 @@ fn pack_cpio(
     tpm_pcr: PcrIndex,
     tpm_description: &str) -> uefi::Result<Option<Cpio>> {
     match fs.open_volume() {
-        Some(root_dir) => {
-            let real_dropin_dir: CString16 = dropin_dir.or_else(get_dropin_dir);
-            // open_directory???
+        Ok(root_dir) => {
+            Ok(None)
         },
-        Err(uefi::Status::UNSUPPORTED) => Ok(None),
+        // Err(uefi::Status::UNSUPPORTED) => Ok(None),
         // Log the error.
-        err => err
+        Err(err) => Err(err)
     }
 }
 
-fn pack_cpio_literal(
+pub fn pack_cpio_literal(
     boot_services: &BootServices,
     data: &Vec<u8>,
     target_dir_prefix: &str,
@@ -277,7 +293,7 @@ fn pack_cpio_literal(
     access_mode: u32,
     tpm_pcr: PcrIndex,
     tpm_description: &str) -> uefi::Result<Cpio> {
-    let cpio = Cpio {
+    let mut cpio = Cpio {
         buffer: Vec::new(),
         inode_counter: 0
     };
@@ -289,7 +305,7 @@ fn pack_cpio_literal(
         target_dir_prefix,
         access_mode)?;
     cpio.pack_trailer()?;
-    tpm_log_event_ascii(boot_services, pcr_index, data, tpm_description)?;
+    tpm_log_event_ascii(boot_services, tpm_pcr, data, tpm_description)?;
 
     Ok(cpio)
 }

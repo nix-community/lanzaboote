@@ -2,7 +2,8 @@ use uefi::{table::{runtime::VariableAttributes, Boot, SystemTable}, cstr16, prot
 
 use crate::{uefi_helpers::{PeInMemory, SD_LOADER}, pe_section::pe_section_data, unified_sections::UnifiedSection, tpm::tpm_log_event_ascii};
 
-const TPM_PCR_INDEX_KERNEL_IMAGE: PcrIndex = PcrIndex(11);
+pub const TPM_PCR_INDEX_KERNEL_IMAGE: PcrIndex = PcrIndex(11);
+pub const TPM_PCR_INDEX_KERNEL_PARAMETERS: PcrIndex = PcrIndex(12);
 
 pub unsafe fn measure_image(
     system_table: &SystemTable<Boot>,
