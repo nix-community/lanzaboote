@@ -262,8 +262,6 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         let _ = measure_image(&system_table, booted_image_file(
             system_table.boot_services()
         ).unwrap()).expect("Failed to measure the image");
-        // TODO: Measure kernel parameters
-        // TODO: Measure sysexts
     }
 
     export_efi_variables(&system_table)
