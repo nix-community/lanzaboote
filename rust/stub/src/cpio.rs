@@ -1,6 +1,8 @@
-use uefi::CStr16;
+use uefi::{CStr16, proto::{loaded_image::LoadedImage, tcg::PcrIndex, media::fs::SimpleFileSystem}, CString16, prelude::BootServices};
 use alloc::{vec::Vec, string::String};
 use acid_io::{byteorder::WriteBytesExt, {Cursor, Write}, Result};
+
+use crate::tpm::tpm_log_event_ascii;
 
 const MAGIC_NUMBER: &[u8] = b"070701";
 const TRAILER_NAME: &str= "TRAILER!!!";
@@ -201,6 +203,7 @@ impl Cpio {
         let mut elt_buffer: Vec<u8> = Vec::with_capacity(current_len);
         let cur = Cursor::new(&mut elt_buffer);
 
+        self.inode_counter += 1;
         cur.write_cpio_header(Entry {
             name: path.into(),
             ino: self.inode_counter,
@@ -234,8 +237,49 @@ impl Cpio {
 }
 
 
-fn pack_cpio() {
+fn pack_cpio(
+    boot_services: &BootServices,
+    fs: SimpleFileSystem,
+    dropin_dir: Option<&CStr16>,
+    match_suffix: &CStr16,
+    target_dir_prefix: &str,
+    dir_mode: u32,
+    access_mode: u32,
+    tpm_pcr: PcrIndex,
+    tpm_description: &str) -> uefi::Result<Option<Cpio>> {
+    match fs.open_volume() {
+        Some(root_dir) => {
+            let real_dropin_dir: CString16 = dropin_dir.or_else(get_dropin_dir);
+            // open_directory???
+        },
+        Err(uefi::Status::UNSUPPORTED) => Ok(None),
+        // Log the error.
+        err => err
+    }
 }
 
-fn pack_cpio_literal() {
+fn pack_cpio_literal(
+    boot_services: &BootServices,
+    data: &Vec<u8>,
+    target_dir_prefix: &str,
+    target_filename: &CStr16,
+    dir_mode: u32,
+    access_mode: u32,
+    tpm_pcr: PcrIndex,
+    tpm_description: &str) -> uefi::Result<Cpio> {
+    let cpio = Cpio {
+        buffer: Vec::new(),
+        inode_counter: 0
+    };
+
+    cpio.pack_prefix(target_dir_prefix, dir_mode)?;
+    cpio.pack_one(
+        target_filename,
+        data,
+        target_dir_prefix,
+        access_mode)?;
+    cpio.pack_trailer()?;
+    tpm_log_event_ascii(boot_services, pcr_index, data, tpm_description)?;
+
+    Ok(cpio)
 }
