@@ -4,9 +4,9 @@ use acid_io::{byteorder::WriteBytesExt, {Cursor, Write}, Result};
 
 use crate::tpm::tpm_log_event_ascii;
 
-const MAGIC_NUMBER: &[u8] = b"070701";
+const MAGIC_NUMBER: &[u8; _] = b"070701";
 const TRAILER_NAME: &str= "TRAILER!!!";
-static CPIO_HEX: _ = "0123456789abcdef";
+const CPIO_HEX: &[u8; _] = "0123456789abcdef";
 
 struct Entry {
     name: String,
@@ -23,6 +23,15 @@ struct Entry {
     rdev_minor: u32,
 }
 
+const STATIC_HEADER_LEN: usize = core::mem::size_of::<Entry>()
+    - core::mem::size_of::<String>() // remove `name` size, which cannot be derived statically
+    + core::mem::size_of_val(MAGIC_NUMBER)
+    + core::mem::size_of::<usize>() // filename size
+    + 1                             // NULL-terminator for filename (\0)
+    + core::mem::size_of::<u32>(); // CRC
+
+/// Compute the necessary padding based on the provided length
+/// It returns None if no padding is necessary.
 fn compute_pad4(len: usize) -> Option<Vec<u8>> {
     let overhang = len % 4;
     if overhang != 0 {
@@ -47,7 +56,7 @@ trait WriteBytesExt : Write {
     }
 
     fn write_cpio_header(&mut self, entry: Entry) -> Result<usize, acid_io::Error> {
-        let mut header_size = HEADER_LEN;
+        let mut header_size = STATIC_HEADER_LEN;
         self.write_cpio_word(MAGIC_NUMBER)?;
         self.write_cpio_word(entry.ino)?;
         self.write_cpio_word(entry.mode)?;
@@ -61,12 +70,12 @@ trait WriteBytesExt : Write {
         self.write_cpio_word(entry.rdev_major)?;
         self.write_cpio_word(entry.rdev_minor)?;
         self.write_cpio_word(entry.name.len() + 1)?;
-        self.write_cpio_word(0)?; // CRC
+        self.write_cpio_word(0u32)?; // CRC
         self.write(entry.name)?;
         header_size += entry.name();
         self.write(0u8)?; // Write \0 for the string.
         // Pad to a multiple of 4 bytes
-        if let Some(pad) = compute_pad4(HEADER_LEN + name.len()) {
+        if let Some(pad) = compute_pad4(STATIC_HEADER_LEN + name.len()) {
             self.write_all(pad)?;
             header_size += pad.len();
         }
@@ -92,7 +101,8 @@ trait WriteBytesExt : Write {
 
 impl <W: Write + ?Sized> WriteBytesExt for W {}
 
-
+// A Cpio archive with convenience methods
+// to pack stuff into it.
 struct Cpio {
     buffer: Vec<u8>,
     inode_counter: u32
@@ -114,7 +124,7 @@ impl Cpio {
             }
 
             // replace by mem::size_of
-            let mut current_len = 6 + 13 * 8 + 1 + 1;
+            let mut current_len = STATIC_HEADER_LEN + 1; // 1 for the `/` separator
 
             if current_len > usize::MAX - target_dir_prefix.len() {
                 return Err(uefi::Status::OUT_OF_RESOURCES.into());
@@ -188,7 +198,7 @@ impl Cpio {
             return Err(uefi::Status::OUT_OF_RESOURCES.into());
         }
 
-        let current_len = 6 + 13 * 8 + 1;
+        let current_len = STATIC_HEADER_LEN;
         if current_len > usize::MAX - path.len() {
             return Err(uefi::Status::OUT_OF_RESOURCES.into());
         }
