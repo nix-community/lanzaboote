@@ -1,6 +1,6 @@
 use uefi::{prelude::BootServices, table::boot::ScopedProtocol, proto::tcg::{v1::{self, Sha1Digest}, v2, EventType, PcrIndex}};
 use core::mem::{self, MaybeUninit};
-use alloc::{vec, vec::Vec};
+use alloc::vec;
 
 fn open_capable_tpm2(boot_services: &BootServices) -> uefi::Result<ScopedProtocol<v2::Tcg>> {
     let tpm_handle = boot_services.get_handle_for_protocol::<v2::Tcg>()?;
