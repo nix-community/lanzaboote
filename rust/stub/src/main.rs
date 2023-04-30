@@ -308,8 +308,8 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         }
     }
 
-    let _ = initrd::export_pcr_efi_variables(initrds);
-
+    // Let's export any StubPcr EFI variable we might need.
+    let _ = initrd::export_pcr_efi_variables(&system_table.runtime_services(), initrds);
 
     if is_kernel_hash_correct && is_initrd_hash_correct {
         boot_linux_unchecked(
