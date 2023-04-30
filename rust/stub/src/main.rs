@@ -12,6 +12,7 @@ mod part_discovery;
 mod measure;
 mod unified_sections;
 mod tpm;
+mod cpio;
 
 use alloc::vec::Vec;
 use log::{info, warn, debug};
