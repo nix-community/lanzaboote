@@ -39,7 +39,7 @@ pub unsafe fn measure_image(
             &SD_LOADER,
             VariableAttributes::from_bits_truncate(0x0),
             &TPM_PCR_INDEX_KERNEL_IMAGE.0.to_le_bytes()
-        );
+        )?;
     }
 
     Ok(measurements)
