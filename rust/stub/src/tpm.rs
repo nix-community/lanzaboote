@@ -36,7 +36,7 @@ fn open_capable_tpm1(boot_services: &BootServices) -> uefi::Result<ScopedProtoco
     Ok(tpm_protocol)
 }
 
-fn tpm_available(boot_services: &BootServices) -> bool {
+pub fn tpm_available(boot_services: &BootServices) -> bool {
     open_capable_tpm2(boot_services).is_ok() || open_capable_tpm1(boot_services).is_ok()
 }
 
