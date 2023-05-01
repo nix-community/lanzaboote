@@ -15,6 +15,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
+name = "bitflags"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24a6904aef64d73cf10ab17ebace7befb918b82164785cb89907993be7f83813"
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -83,6 +89,7 @@ dependencies = [
 name = "lanzaboote_stub"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.2.1",
  "goblin",
  "log",
  "sha2",
@@ -212,7 +219,7 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab39d5e7740f21ed4c46d6659f31038bbe3fe7a8be1f702d8a984348837c43b1"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "log",
  "ptr_meta",
  "ucs2",

@@ -8,6 +8,7 @@ mod linux_loader;
 mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
+mod devicetree;
 
 use alloc::vec::Vec;
 use log::{info, warn};
