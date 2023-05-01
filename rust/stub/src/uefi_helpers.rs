@@ -106,7 +106,8 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
     let stub_features: SystemdStubFeatures =
         SystemdStubFeatures::ReportBootPartition
         | SystemdStubFeatures::PickUpCredentials
-        | SystemdStubFeatures::PickUpSysExts;
+        | SystemdStubFeatures::PickUpSysExts
+        | SystemdStubFeatures::ThreePcrs;
 
     let loaded_image =
         boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
