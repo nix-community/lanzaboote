@@ -10,8 +10,8 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.70"
-clap = { version = "4.2.4", features = ["derive"] }
+anyhow = "1.0.71"
+clap = { version = "4.2.5", features = ["derive"] }
 goblin = "0.6.1"
 nix = { version = "0.26.2", default-features = false, features = [ "fs" ] }
 serde = { version = "1.0.160", features = ["derive"] }
