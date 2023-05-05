@@ -8,9 +8,10 @@ mod linux_loader;
 mod pe_loader;
 mod pe_section;
 mod uefi_helpers;
+mod efivars;
 
 use alloc::vec::Vec;
-use log::{info, warn};
+use log::{info, warn, debug};
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
@@ -22,6 +23,7 @@ use uefi::{
     },
     CStr16, CString16, Result,
 };
+use efivars::{EfiLoaderFeatures, export_efi_variables, get_loader_features};
 
 use crate::{
     linux_loader::InitrdLoader,
@@ -235,6 +237,15 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     if !is_initrd_hash_correct {
         warn!("Hash mismatch for initrd!");
     }
+
+    if let Ok(features) = get_loader_features(system_table.runtime_services()) {
+        if !features.contains(EfiLoaderFeatures::RandomSeed) {
+            // FIXME: process random seed then on the disk.
+            debug!("Random seed is available, but lanzaboote does not support it yet.");
+        }
+    }
+    export_efi_variables(&system_table)
+        .expect("Failed to export stub EFI variables");
 
     if is_kernel_hash_correct && is_initrd_hash_correct {
         boot_linux_unchecked(
