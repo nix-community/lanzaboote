@@ -11,15 +11,15 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.71"
-clap = { version = "4.2.5", features = ["derive"] }
+clap = { version = "4.2.7", features = ["derive"] }
 goblin = "0.6.1"
 nix = { version = "0.26.2", default-features = false, features = [ "fs" ] }
-serde = { version = "1.0.160", features = ["derive"] }
+serde = { version = "1.0.162", features = ["derive"] }
 serde_json = "1.0.96"
 tempfile = "3.5.0"
-bootspec = "0.1.0"
+bootspec = "0.2.0"
 walkdir = "2.3.3"
-time = "0.3.20"
+time = "0.3.21"
 sha2 = "0.10.6"
 # Keep the fastrand version aligned with the one from tempfile to avoid two
 # different versions.
