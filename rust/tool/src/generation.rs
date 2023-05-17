@@ -4,9 +4,9 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use bootspec::BootSpec;
-use bootspec::BootJson;
 use bootspec::generation::Generation as BootspecGeneration;
+use bootspec::BootJson;
+use bootspec::BootSpec;
 use bootspec::SpecialisationName;
 use time::Date;
 
@@ -55,7 +55,7 @@ impl Generation {
         // TODO: replace me when https://github.com/DeterminateSystems/bootspec/pull/109 lands.
         let bootspec: BootSpec = match boot_json.generation {
             BootspecGeneration::V1(bootspec) => bootspec,
-            _ => return Err(anyhow!("Unsupported bootspec schema"))
+            _ => return Err(anyhow!("Unsupported bootspec schema")),
         };
 
         Ok(Self {
@@ -104,7 +104,8 @@ impl fmt::Display for Generation {
 }
 
 fn read_build_time(path: &Path) -> Result<Date> {
-    let build_time = time::OffsetDateTime::from_unix_timestamp(fs::symlink_metadata(path)?.mtime())?.date();
+    let build_time =
+        time::OffsetDateTime::from_unix_timestamp(fs::symlink_metadata(path)?.mtime())?.date();
     Ok(build_time)
 }
 
