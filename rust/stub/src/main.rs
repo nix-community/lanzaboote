@@ -21,19 +21,9 @@ use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
 use tpm::tpm_available;
-use uefi::{
-    prelude::*,
-    proto::{
-        loaded_image::LoadedImage,
-        media::file::{File, FileAttribute, FileMode},
-    },
-    CStr16, CString16, Result,
-};
+use uefi::{prelude::*, proto::loaded_image::LoadedImage, CStr16, CString16, Result};
 
-use crate::{
-    linux_loader::InitrdLoader,
-    uefi_helpers::{booted_image_file, read_all},
-};
+use crate::{linux_loader::InitrdLoader, uefi_helpers::booted_image_file};
 
 type Hash = sha2::digest::Output<Sha256>;
 
@@ -127,7 +117,7 @@ fn boot_linux_unchecked(
     let status = unsafe { kernel.start(handle, &system_table, kernel_cmdline) };
 
     initrd_loader.uninstall(system_table.boot_services())?;
-    status.into()
+    status.to_result()
 }
 
 /// Boot the Linux kernel via the UEFI PE loader.
@@ -173,7 +163,7 @@ fn boot_linux_uefi(
         .status();
 
     initrd_loader.uninstall(system_table.boot_services())?;
-    status.into()
+    status.to_result()
 }
 
 #[entry]
@@ -203,33 +193,13 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             .boot_services()
             .get_image_file_system(handle)
             .expect("Failed to get file system handle");
-        let mut root = file_system
-            .open_volume()
-            .expect("Failed to find ESP root directory");
 
-        let mut kernel_file = root
-            .open(
-                &config.kernel_filename,
-                FileMode::Read,
-                FileAttribute::empty(),
-            )
-            .expect("Failed to open kernel file for reading")
-            .into_regular_file()
-            .expect("Kernel is not a regular file");
-
-        kernel_data = read_all(&mut kernel_file).expect("Failed to read kernel file into memory");
-
-        let mut initrd_file = root
-            .open(
-                &config.initrd_filename,
-                FileMode::Read,
-                FileAttribute::empty(),
-            )
-            .expect("Failed to open initrd for reading")
-            .into_regular_file()
-            .expect("Initrd is not a regular file");
-
-        initrd_data = read_all(&mut initrd_file).expect("Failed to read kernel file into memory");
+        kernel_data = file_system
+            .read(&*config.kernel_filename)
+            .expect("Failed to read kernel file into memory");
+        initrd_data = file_system
+            .read(&*config.initrd_filename)
+            .expect("Failed to read initrd file into memory");
     }
 
     let is_kernel_hash_correct = Sha256::digest(&kernel_data) == config.kernel_hash;

@@ -1,29 +1,6 @@
 use core::ffi::c_void;
 
-use alloc::vec::Vec;
-use uefi::{
-    prelude::BootServices,
-    proto::{loaded_image::LoadedImage, media::file::RegularFile},
-    Result,
-};
-
-/// Read the whole file into a vector.
-pub fn read_all(file: &mut RegularFile) -> Result<Vec<u8>> {
-    let mut buf = Vec::new();
-
-    loop {
-        let mut chunk = [0; 512];
-        let read_bytes = file.read(&mut chunk).map_err(|e| e.status())?;
-
-        if read_bytes == 0 {
-            break;
-        }
-
-        buf.extend_from_slice(&chunk[0..read_bytes]);
-    }
-
-    Ok(buf)
-}
+use uefi::{prelude::BootServices, proto::loaded_image::LoadedImage, Result};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PeInMemory {
