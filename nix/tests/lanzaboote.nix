@@ -3,33 +3,127 @@
 }:
 
 let
-  inherit (pkgs) lib;
+  inherit (pkgs) lib system;
 
-  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, testScript }: pkgs.nixosTest {
-    inherit name testScript;
-    nodes.machine = { lib, ... }: {
-      imports = [
-        lanzabooteModule
-        machine
-      ];
-
-      virtualisation = {
-        useBootLoader = true;
-        useEFIBoot = true;
-
-        inherit useSecureBoot;
+  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, useTPM2 ? false, readEfiVariables ? false, testScript }:
+    let
+      tpmSocketPath = "/tmp/swtpm-sock";
+      tpmDeviceModels = {
+        x86_64-linux = "tpm-tis";
+        aarch64-linux = "tpm-tis-device";
       };
+      # Should go to nixpkgs.
+      efiVariablesHelpers = ''
+        import struct
 
-      boot.loader.efi = {
-        canTouchEfiVariables = true;
-      };
-      boot.lanzaboote = {
-        enable = true;
-        enrollKeys = lib.mkDefault true;
-        pkiBundle = ./fixtures/uefi-keys;
+        SD_LOADER_GUID = "4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+        def read_raw_variable(var: str) -> bytes:
+            attr_var = machine.succeed(f"cat /sys/firmware/efi/efivars/{var}-{SD_LOADER_GUID}").encode('raw_unicode_escape')
+            _ = attr_var[:4] # First 4 bytes are attributes according to https://www.kernel.org/doc/html/latest/filesystems/efivarfs.html
+            value = attr_var[4:]
+            return value
+        def read_string_variable(var: str, encoding='utf-16-le') -> str:
+            return read_raw_variable(var).decode(encoding).rstrip('\x00')
+        # By default, it will read a 4 byte value, read `struct` docs to change the format.
+        def assert_variable_uint(var: str, expected: int, format: str = 'I'):
+            with subtest(f"Is `{var}` set to {expected} (uint)"):
+              value, = struct.unpack(f'<{format}', read_raw_variable(var))
+              assert value == expected, f"Unexpected variable value in `{var}`, expected: `{expected}`, actual: `{value}`"
+        def assert_variable_string(var: str, expected: str, encoding='utf-16-le'):
+            with subtest(f"Is `{var}` correctly set"):
+                value = read_string_variable(var, encoding)
+                assert value == expected, f"Unexpected variable value in `{var}`, expected: `{expected.encode(encoding)!r}`, actual: `{value.encode(encoding)!r}`"
+        def assert_variable_string_contains(var: str, expected_substring: str):
+            with subtest(f"Do `{var}` contain expected substrings"):
+                value = read_string_variable(var).strip()
+                assert expected_substring in value, f"Did not find expected substring in `{var}`, expected substring: `{expected_substring}`, actual value: `{value}`"
+      '';
+      tpm2Initialization = ''
+        import subprocess
+        from tempfile import TemporaryDirectory
+
+        # From systemd-initrd-luks-tpm2.nix
+        class Tpm:
+            def __init__(self):
+                self.state_dir = TemporaryDirectory()
+                self.start()
+
+            def start(self):
+                self.proc = subprocess.Popen(["${pkgs.swtpm}/bin/swtpm",
+                    "socket",
+                    "--tpmstate", f"dir={self.state_dir.name}",
+                    "--ctrl", "type=unixio,path=${tpmSocketPath}",
+                    "--tpm2",
+                    ])
+
+                # Check whether starting swtpm failed
+                try:
+                    exit_code = self.proc.wait(timeout=0.2)
+                    if exit_code is not None and exit_code != 0:
+                        raise Exception("failed to start swtpm")
+                except subprocess.TimeoutExpired:
+                    pass
+
+            """Check whether the swtpm process exited due to an error"""
+            def check(self):
+                exit_code = self.proc.poll()
+                if exit_code is not None and exit_code != 0:
+                  raise Exception("swtpm process died")
+
+        tpm = Tpm()
+
+        @polling_condition
+        def swtpm_running():
+          tpm.check()
+      '';
+    in
+    pkgs.nixosTest {
+      inherit name;
+
+      testScript = ''
+        ${lib.optionalString useTPM2 tpm2Initialization}
+        ${lib.optionalString readEfiVariables efiVariablesHelpers}
+        ${testScript}
+      '';
+
+
+      nodes.machine = { lib, ... }: {
+        imports = [
+          lanzabooteModule
+          machine
+        ];
+
+        virtualisation = {
+          useBootLoader = true;
+          useEFIBoot = true;
+
+          efi.OVMF = pkgs.OVMF.override {
+            secureBoot = useSecureBoot;
+            tpmSupport = useTPM2; # This is needed otherwise OVMF won't initialize the TPM2 protocol.
+          };
+
+
+          qemu.options = lib.mkIf useTPM2 [
+            "-chardev socket,id=chrtpm,path=${tpmSocketPath}"
+            "-tpmdev emulator,id=tpm_dev_0,chardev=chrtpm"
+            "-device ${tpmDeviceModels.${system}},tpmdev=tpm_dev_0"
+          ];
+
+          inherit useSecureBoot;
+        };
+
+        boot.initrd.availableKernelModules = lib.mkIf useTPM2 [ "tpm_tis" ];
+
+        boot.loader.efi = {
+          canTouchEfiVariables = true;
+        };
+        boot.lanzaboote = {
+          enable = true;
+          enrollKeys = lib.mkDefault true;
+          pkiBundle = ./fixtures/uefi-keys;
+        };
       };
     };
-  };
 
   # Execute a boot test that has an intentionally broken secure boot
   # chain. This test is expected to fail with Secure Boot and should
@@ -271,9 +365,8 @@ in
   export-efi-variables = mkSecureBootTest {
     name = "lanzaboote-exports-efi-variables";
     machine.environment.systemPackages = [ pkgs.efibootmgr ];
+    readEfiVariables = true;
     testScript = ''
-      import struct
-
       # We will choose to boot directly on the stub.
       # To perform this trick, we will boot first with systemd-boot.
       # Then, we will add a new boot entry in EFI with higher priority
@@ -301,7 +394,6 @@ in
           "test -e /sys/firmware/efi/efivars/LoaderEntrySelected-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f && false || true"
       )
 
-      SD_LOADER_GUID = "4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
       expected_variables = ["LoaderDevicePartUUID",
         "LoaderImageIdentifier",
         "LoaderFirmwareInfo",
@@ -309,20 +401,6 @@ in
         "StubInfo",
         "StubFeatures"
       ]
-
-      def read_raw_variable(var: str) -> bytes:
-          attr_var = machine.succeed(f"cat /sys/firmware/efi/efivars/{var}-{SD_LOADER_GUID}").encode('raw_unicode_escape')
-          return attr_var[4:] # First 4 bytes are attributes according to https://www.kernel.org/doc/html/latest/filesystems/efivarfs.html
-      def read_string_variable(var: str, encoding='utf-16-le') -> str:
-          return read_raw_variable(var).decode(encoding).rstrip('\x00')
-      def assert_variable_string(var: str, expected: str, encoding='utf-16-le'):
-          with subtest(f"Is `{var}` correctly set"):
-              value = read_string_variable(var, encoding)
-              assert value == expected, f"Unexpected variable value in `{var}`, expected: `{expected.encode(encoding)!r}`, actual: `{value.encode(encoding)!r}`"
-      def assert_variable_string_contains(var: str, expected_substring: str):
-          with subtest(f"Do `{var}` contain expected substrings"):
-              value = read_string_variable(var).strip()
-              assert expected_substring in value, f"Did not find expected substring in `{var}`, expected substring: `{expected_substring}`, actual value: `{value}`"
 
       # Debug all systemd loader specification GUID EFI variables loaded by the current environment.
       print(machine.succeed(f"ls /sys/firmware/efi/efivars/*-{SD_LOADER_GUID}"))
@@ -344,4 +422,28 @@ in
           assert struct.unpack('<Q', read_raw_variable("StubFeatures")) != 0
     '';
   };
+
+  tpm2-export-efi-variables = mkSecureBootTest {
+    name = "lanzaboote-tpm2-exports-efi-variables";
+    useTPM2 = true;
+    readEfiVariables = true;
+    testScript = ''
+      machine.start()
+
+      # TODO: the other variables are not yet supported.
+      expected_variables = [
+        "StubPcrKernelImage"
+      ]
+
+      # Debug all systemd loader specification GUID EFI variables loaded by the current environment.
+      print(machine.succeed(f"ls /sys/firmware/efi/efivars/*-{SD_LOADER_GUID}"))
+      with subtest("Check if supported variables are exported"):
+          for expected_var in expected_variables:
+            machine.succeed(f"test -e /sys/firmware/efi/efivars/{expected_var}-{SD_LOADER_GUID}")
+
+      # "Static" parts of the UKI is measured in PCR11
+      assert_variable_uint("StubPcrKernelImage", 11)
+    '';
+  };
+
 }

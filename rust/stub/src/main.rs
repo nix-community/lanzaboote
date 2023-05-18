@@ -6,16 +6,21 @@ extern crate alloc;
 
 mod efivars;
 mod linux_loader;
+mod measure;
 mod pe_loader;
 mod pe_section;
+mod tpm;
 mod uefi_helpers;
+mod unified_sections;
 
 use alloc::vec::Vec;
 use efivars::{export_efi_variables, get_loader_features, EfiLoaderFeatures};
-use log::{debug, info, warn};
+use log::{info, warn};
+use measure::measure_image;
 use pe_loader::Image;
 use pe_section::{pe_section, pe_section_as_string};
 use sha2::{Digest, Sha256};
+use tpm::tpm_available;
 use uefi::{
     prelude::*,
     proto::{
@@ -238,10 +243,26 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         warn!("Hash mismatch for initrd!");
     }
 
+    if tpm_available(system_table.boot_services()) {
+        info!("TPM available, will proceed to measurements.");
+        unsafe {
+            // Iterate over unified sections and measure them
+            // For now, ignore failures during measurements.
+            // TODO: in the future, devise a threat model where this can fail
+            // and ensure this hard-fail correctly.
+            let _ = measure_image(
+                &system_table,
+                booted_image_file(system_table.boot_services()).unwrap(),
+            );
+            // TODO: Measure kernel parameters
+            // TODO: Measure sysexts
+        }
+    }
+
     if let Ok(features) = get_loader_features(system_table.runtime_services()) {
         if !features.contains(EfiLoaderFeatures::RandomSeed) {
             // FIXME: process random seed then on the disk.
-            debug!("Random seed is available, but lanzaboote does not support it yet.");
+            info!("Random seed is available, but lanzaboote does not support it yet.");
         }
     }
     export_efi_variables(&system_table).expect("Failed to export stub EFI variables");

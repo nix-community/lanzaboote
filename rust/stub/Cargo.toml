@@ -17,6 +17,8 @@ log = { version = "0.4.17", default-features = false, features = [ "max_level_in
 
 # Use software implementation because the UEFI target seems to need it.
 sha2 = { version = "0.10.6", default-features = false, features = ["force-soft"] }
+# SHA1 for TPM TCG interface version 1.
+sha1_smol = "1.0.0"
 
 [profile.release]
 opt-level = "s"
