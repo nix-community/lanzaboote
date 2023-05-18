@@ -215,6 +215,7 @@
                 pkgs.qemu
                 pkgs.nixpkgs-fmt
                 pkgs.statix
+                pkgs.cargo-release
               ];
 
             inputsFrom = [

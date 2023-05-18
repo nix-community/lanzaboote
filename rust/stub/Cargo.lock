@@ -87,7 +87,7 @@ dependencies = [
 
 [[package]]
 name = "lanzaboote_stub"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "bitflags 2.2.1",
  "goblin",
