@@ -124,6 +124,8 @@
                 inherit cargoArtifacts;
                 cargoClippyExtraArgs = "-- --deny warnings";
               });
+
+              rustfmt = craneLib.cargoFmt (commonArgs // { inherit cargoArtifacts; });
             };
 
           stubCrane = buildRustApp {
@@ -174,6 +176,8 @@
           checks = {
             toolClippy = toolCrane.clippy;
             stubClippy = stubCrane.clippy;
+            toolFmt = toolCrane.rustfmt;
+            stubFmt = stubCrane.rustfmt;
           } // (import ./nix/tests/lanzaboote.nix {
             inherit pkgs;
             lanzabooteModule = self.nixosModules.lanzaboote;
