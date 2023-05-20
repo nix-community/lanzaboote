@@ -122,7 +122,6 @@ impl InitrdLoader {
         let mut proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             initrd_data,
-            _no_send_or_sync: Default::default(),
         });
 
         // Linux finds the right handle by looking for something that
