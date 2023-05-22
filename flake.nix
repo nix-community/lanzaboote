@@ -59,6 +59,17 @@
         }
       );
 
+      flake.nixosModules.uki = moduleWithSystem (
+        perSystem@{ config }:
+        { lib, ... }: {
+          imports = [
+            ./nix/modules/uki.nix
+          ];
+
+          boot.loader.uki.stub = lib.mkDefault "${perSystem.config.packages.fatStub}/bin/lanzaboote_stub.efi";
+        }
+      );
+
       systems = [
         "x86_64-linux"
 
@@ -81,7 +92,7 @@
           craneLib = crane.lib.x86_64-linux.overrideToolchain uefi-rust-stable;
 
           # Build attributes for a Rust application.
-          buildRustApp =
+          buildRustApp = lib.makeOverridable (
             { src
             , target ? null
             , doCheck ? true
@@ -126,7 +137,8 @@
               });
 
               rustfmt = craneLib.cargoFmt (commonArgs // { inherit cargoArtifacts; });
-            };
+            }
+          );
 
           stubCrane = buildRustApp {
             src = craneLib.cleanCargoSource ./rust/stub;
@@ -134,7 +146,14 @@
             doCheck = false;
           };
 
+          fatStubCrane = stubCrane.override {
+            extraArgs = {
+              cargoExtraArgs = "--no-default-features --features fat";
+            };
+          };
+
           stub = stubCrane.package;
+          fatStub = fatStubCrane.package;
 
           toolCrane = buildRustApp {
             src = ./rust/tool;
@@ -164,7 +183,7 @@
         in
         {
           packages = {
-            inherit stub;
+            inherit stub fatStub;
             tool = wrappedTool;
             lzbt = wrappedTool;
           };
@@ -173,15 +192,27 @@
             inherit (config.packages) tool;
           };
 
-          checks = {
-            toolClippy = toolCrane.clippy;
-            stubClippy = stubCrane.clippy;
-            toolFmt = toolCrane.rustfmt;
-            stubFmt = stubCrane.rustfmt;
-          } // (import ./nix/tests/lanzaboote.nix {
-            inherit pkgs;
-            lanzabooteModule = self.nixosModules.lanzaboote;
-          });
+          checks =
+            let
+              nixosLib = import (pkgs.path + "/nixos/lib") { };
+              runTest = module: nixosLib.runTest {
+                imports = [ module ];
+                hostPkgs = pkgs;
+              };
+            in
+            {
+              toolClippy = toolCrane.clippy;
+              stubClippy = stubCrane.clippy;
+              fatStubClippy = fatStubCrane.clippy;
+              toolFmt = toolCrane.rustfmt;
+              stubFmt = stubCrane.rustfmt;
+            } // (import ./nix/tests/lanzaboote.nix {
+              inherit pkgs;
+              lanzabooteModule = self.nixosModules.lanzaboote;
+            }) // (import ./nix/tests/stub.nix {
+              inherit pkgs runTest;
+              ukiModule = self.nixosModules.uki;
+            });
 
           pre-commit = {
             check.enable = true;
@@ -193,9 +224,17 @@
           };
 
           devShells.default = pkgs.mkShell {
-            shellHook = ''
-              ${config.pre-commit.installationScript}
-            '';
+            shellHook =
+              let
+                systemdUkify = pkgs.systemdMinimal.override {
+                  withEfi = true;
+                  withUkify = true;
+                };
+              in
+              ''
+                ${config.pre-commit.installationScript}
+                export PATH=$PATH:${systemdUkify}/lib/systemd
+              '';
 
             packages =
               let

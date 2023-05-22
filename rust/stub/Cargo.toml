@@ -16,9 +16,14 @@ bitflags = "2.2.1"
 log = { version = "0.4.17", default-features = false, features = [ "max_level_info", "release_max_level_warn" ]}
 
 # Use software implementation because the UEFI target seems to need it.
-sha2 = { version = "0.10.6", default-features = false, features = ["force-soft"] }
+sha2 = { version = "0.10.6", default-features = false, features = ["force-soft"], optional = true }
 # SHA1 for TPM TCG interface version 1.
 sha1_smol = "1.0.0"
+
+[features]
+default = [ "thin" ]
+thin = ["dep:sha2"]
+fat = []
 
 [profile.release]
 opt-level = "s"
