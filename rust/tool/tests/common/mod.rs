@@ -182,7 +182,8 @@ pub fn remove_signature(path: &Path) -> Result<()> {
     let output = Command::new("sbattach")
         .arg("--remove")
         .arg(path.as_os_str())
-        .output()?;
+        .output()
+        .context("Failed to run sbattach. Most likely, the binary is not on PATH.")?;
     print!("{}", String::from_utf8(output.stdout)?);
     print!("{}", String::from_utf8(output.stderr)?);
     Ok(())
@@ -194,7 +195,8 @@ pub fn verify_signature(path: &Path) -> Result<bool> {
         .arg(path.as_os_str())
         .arg("--cert")
         .arg("tests/fixtures/uefi-keys/db.pem")
-        .output()?;
+        .output()
+        .context("Failed to run sbverify. Most likely, the binary is not on PATH.")?;
     print!("{}", String::from_utf8(output.stdout)?);
     print!("{}", String::from_utf8(output.stderr)?);
     Ok(output.status.success())

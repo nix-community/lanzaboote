@@ -29,7 +29,10 @@ impl KeyPair {
             to.as_os_str().to_owned(),
         ];
 
-        let output = Command::new("sbsign").args(&args).output()?;
+        let output = Command::new("sbsign")
+            .args(&args)
+            .output()
+            .context("Failed to run sbsign. Most likely, the binary is not on PATH.")?;
 
         if !output.status.success() {
             std::io::stderr()
@@ -50,10 +53,10 @@ impl KeyPair {
             path.as_os_str().to_owned(),
         ];
 
-        let output = match Command::new("sbverify").args(&args).output() {
-            Ok(output) => output,
-            Err(_) => return false,
-        };
+        let output = Command::new("sbverify")
+            .args(&args)
+            .output()
+            .expect("Failed to run sbverify. Most likely, the binary is not on PATH.");
 
         if !output.status.success() {
             if std::io::stderr().write_all(&output.stderr).is_err() {
