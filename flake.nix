@@ -140,7 +140,7 @@
             src = ./rust/tool;
             extraArgs = {
               TEST_SYSTEMD = pkgs.systemd;
-              checkInputs = with pkgs; [
+              nativeCheckInputs = with pkgs; [
                 binutils-unwrapped
                 sbsigntool
               ];
