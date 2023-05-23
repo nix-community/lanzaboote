@@ -71,7 +71,7 @@ fn wrap_in_pe(stub: &Path, sections: Vec<Section>, output: &Path) -> Result<()> 
     let status = Command::new("objcopy")
         .args(&args)
         .status()
-        .context("Failed to run objcopy command")?;
+        .context("Failed to run objcopy. Most likely, the binary is not on PATH.")?;
     if !status.success() {
         return Err(anyhow::anyhow!(
             "Failed to wrap in pe with args `{:?}`",
