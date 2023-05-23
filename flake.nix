@@ -1,5 +1,5 @@
 {
-  description = "Lanzaboot Secure Boot Madness";
+  description = "Lanzaboote: Secure Boot for NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
