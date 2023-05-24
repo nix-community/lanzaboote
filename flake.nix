@@ -1,5 +1,5 @@
 {
-  description = "Lanzaboot Secure Boot Madness";
+  description = "Lanzaboote: Secure Boot for NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
@@ -140,7 +140,7 @@
             src = ./rust/tool;
             extraArgs = {
               TEST_SYSTEMD = pkgs.systemd;
-              checkInputs = with pkgs; [
+              nativeCheckInputs = with pkgs; [
                 binutils-unwrapped
                 sbsigntool
               ];
