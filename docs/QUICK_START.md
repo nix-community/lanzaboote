@@ -269,11 +269,13 @@ entry in the systemd-boot boot menu. Once you are in the BIOS menu:
 2. Select the "Secure Boot" entry.
 3. Set "Secure Boot" to enabled.
 4. Select "Reset to Setup Mode".
-5. Select "Clear All Secure Boot Keys".
 
 When you are done, press F10 to save and exit.
 
 You can see these steps as a video [here](https://www.youtube.com/watch?v=aLuCAh7UzzQ).
+
+> ⚠️ Do not select "Clear All Secure Boot Keys" as it will drop the Forbidden
+> Signature Database (dbx).
 
 ### Enrolling Keys
 
@@ -288,8 +290,14 @@ With vendor keys from microsoft...✓
 Enrolled keys to the EFI variables!
 ```
 
+> ⚠️ During boot, some hardware might include OptionROMs signed with
+> Microsoft keys.
+> By using the `--microsoft`, we enroll the Microsoft OEM certificates.
+> Another more experimental option would be to enroll OptionROMs checksum seen
+> at last boot using `--tpm-eventlog`, but these checksums might change later.
+
 You can now reboot your system. After you've booted, Secure Boot is
-activated:
+activated and in user mode:
 
 ```console
 $ bootctl status
@@ -300,6 +308,14 @@ System:
   TPM2 Support: yes
   Boot into FW: supported
 ```
+
+> ⚠️  If you used `--microsoft` while enrolling the keys, you might want
+> to check that the Secure Boot Forbidden Signature Database (dbx) is not
+> empty.
+> A quick and dirty way is by checking the file size of
+> `/sys/firmware/efi/efivars/dbx-*`.
+> Keeping an up to date dbx reduces Secure Boot bypasses, see for example:
+> <https://uefi.org/sites/default/files/resources/dbx_release_info.pdf>.
 
 That's all! 🥳
 
