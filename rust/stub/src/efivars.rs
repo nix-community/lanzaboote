@@ -142,7 +142,7 @@ where
         runtime_services.set_variable(name, vendor, attributes, &get_fallback_value()?)?;
     }
 
-    Ok(())
+    uefi::Status::SUCCESS.into()
 }
 
 /// Exports systemd-stub style EFI variables

@@ -7,8 +7,8 @@ publish = false
 rust-version = "1.68"
 
 [dependencies]
-uefi = { version = "0.21.0", default-features = false, features = [ "alloc", "global_allocator" ] }
-uefi-services = { version = "0.18.0", default-features = false, features = [ "panic_handler", "logger" ] }
+uefi = { version = "0.20.0", default-features = false, features = [ "alloc", "global_allocator" ] }
+uefi-services = { version = "0.17.0", default-features = false, features = [ "panic_handler", "logger" ] }
 goblin = { version = "0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
 bitflags = "2.3.1"
 
