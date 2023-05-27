@@ -97,9 +97,14 @@ binary is placed in `/run` that fwupd will use.
 
 ## State of Upstreaming to Nixpkgs
 
-Secure Boot is available as an Nixpkgs out-of-tree feature using the
-[bootspec feature preview](https://github.com/NixOS/rfcs/pull/125). It
-works with current nixpkgs-unstable.
+SecureBoot is available by adding this project to your configuration.
+
+It relies on [bootspec](https://github.com/NixOS/rfcs/pull/125)
+which is enabled by default since NixOS 23.05.
+```.
+
+An optimistic plan is to have a "in-tree" feature preview of Lanzaboote as part
+of NixOS 23.11.
 
 ## Funding
 
