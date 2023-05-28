@@ -62,12 +62,14 @@
           uefiPkgs = import nixpkgs {
             inherit system;
             crossSystem = {
-              config = "${pkgs.hostPlatform.linuxArch}-windows";
-              rustc.config = "${pkgs.hostPlatform.linuxArch}-unknown-uefi";
+              # linuxArch is wrong here, it will yield arm64 instead of aarch64.
+              config = "${pkgs.hostPlatform.qemuArch}-windows";
+              rustc.config = "${pkgs.hostPlatform.qemuArch}-unknown-uefi";
               libc = null;
               useLLVM = true;
             };
           };
+          utils = import ./nix/packages/utils.nix;
 
           inherit (pkgs) lib;
 
@@ -100,26 +102,28 @@
 
           overlayAttrs = { inherit (config.packages) tool; };
 
-          checks = let
-            nixosLib = import (pkgs.path + "/nixos/lib") { };
-            runTest = module:
-              nixosLib.runTest {
-                imports = [ module ];
-                hostPkgs = pkgs;
-              };
-          in {
-            toolFmt = (tool.override { enableFmt = true; });
-            stubFmt = (stub.override { enableFmt = true; });
-            toolClippy = (tool.override { enableLint = true; });
-            stubClippy = (stub.override { enableLint = true; });
-            fatStubClippy = (fatStub.override { enableLint = true; });
-          } // (import ./nix/tests/lanzaboote.nix {
-            inherit pkgs;
-            lanzabooteModule = self.nixosModules.lanzaboote;
-          }) // (import ./nix/tests/stub.nix {
-            inherit pkgs runTest;
-            ukiModule = self.nixosModules.uki;
-          });
+          checks =
+            let
+              nixosLib = import (pkgs.path + "/nixos/lib") { };
+              runTest = module:
+                nixosLib.runTest {
+                  imports = [ module ];
+                  hostPkgs = pkgs;
+                };
+            in
+            {
+              stubFmt = uefiPkgs.callPackage (utils.rustfmt stub) { };
+              toolFmt = pkgs.callPackage (utils.rustfmt tool) { };
+              toolClippy = pkgs.callPackage (utils.clippy tool) { };
+              stubClippy = uefiPkgs.callPackage (utils.clippy stub) { };
+              fatStubClippy = uefiPkgs.callPackage (utils.clippy fatStub) { };
+            } // (import ./nix/tests/lanzaboote.nix {
+              inherit pkgs;
+              lanzabooteModule = self.nixosModules.lanzaboote;
+            }) // (import ./nix/tests/stub.nix {
+              inherit pkgs runTest;
+              ukiModule = self.nixosModules.uki;
+            });
 
           pre-commit = {
             check.enable = true;
