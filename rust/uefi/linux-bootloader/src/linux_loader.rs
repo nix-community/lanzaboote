@@ -8,42 +8,31 @@
 use core::{ffi::c_void, pin::Pin, ptr::slice_from_raw_parts_mut};
 
 use alloc::{boxed::Box, vec::Vec};
+use uefi::proto::device_path::build;
+use uefi::proto::device_path::build::DevicePathBuilder;
 use uefi::{
+    guid,
     prelude::BootServices,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
         unsafe_protocol,
     },
-    Handle, Identify, Result, ResultExt, Status,
+    Guid, Handle, Identify, Result, ResultExt, Status,
 };
 
-/// The Linux kernel's initrd loading device path.
+/// The GUID of the INITRD EFI protocol of Linux.
+const LINUX_EFI_INITRD_MEDIA_GUID: Guid = guid!("5568e427-68fc-4f3d-ac74-ca555231cc68");
+
+/// Stores the device path that is build by [`build_linux_initrd_device_path`]
+/// during runtime.
 ///
-/// The Linux kernel points us to
-/// [u-boot](https://github.com/u-boot/u-boot/commit/ec80b4735a593961fe701cc3a5d717d4739b0fd0#diff-1f940face4d1cf74f9d2324952759404d01ee0a81612b68afdcba6b49803bdbbR28)
-/// for documentation.
-// XXX This should actually be something like:
-// static const struct {
-// 	struct efi_vendor_dev_path	vendor;
-// 	struct efi_generic_dev_path	end;
-// } __packed initrd_dev_path = {
-// 	{
-// 		{
-// 			EFI_DEV_MEDIA,
-// 			EFI_DEV_MEDIA_VENDOR,
-// 			sizeof(struct efi_vendor_dev_path),
-// 		},
-// 		LINUX_EFI_INITRD_MEDIA_GUID
-// 	}, {
-// 		EFI_DEV_END_PATH,
-// 		EFI_DEV_END_ENTIRE,
-// 		sizeof(struct efi_generic_dev_path)
-// 	}
-// };
-static mut DEVICE_PATH_PROTOCOL: [u8; 24] = [
-    0x04, 0x03, 0x14, 0x00, 0x27, 0xe4, 0x68, 0x55, 0xfc, 0x68, 0x3d, 0x4f, 0xac, 0x74, 0xca, 0x55,
-    0x52, 0x31, 0xcc, 0x68, 0x7f, 0xff, 0x04, 0x00,
-];
+/// # Safety
+/// - `OnceCell` is thread safe
+/// - The `static` lifetime is fine as the allocated backing memory is covered
+///   by the UEFI memory map. It remains valid even after exiting the boot
+///   services for the entire runtime of the system.
+static LINUX_INITRD_DEVICE_PATH: once_cell::race::OnceBox<&'static DevicePath> =
+    once_cell::race::OnceBox::new();
 
 /// The UEFI LoadFile2 protocol.
 ///
@@ -128,13 +117,17 @@ impl InitrdLoader {
         // Linux finds the right handle by looking for something that
         // implements the device path protocol for the specific device
         // path.
+        init_linux_initrd_device_path();
+
         unsafe {
-            let dp_proto: *mut u8 = DEVICE_PATH_PROTOCOL.as_mut_ptr();
+            let mut db_proto = Vec::new();
+            let db_proto = build_linux_initrd_device_path(&mut db_proto);
+            let dp_proto = db_proto.as_ffi_ptr().cast_mut().cast::<c_void>();
 
             boot_services.install_protocol_interface(
                 Some(handle),
                 &DevicePath::GUID,
-                dp_proto as *mut c_void,
+                dp_proto,
             )?;
 
             let lf_proto: *mut LoadFile2Protocol = proto.as_mut().get_mut();
@@ -157,12 +150,18 @@ impl InitrdLoader {
         // This should only be called once.
         assert!(self.registered);
 
+        let initrd_proto_dp_ptr = LINUX_INITRD_DEVICE_PATH
+            .get()
+            .unwrap()
+            .as_ffi_ptr()
+            .cast_mut()
+            .cast::<c_void>();
+
         unsafe {
-            let dp_proto: *mut u8 = &mut DEVICE_PATH_PROTOCOL[0];
             boot_services.uninstall_protocol_interface(
                 self.handle,
                 &DevicePath::GUID,
-                dp_proto as *mut c_void,
+                initrd_proto_dp_ptr,
             )?;
 
             let lf_proto: *mut LoadFile2Protocol = self.proto.as_mut().get_mut();
@@ -178,6 +177,43 @@ impl InitrdLoader {
 
         Ok(())
     }
+}
+
+/// Builds the device path for the LINUX_EFI_INITRD_MEDIA protocol.
+/// It is associated with the [`LINUX_EFI_INITRD_MEDIA_GUID`].
+/// The Linux kernel points us to [u-boot] for more documentation.
+///
+/// [u-boot]: https://github.com/u-boot/u-boot/commit/ec80b4735a593961fe701cc3a5d717d4739b0fd0#diff-1f940face4d1cf74f9d2324952759404d01ee0a81612b68afdcba6b49803bdbbR28
+fn build_linux_initrd_device_path(vec_buf: &mut Vec<u8>) -> &DevicePath {
+    DevicePathBuilder::with_vec(vec_buf)
+        .push(&build::media::Vendor {
+            vendor_guid: LINUX_EFI_INITRD_MEDIA_GUID,
+            vendor_defined_data: &[],
+        })
+        // Unwrap is fine as the vec grows to the required size automatically.
+        .unwrap()
+        .finalize()
+        // Unwrap is fine as the vec grows to the required size automatically.
+        .unwrap()
+}
+
+/// Initializes the global static [`LINUX_INITRD_DEVICE_PATH`].
+///
+/// Idempotent function.
+fn init_linux_initrd_device_path() {
+    if LINUX_INITRD_DEVICE_PATH.get().is_some() {
+        log::debug!("LINUX_INITRD_DEVICE_PATH already initialized");
+    }
+    let _ = LINUX_INITRD_DEVICE_PATH.get_or_init(|| {
+        let mut vec = Vec::new();
+        {
+            let _ = build_linux_initrd_device_path(&mut vec);
+        }
+        let device_path = vec.leak();
+        let device_path =
+            unsafe { core::mem::transmute::<&mut [u8], &'static DevicePath>(device_path) };
+        Box::new(device_path)
+    });
 }
 
 impl Drop for InitrdLoader {
