@@ -20,6 +20,9 @@ mod fat;
 #[cfg(feature = "thin")]
 mod thin;
 
+#[cfg(all(feature = "fat", feature = "thin"))]
+compile_error!("A thin and fat stub cannot be produced at the same time, disable either `thin` or `fat` feature");
+
 use efivars::{export_efi_variables, get_loader_features, EfiLoaderFeatures};
 use log::info;
 use measure::measure_image;
