@@ -2,6 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use lanzaboote_tool::architecture::Architecture;
+use lzbt_systemd::architecture::SystemdArchitectureExt;
 use tempfile::tempdir;
 
 mod common;
@@ -113,9 +115,15 @@ fn overwrite_unsigned_systemd_boot_binaries() -> Result<()> {
 }
 
 fn systemd_boot_path(esp: &tempfile::TempDir) -> PathBuf {
-    esp.path().join("EFI/systemd/systemd-bootx64.efi")
+    let arch = Architecture::from_nixos_system(TARGET_SYSTEM_DOUBLE).unwrap();
+    esp.path()
+        .join("EFI/systemd/")
+        .join(arch.systemd_filename())
 }
 
 fn systemd_boot_fallback_path(esp: &tempfile::TempDir) -> PathBuf {
-    esp.path().join("EFI/BOOT/BOOTX64.EFI")
+    let arch = Architecture::from_nixos_system(TARGET_SYSTEM_DOUBLE).unwrap();
+    esp.path()
+        .join("EFI/BOOT/")
+        .join(arch.efi_fallback_filename())
 }

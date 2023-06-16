@@ -156,6 +156,8 @@ pub fn lanzaboote_install(
         .env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("-vv")
         .arg("install")
+        .arg("--system")
+        .arg(TARGET_SYSTEM_DOUBLE)
         .arg("--systemd")
         .arg(test_systemd)
         .arg("--systemd-boot-loader-config")

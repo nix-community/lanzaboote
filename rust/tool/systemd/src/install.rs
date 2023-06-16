@@ -45,8 +45,8 @@ impl Installer {
         generation_links: Vec<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
-        let esp_paths = SystemdEspPaths::new(esp);
-        gc_roots.extend(esp_paths.iter());
+        let esp_paths = EspPaths::new(esp, target_arch);
+        gc_roots.extend(esp_paths.to_iter());
 
         Self {
             broken_gens: BTreeSet::new(),
