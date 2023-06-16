@@ -76,6 +76,7 @@ impl EspGenerationPaths {
     pub fn new<const N: usize, P: EspPaths<N>>(
         esp_paths: &P,
         generation: &Generation,
+        system: Architecture,
     ) -> Result<Self> {
         let bootspec = &generation.spec.bootspec.bootspec;
         let bootspec_system: Architecture = Architecture::from_nixos_system(&bootspec.system)?;

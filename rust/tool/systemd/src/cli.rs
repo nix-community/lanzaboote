@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+use crate::esp::Architecture;
 use crate::install;
 use lanzaboote_tool::signature::KeyPair;
 
@@ -30,6 +31,10 @@ enum Commands {
 
 #[derive(Parser)]
 struct InstallCommand {
+    /// Target system
+    #[arg(long)]
+    target_system: String,
+
     /// Systemd path
     #[arg(long)]
     systemd: PathBuf,
@@ -90,6 +95,7 @@ fn install(args: InstallCommand) -> Result<()> {
 
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
+        Architecture::from_nixos_system(&args.target_system)?,
         args.systemd,
         args.systemd_boot_loader_config,
         key_pair,

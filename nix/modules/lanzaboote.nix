@@ -104,6 +104,7 @@ in
         ''}
 
         ${cfg.package}/bin/lzbt install \
+          --system ${config.nixpkgs.hostPlatform.system} \
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${loaderConfigFile} \
           --public-key ${cfg.publicKeyFile} \
