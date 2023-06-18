@@ -212,14 +212,6 @@ Verifying file database and EFI images in /boot...
 It is expected that the files ending with `bzImage.efi` are _not_
 signed.
 
-🔪 **Sharp edge:** 🔪 In case any of the `nixos-generation-*.efi`
-files are not signed, you have hit a bug
-([#39](https://github.com/nix-community/lanzaboote/issues/39)).  This
-issue will prevent the system from booting successfully when Secure
-Boot is enabled. The way to solve this is **deleting** the unsigned
-files indicated by `sbctl` and switching to the configuration
-again. This will copy and sign the missing files.
-
 ## Part 2: Enabling Secure Boot
 
 Now that NixOS is ready for Secure Boot, we will setup the
