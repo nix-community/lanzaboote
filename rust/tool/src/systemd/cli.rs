@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-use crate::install;
-use crate::signature::KeyPair;
+use crate::systemd::install;
+use crate::common::signature::KeyPair;
 
 /// The default log level.
 ///

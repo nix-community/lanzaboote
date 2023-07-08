@@ -1,65 +1,29 @@
-use std::array::IntoIter;
-use std::path::{Path, PathBuf};
+use std::{path::{PathBuf, Path}, array::IntoIter};
 
 use anyhow::{Context, Result};
 
-use crate::generation::Generation;
+use crate::common::generation::Generation;
 
-/// Paths to the boot files that are not specific to a generation.
-pub struct EspPaths {
-    pub esp: PathBuf,
-    pub efi: PathBuf,
-    pub nixos: PathBuf,
-    pub linux: PathBuf,
-    pub efi_fallback_dir: PathBuf,
-    pub efi_fallback: PathBuf,
-    pub systemd: PathBuf,
-    pub systemd_boot: PathBuf,
-    pub loader: PathBuf,
-    pub systemd_boot_loader_config: PathBuf,
-}
-
-impl EspPaths {
-    pub fn new(esp: impl AsRef<Path>) -> Self {
-        let esp = esp.as_ref();
-        let efi = esp.join("EFI");
-        let efi_nixos = efi.join("nixos");
-        let efi_linux = efi.join("Linux");
-        let efi_systemd = efi.join("systemd");
-        let efi_efi_fallback_dir = efi.join("BOOT");
-        let loader = esp.join("loader");
-        let systemd_boot_loader_config = loader.join("loader.conf");
-
-        Self {
-            esp: esp.to_path_buf(),
-            efi,
-            nixos: efi_nixos,
-            linux: efi_linux,
-            efi_fallback_dir: efi_efi_fallback_dir.clone(),
-            efi_fallback: efi_efi_fallback_dir.join("BOOTX64.EFI"),
-            systemd: efi_systemd.clone(),
-            systemd_boot: efi_systemd.join("systemd-bootx64.efi"),
-            loader,
-            systemd_boot_loader_config,
-        }
-    }
-
+/// Generic ESP paths which can be specific to a bootloader
+// The const generics is necessary because:
+// (a) we cannot return Trait objects in trait definitions, see https://rust-lang.github.io/impl-trait-initiative/explainer/rpit_trait.html
+// (b) we cannot return std::slice::Iter<'_, PathBuf> because PathBuf is owned
+// (c) we cannot return std::slice::Iter<'_, &PathBuf> because then Item = &&PathBuf
+// (d) we cannot return std::slice::Iter<'_, Path> because Path is unsized
+// (e) we cannot return std::slice::Iter<'_, &Path> because then Item = &&Path
+// (f) we can bring an associated type `BorrowedIterator` and then because we want to return
+// borrows, Rust needs a lifetime and the struct cannot hold the borrow so you need to bring a
+// PhantomData<'a ()> inside the structure to keep the lifetime, this is needlessly complicated
+// when this solution ensures proper monomorphisation at a small complexity cost.
+pub trait EspPaths<const N: usize> {
+    /// Build an ESP path structure out of the ESP root directory
+    fn new(esp: impl AsRef<Path>) -> Self;
     /// Return the used file paths to store as garbage collection roots.
-    pub fn to_iter(&self) -> IntoIter<&PathBuf, 10> {
-        [
-            &self.esp,
-            &self.efi,
-            &self.nixos,
-            &self.linux,
-            &self.efi_fallback_dir,
-            &self.efi_fallback,
-            &self.systemd,
-            &self.systemd_boot,
-            &self.loader,
-            &self.systemd_boot_loader_config,
-        ]
-        .into_iter()
-    }
+    fn iter(&self) -> std::array::IntoIter<&PathBuf, N>;
+    /// Returns the path containing NixOS EFI binaries
+    fn nixos_path(&self) -> &Path;
+    /// Returns the path containing Linux EFI binaries
+    fn linux_path(&self) -> &Path;
 }
 
 /// Paths to the boot files of a specific generation.
@@ -70,21 +34,21 @@ pub struct EspGenerationPaths {
 }
 
 impl EspGenerationPaths {
-    pub fn new(esp_paths: &EspPaths, generation: &Generation) -> Result<Self> {
+    pub fn new<const N: usize, P: EspPaths<N>>(esp_paths: &P, generation: &Generation) -> Result<Self> {
         let bootspec = &generation.spec.bootspec.bootspec;
 
         Ok(Self {
             kernel: esp_paths
-                .nixos
+                .nixos_path()
                 .join(nixos_path(&bootspec.kernel, "bzImage")?),
-            initrd: esp_paths.nixos.join(nixos_path(
+            initrd: esp_paths.nixos_path().join(nixos_path(
                 bootspec
                     .initrd
                     .as_ref()
                     .context("Lanzaboote does not support missing initrd yet")?,
                 "initrd",
             )?),
-            lanzaboote_image: esp_paths.linux.join(generation_path(generation)),
+            lanzaboote_image: esp_paths.linux_path().join(generation_path(generation)),
         })
     }
 

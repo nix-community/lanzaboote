@@ -8,8 +8,8 @@ use anyhow::{Context, Result};
 use goblin::pe::PE;
 use tempfile::TempDir;
 
-use crate::esp::EspGenerationPaths;
-use crate::utils::{file_hash, tmpname, SecureTempDirExt};
+use crate::common::esp::EspGenerationPaths;
+use crate::common::utils::{file_hash, tmpname, SecureTempDirExt};
 
 /// Assemble a lanzaboote image.
 #[allow(clippy::too_many_arguments)]

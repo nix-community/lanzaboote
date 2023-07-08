@@ -5,8 +5,8 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 
-use crate::os_release::OsRelease;
-use crate::pe;
+use crate::common::os_release::OsRelease;
+use crate::common::pe;
 
 /// A systemd version.
 ///
