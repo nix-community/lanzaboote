@@ -124,7 +124,7 @@ may delete these entries in `/boot/loader/entries`.
 Add `lanzaboote` as a dependency of your niv project and track a stable release tag (https://github.com/nix-community/lanzaboote/releases).
 
 ```console
-$ niv add nix-community/lanzaboote -r v0.2.0 -v 0.2.0
+$ niv add nix-community/lanzaboote -r v0.3.0 -v 0.3.0
 Adding package lanzaboote
   Writing new sources file
 Done: Adding package lanzaboote
@@ -173,7 +173,7 @@ Boot stack.
   description = "A SecureBoot-enabled NixOS configurations";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable/0.3.0";
 
     lanzaboote = {
       url = "github:nix-community/lanzaboote";
