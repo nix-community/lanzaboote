@@ -1,4 +1,11 @@
 {
+  nixConfig.extra-substituters = [
+    "https://nix-community.cachix.org"
+  ];
+  nixConfig.extra-trusted-public-keys = [
+    "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+  ];
+
   description = "Lanzaboote: Secure Boot for NixOS";
 
   inputs = {
