@@ -20,7 +20,7 @@ const UEFI_PAGE_MASK: usize = (1 << UEFI_PAGE_BITS) - 1;
 fn make_instruction_cache_coherent(memory: &[u8]) {
     use core::arch::asm;
     // Minimum cache line size is 16 bits per the CSSIDR_EL0 format.
-    // For simplicity, we issue flushes in this stride unconditonally.
+    // For simplicity, we issue flushes in this stride unconditionally.
     const CACHE_LINE_SIZE: usize = 16;
 
     // The start address gets rounded down, while the end address gets rounded up.
