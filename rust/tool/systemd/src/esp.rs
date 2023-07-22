@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use crate::architecture::SystemdArchitectureExt;
+use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
 
 /// Paths to the boot files that are not specific to a generation.
@@ -18,7 +20,7 @@ pub struct SystemdEspPaths {
 }
 
 impl EspPaths<10> for SystemdEspPaths {
-    fn new(esp: impl AsRef<Path>) -> Self {
+    fn new(esp: impl AsRef<Path>, architecture: Architecture) -> Self {
         let esp = esp.as_ref();
         let efi = esp.join("EFI");
         let efi_nixos = efi.join("nixos");
@@ -34,9 +36,9 @@ impl EspPaths<10> for SystemdEspPaths {
             nixos: efi_nixos,
             linux: efi_linux,
             efi_fallback_dir: efi_efi_fallback_dir.clone(),
-            efi_fallback: efi_efi_fallback_dir.join("BOOTX64.EFI"),
+            efi_fallback: efi_efi_fallback_dir.join(architecture.efi_fallback_filename()),
             systemd: efi_systemd.clone(),
-            systemd_boot: efi_systemd.join("systemd-bootx64.efi"),
+            systemd_boot: efi_systemd.join(architecture.systemd_filename()),
             loader,
             systemd_boot_loader_config,
         }

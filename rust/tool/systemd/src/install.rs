@@ -10,9 +10,11 @@ use anyhow::{anyhow, Context, Result};
 use nix::unistd::syncfs;
 use tempfile::TempDir;
 
+use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
 use crate::version::SystemdVersion;
-use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths, Architecture};
+use lanzaboote_tool::architecture::Architecture;
+use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths};
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
@@ -45,8 +47,8 @@ impl Installer {
         generation_links: Vec<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
-        let esp_paths = EspPaths::new(esp, target_arch);
-        gc_roots.extend(esp_paths.to_iter());
+        let esp_paths = SystemdEspPaths::new(esp, arch);
+        gc_roots.extend(esp_paths.iter());
 
         Self {
             broken_gens: BTreeSet::new(),

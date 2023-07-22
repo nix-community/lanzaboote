@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-use crate::esp::Architecture;
 use crate::install;
+use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::signature::KeyPair;
 
 /// The default log level.
@@ -31,9 +31,9 @@ enum Commands {
 
 #[derive(Parser)]
 struct InstallCommand {
-    /// Target system
+    /// System for lanzaboote binaries, e.g. defines the EFI fallback path
     #[arg(long)]
-    target_system: String,
+    system: String,
 
     /// Systemd path
     #[arg(long)]
@@ -95,7 +95,7 @@ fn install(args: InstallCommand) -> Result<()> {
 
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
-        Architecture::from_nixos_system(&args.target_system)?,
+        Architecture::from_nixos_system(&args.system)?,
         args.systemd,
         args.systemd_boot_loader_config,
         key_pair,
