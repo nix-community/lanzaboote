@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::common::esp::EspPaths;
+use lanzaboote_tool::esp::EspPaths;
 
 /// Paths to the boot files that are not specific to a generation.
 /// Systemd variant
@@ -38,7 +38,7 @@ impl EspPaths<10> for SystemdEspPaths {
             systemd: efi_systemd.clone(),
             systemd_boot: efi_systemd.join("systemd-bootx64.efi"),
             loader,
-            systemd_boot_loader_config
+            systemd_boot_loader_config,
         }
     }
 
@@ -62,6 +62,7 @@ impl EspPaths<10> for SystemdEspPaths {
             &self.systemd_boot,
             &self.loader,
             &self.systemd_boot_loader_config,
-        ].into_iter()
+        ]
+        .into_iter()
     }
 }

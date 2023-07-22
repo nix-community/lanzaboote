@@ -3,7 +3,7 @@ use std::fmt;
 
 use anyhow::{Context, Result};
 
-use crate::common::generation::Generation;
+use crate::generation::Generation;
 
 /// An os-release file represented by a BTreeMap.
 ///

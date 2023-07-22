@@ -10,15 +10,15 @@ use anyhow::{anyhow, Context, Result};
 use nix::unistd::syncfs;
 use tempfile::TempDir;
 
-use crate::common::gc::Roots;
-use crate::common::generation::{Generation, GenerationLink};
-use crate::common::os_release::OsRelease;
-use crate::common::pe;
-use crate::common::signature::KeyPair;
-use crate::common::esp::{EspGenerationPaths, EspPaths};
-use crate::systemd::esp::SystemdEspPaths;
-use crate::systemd::version::SystemdVersion;
-use crate::common::utils::{file_hash, SecureTempDirExt};
+use crate::esp::SystemdEspPaths;
+use crate::version::SystemdVersion;
+use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths};
+use lanzaboote_tool::gc::Roots;
+use lanzaboote_tool::generation::{Generation, GenerationLink};
+use lanzaboote_tool::os_release::OsRelease;
+use lanzaboote_tool::pe;
+use lanzaboote_tool::signature::KeyPair;
+use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
 
 pub struct Installer {
     broken_gens: BTreeSet<u64>,
