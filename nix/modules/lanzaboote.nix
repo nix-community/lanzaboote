@@ -20,6 +20,16 @@ in
   options.boot.lanzaboote = {
     enable = mkEnableOption "Enable the LANZABOOTE";
 
+    backend = mkOption {
+      type = types.enum [ "extlinux-compatible" "systemd" ];
+      default = "systemd";
+      description = lib.mdDoc ''
+        Backend used by lanzaboote to install the system.
+
+        In the future, this option will be automated away.
+      '';
+    };
+
     enrollKeys = mkEnableOption "Automatic enrollment of the keys using sbctl";
 
     configurationLimit = mkOption {
@@ -107,28 +117,43 @@ in
       enable = true;
     };
     boot.loader.supportsInitrdSecrets = true;
-    boot.loader.external = {
-      enable = true;
-      installHook = pkgs.writeShellScript "bootinstall" ''
-        ${optionalString cfg.enrollKeys ''
-          mkdir -p /tmp/pki
-          cp -r ${cfg.pkiBundle}/* /tmp/pki
-          ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
-        ''}
+    boot.loader.external =
+      let
+        lzbtArgs = [
+          "install"
+          # Use the system from the kernel's hostPlatform because this should
+          # always, even in the cross compilation case, be the right system.
+          "--system"
+          config.boot.kernelPackages.stdenv.hostPlatform.system
+          "--public-key"
+          cfg.publicKeyFile
+          "--private-key"
+          cfg.privateKeyFile
+          "--configuration-limit"
+          (toString configurationLimit)
+        ] ++ lib.optionals (cfg.backend == "systemd") [
+          "--systemd"
+          config.systemd.package
+          "--systemd-boot-loader-config"
+          loaderConfigFile
+        ] ++ lib.optionals (cfg.backend == "extlinux-compatible") [
+        ] ++ [
+          config.boot.loader.efi.efiSysMountPoint
+          "/nix/var/nix/profiles/system-*-link"
+        ];
+      in
+      {
+        enable = true;
+        installHook = pkgs.writeShellScript "bootinstall" ''
+          ${optionalString cfg.enrollKeys ''
+            mkdir -p /tmp/pki
+            cp -r ${cfg.pkiBundle}/* /tmp/pki
+            ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
+          ''}
 
-        # Use the system from the kernel's hostPlatform because this should
-        # always, even in the cross compilation case, be the right system.
-        ${cfg.package}/bin/lzbt install \
-          --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
-          --systemd ${config.systemd.package} \
-          --systemd-boot-loader-config ${loaderConfigFile} \
-          --public-key ${cfg.publicKeyFile} \
-          --private-key ${cfg.privateKeyFile} \
-          --configuration-limit ${toString configurationLimit} \
-          ${config.boot.loader.efi.efiSysMountPoint} \
-          /nix/var/nix/profiles/system-*-link
-      '';
-    };
+          ${cfg.package}/bin/lzbt ${lib.concatStringsSep " " lzbtArgs}
+        '';
+      };
 
     systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
       # Tell fwupd to load its efi files from /run
