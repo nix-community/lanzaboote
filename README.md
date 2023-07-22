@@ -68,7 +68,7 @@ installs the UKI along with other required files to the
 ESP. `lzbt` is also aware of multiple NixOS generations and will
 sign all configurations that should be bootable.
 
-`lzbt` lives in `rust/tool`.
+`lzbt` lives in [`rust/tool`](rust/tool).
 
 ### Stub
 
@@ -94,7 +94,7 @@ replace it. The "thin" variant is the default, you can build it from the stub
 directory with `cargo build`. The "fat" variant needs to be enabled at build
 time with `cargo build --no-default-features --features fat`.
 
-The stub lives in `rust/stub`.
+The stub lives in [`rust/uefi/stub`](rust/uefi/stub).
 
 ### Fwupd
 
