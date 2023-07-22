@@ -510,13 +510,18 @@ dependencies = [
  "clap",
  "expect-test",
  "filetime",
+ "goblin",
  "indoc",
  "lanzaboote_tool",
  "log",
  "nix",
  "rand",
+ "serde",
+ "serde_json",
+ "sha2",
  "stderrlog",
  "tempfile",
+ "walkdir",
 ]
 
 [[package]]
