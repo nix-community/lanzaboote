@@ -9,16 +9,12 @@ rust-version = "1.68"
 [dependencies]
 uefi = { version = "0.24.0", default-features = false, features = [ "alloc", "global_allocator" ] }
 uefi-services = { version = "0.21.0", default-features = false, features = [ "panic_handler", "logger" ] }
-goblin = { version = "0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
-bitflags = "2.3.3"
-
 # Even in debug builds, we don't enable the debug logs, because they generate a lot of spam from goblin.
 log = { version = "0.4.19", default-features = false, features = [ "max_level_info", "release_max_level_warn" ]}
-
 # Use software implementation because the UEFI target seems to need it.
 sha2 = { version = "0.10.7", default-features = false, features = ["force-soft"], optional = true }
-# SHA1 for TPM TCG interface version 1.
-sha1_smol = "1.0.0"
+# Our linux-bootloader crate containing most of what we need
+linux-bootloader = { path = "../linux-bootloader" }
 
 [features]
 default = [ "thin" ]

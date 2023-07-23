@@ -5,14 +5,6 @@
 extern crate alloc;
 
 mod common;
-mod efivars;
-mod linux_loader;
-mod measure;
-mod pe_loader;
-mod pe_section;
-mod tpm;
-mod uefi_helpers;
-mod unified_sections;
 
 #[cfg(feature = "fat")]
 mod fat;
@@ -23,13 +15,15 @@ mod thin;
 #[cfg(all(feature = "fat", feature = "thin"))]
 compile_error!("A thin and fat stub cannot be produced at the same time, disable either `thin` or `fat` feature");
 
-use efivars::{export_efi_variables, get_loader_features, EfiLoaderFeatures};
+use linux_bootloader::efivars::{export_efi_variables, get_loader_features, EfiLoaderFeatures};
+use linux_bootloader::measure::measure_image;
+use linux_bootloader::tpm::tpm_available;
+use linux_bootloader::uefi_helpers::booted_image_file;
 use log::info;
-use measure::measure_image;
-use tpm::tpm_available;
 use uefi::prelude::*;
 
-use crate::uefi_helpers::booted_image_file;
+/// Lanzaboote stub name
+pub static STUB_NAME: &str = concat!("lanzastub ", env!("CARGO_PKG_VERSION"));
 
 /// Print the startup logo on boot.
 fn print_logo() {
@@ -54,18 +48,16 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     if tpm_available(system_table.boot_services()) {
         info!("TPM available, will proceed to measurements.");
-        unsafe {
-            // Iterate over unified sections and measure them
-            // For now, ignore failures during measurements.
-            // TODO: in the future, devise a threat model where this can fail
-            // and ensure this hard-fail correctly.
-            let _ = measure_image(
-                &system_table,
-                booted_image_file(system_table.boot_services()).unwrap(),
-            );
-            // TODO: Measure kernel parameters
-            // TODO: Measure sysexts
-        }
+        // Iterate over unified sections and measure them
+        // For now, ignore failures during measurements.
+        // TODO: in the future, devise a threat model where this can fail
+        // and ensure this hard-fail correctly.
+        let _ = measure_image(
+            &system_table,
+            booted_image_file(system_table.boot_services()).unwrap(),
+        );
+        // TODO: Measure kernel parameters
+        // TODO: Measure sysexts
     }
 
     if let Ok(features) = get_loader_features(system_table.runtime_services()) {
@@ -74,7 +66,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             info!("Random seed is available, but lanzaboote does not support it yet.");
         }
     }
-    export_efi_variables(&system_table).expect("Failed to export stub EFI variables");
+    export_efi_variables(STUB_NAME, &system_table).expect("Failed to export stub EFI variables");
 
     let status;
 

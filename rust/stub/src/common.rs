@@ -1,9 +1,9 @@
 use alloc::vec::Vec;
 use uefi::{prelude::*, CStr16, CString16, Result};
 
-use crate::linux_loader::InitrdLoader;
-use crate::pe_loader::Image;
-use crate::pe_section::pe_section_as_string;
+use linux_bootloader::linux_loader::InitrdLoader;
+use linux_bootloader::pe_loader::Image;
+use linux_bootloader::pe_section::pe_section_as_string;
 
 /// Extract a string, stored as UTF-8, from a PE section.
 pub fn extract_string(pe_data: &[u8], section: &str) -> Result<CString16> {

@@ -1,0 +1,24 @@
+[package]
+name = "linux-bootloader"
+version = "0.3.0"
+edition = "2021"
+publish = true
+license = "GPL-3.0-only"
+keywords = ["osdev", "linux", "bootloader"]
+categories = ["embedded", "hardware-support", "no-std", "os::linux-apis"]
+description = "Utilities to build Linux-based bootloaders"
+repository = "https://github.com/nix-community/lanzaboote/"
+
+[dependencies]
+uefi = { version = "0.24.0", default-features = false, features = [ "alloc", "global_allocator" ] }
+goblin = { version = "0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
+bitflags = "2.3.3"
+
+# Even in debug builds, we don't enable the debug logs, because they generate a lot of spam from goblin.
+log = { version = "0.4.19", default-features = false, features = [ "max_level_info", "release_max_level_warn" ]}
+
+# SHA1 for TPM TCG interface version 1.
+sha1_smol = "1.0.0"
+
+[badges]
+maintenance = { status = "actively-developed" }

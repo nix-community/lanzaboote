@@ -2,8 +2,8 @@ use alloc::vec::Vec;
 use uefi::{prelude::*, CString16, Result};
 
 use crate::common::{boot_linux_unchecked, extract_string};
-use crate::pe_section::pe_section;
-use crate::uefi_helpers::booted_image_file;
+use linux_bootloader::pe_section::pe_section;
+use linux_bootloader::uefi_helpers::booted_image_file;
 
 /// Extract bytes from a PE section.
 pub fn extract_bytes(pe_data: &[u8], section: &str) -> Result<Vec<u8>> {
