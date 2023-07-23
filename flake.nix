@@ -254,6 +254,7 @@
               pkgs.nixpkgs-fmt
               pkgs.statix
               pkgs.cargo-release
+              pkgs.cargo-machete
             ];
 
             inputsFrom = [
