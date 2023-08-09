@@ -80,9 +80,16 @@
 
           inherit (pkgs) lib;
 
-          stub = uefiPkgs.callPackage ./nix/packages/stub.nix { };
-          fatStub =
-            uefiPkgs.callPackage ./nix/packages/stub.nix { fatVariant = true; };
+          stub = uefiPkgs.callPackage ./nix/packages/stub.nix {
+            # cargo-auditable fails to build with: could not execute process .... No such file or directory (os error 2)
+            rustPlatform = uefiPkgs.makeRustPlatform {
+              inherit (uefiPkgs.buildPackages) rustc;
+              cargo = uefiPkgs.buildPackages.cargo.override {
+                auditable = false;
+              };
+            };
+          };
+          fatStub = stub.override { fatVariant = true; };
           tool = pkgs.callPackage ./nix/packages/tool.nix { };
 
           wrappedTool = pkgs.runCommand "lzbt"
