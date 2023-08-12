@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
+base32ct = { version = "0.2.0", features = ["alloc"] }
 stderrlog = "0.5.4"
 log = { version = "0.4.18", features = ["std"] }
 clap = { version = "4.3.1", features = ["derive"] }

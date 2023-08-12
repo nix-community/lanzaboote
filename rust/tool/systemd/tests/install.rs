@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+use base32ct::{Base32Unpadded, Encoding};
 use tempfile::{tempdir, TempDir};
 
 mod common;
@@ -67,7 +67,7 @@ fn overwrite_unsigned_images() -> Result<()> {
 }
 
 #[test]
-fn overwrite_unsigned_files() -> Result<()> {
+fn content_addressing_works() -> Result<()> {
     let esp = tempdir()?;
     let tmpdir = tempdir()?;
     let profiles = tempdir()?;
@@ -76,24 +76,21 @@ fn overwrite_unsigned_files() -> Result<()> {
     let generation_link = setup_generation_link_from_toplevel(&toplevel, profiles.path(), 1)?;
     let generation_links = vec![generation_link];
 
-    let kernel_hash_source = hash_file(&toplevel.join("kernel"));
-
-    let nixos_dir = esp.path().join("EFI/nixos");
-    let kernel_path = nixos_dir.join(nixos_path(toplevel.join("kernel"), "bzImage")?);
-
-    fs::create_dir_all(&nixos_dir)?;
-    fs::write(&kernel_path, b"Existing kernel")?;
-    let kernel_hash_existing = hash_file(&kernel_path);
+    let kernel_hash_source =
+        hash_file(&toplevel.join("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-6.1.1/kernel"));
 
     let output0 = common::lanzaboote_install(1, esp.path(), generation_links)?;
     assert!(output0.status.success());
 
-    let kernel_hash_overwritten = hash_file(&kernel_path);
+    let kernel_path = esp.path().join(format!(
+        "EFI/nixos/kernel-6.1.1-{}.efi",
+        Base32Unpadded::encode_string(&kernel_hash_source)
+    ));
 
-    // Assert existing kernel was overwritten.
-    assert_ne!(kernel_hash_existing, kernel_hash_overwritten);
-    // Assert overwritten kernel is the source kernel.
-    assert_eq!(kernel_hash_source, kernel_hash_overwritten);
+    // Implicitly assert that the content-addressed file actually exists.
+    let kernel_hash = hash_file(&kernel_path);
+    // Assert the written kernel is the source kernel.
+    assert_eq!(kernel_hash_source, kernel_hash);
 
     Ok(())
 }
@@ -101,21 +98,4 @@ fn overwrite_unsigned_files() -> Result<()> {
 fn image_path(esp: &TempDir, version: u64) -> PathBuf {
     esp.path()
         .join(format!("EFI/Linux/nixos-generation-{version}.efi"))
-}
-
-fn nixos_path(path: impl AsRef<Path>, name: &str) -> Result<PathBuf> {
-    let resolved = path
-        .as_ref()
-        .read_link()
-        .unwrap_or_else(|_| path.as_ref().into());
-
-    let parent_final_component = resolved
-        .parent()
-        .and_then(|x| x.file_name())
-        .and_then(|x| x.to_str())
-        .with_context(|| format!("Failed to extract final component from: {:?}", resolved))?;
-
-    let nixos_filename = format!("{}-{}.efi", parent_final_component, name);
-
-    Ok(PathBuf::from(nixos_filename))
 }

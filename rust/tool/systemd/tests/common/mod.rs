@@ -58,8 +58,9 @@ pub fn setup_generation_link_from_toplevel(
     let bootspec = json!({
         "org.nixos.bootspec.v1": {
           "init": format!("init-v{}", version),
-          "initrd": toplevel.join("initrd"),
-          "kernel": toplevel.join("kernel"),
+          // Normally, these are in the Nix store.
+          "initrd": toplevel.join("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-6.1.1/initrd"),
+          "kernel": toplevel.join("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-6.1.1/kernel"),
           "kernelParams": [
             "amd_iommu=on",
             "amd_iommu=pt",
@@ -96,10 +97,12 @@ pub fn setup_generation_link_from_toplevel(
 /// it (and when it goes out of scope).
 pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     let system = Architecture::from_nixos_system(SYSTEM)?;
+
     // Generate a random toplevel name so that multiple toplevel paths can live alongside each
     // other in the same directory.
     let toplevel = tmpdir.join(format!("toplevel-{}", random_string(8)));
-    fs::create_dir(&toplevel)?;
+    let fake_store_path = toplevel.join("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-6.1.1");
+    fs::create_dir_all(&fake_store_path)?;
 
     let test_systemd = systemd_location_from_env()?;
     let systemd_stub_filename = system.systemd_stub_filename();
@@ -108,8 +111,8 @@ pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
         systemd_stub_filename = systemd_stub_filename.display()
     );
 
-    let initrd_path = toplevel.join("initrd");
-    let kernel_path = toplevel.join("kernel");
+    let initrd_path = fake_store_path.join("initrd");
+    let kernel_path = fake_store_path.join("kernel");
     let nixos_version_path = toplevel.join("nixos-version");
     let kernel_modules_path = toplevel.join("kernel-modules/lib/modules/6.1.1");
 
