@@ -184,6 +184,11 @@ impl Installer {
     /// Hence, this function cannot overwrite files of other generations with different contents.
     /// All installed files are added as garbage collector roots.
     fn install_generation(&mut self, generation: &Generation) -> Result<()> {
+        // If the generation is already properly installed, don't overwrite it.
+        if self.register_installed_generation(generation).is_ok() {
+            return Ok(());
+        }
+
         let tempdir = TempDir::new().context("Failed to create temporary directory.")?;
         let bootspec = &generation.spec.bootspec.bootspec;
 
@@ -244,32 +249,40 @@ impl Installer {
             &self.esp_paths.esp,
         )
         .context("Failed to assemble lanzaboote image.")?;
-        let stub_inputs = [
-            // Generation numbers can be reused if the latest generation was deleted.
-            // To detect this, the stub path depends on the actual toplevel used.
-            ("toplevel", bootspec.toplevel.0.as_os_str().as_bytes()),
-            // If the key is rotated, the signed stubs must be re-generated.
-            // So we make their path depend on the public key used for signature.
-            ("public_key", &fs::read(&self.key_pair.public_key)?),
-        ];
-        let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
-            serde_json::to_string(&stub_inputs).unwrap(),
-        ));
-        let stub_name = if let Some(specialisation_name) = generation.is_specialised() {
-            PathBuf::from(format!(
-                "nixos-generation-{}-specialisation-{}-{}.efi",
-                generation, specialisation_name, stub_input_hash
-            ))
-        } else {
-            PathBuf::from(format!(
-                "nixos-generation-{}-{}.efi",
-                generation, stub_input_hash
-            ))
-        };
-        let stub_target = self.esp_paths.linux.join(stub_name);
+        let stub_target = self
+            .esp_paths
+            .linux
+            .join(stub_name(generation, &self.key_pair.public_key)?);
         self.gc_roots.extend([&stub_target]);
         install_signed(&self.key_pair, &lanzaboote_image, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
+
+        Ok(())
+    }
+
+    /// Register the files of an already installed generation as garbage collection roots.
+    ///
+    /// An error should not be considered fatal; the generation should be (re-)installed instead.
+    fn register_installed_generation(&mut self, generation: &Generation) -> Result<()> {
+        let stub_target = self
+            .esp_paths
+            .linux
+            .join(stub_name(generation, &self.key_pair.public_key)?);
+        let stub = fs::read(&stub_target)?;
+        let kernel_path = resolve_efi_path(
+            &self.esp_paths.esp,
+            pe::read_section_data(&stub, ".kernelp").context("Missing kernel path.")?,
+        )?;
+        let initrd_path = resolve_efi_path(
+            &self.esp_paths.esp,
+            pe::read_section_data(&stub, ".initrdp").context("Missing initrd path.")?,
+        )?;
+
+        if !kernel_path.exists() && !initrd_path.exists() {
+            anyhow::bail!("Missing kernel or initrd.");
+        }
+        self.gc_roots
+            .extend([&stub_target, &kernel_path, &initrd_path]);
 
         Ok(())
     }
@@ -337,6 +350,40 @@ impl Installer {
         })?;
 
         Ok(())
+    }
+}
+
+/// Translate an EFI path to an absolute path on the mounted ESP.
+fn resolve_efi_path(esp: &Path, efi_path: &[u8]) -> Result<PathBuf> {
+    Ok(esp.join(std::str::from_utf8(&efi_path[1..])?.replace('\\', "/")))
+}
+
+/// Compute the file name to be used for the stub of a certain generation, signed with the given key.
+///
+/// The generated name is input-addressed by the toplevel corresponding to the generation and the public part of the signing key.
+fn stub_name(generation: &Generation, public_key: &Path) -> Result<PathBuf> {
+    let bootspec = &generation.spec.bootspec.bootspec;
+    let stub_inputs = [
+        // Generation numbers can be reused if the latest generation was deleted.
+        // To detect this, the stub path depends on the actual toplevel used.
+        ("toplevel", bootspec.toplevel.0.as_os_str().as_bytes()),
+        // If the key is rotated, the signed stubs must be re-generated.
+        // So we make their path depend on the public key used for signature.
+        ("public_key", &fs::read(public_key)?),
+    ];
+    let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
+        serde_json::to_string(&stub_inputs).unwrap(),
+    ));
+    if let Some(specialisation_name) = generation.is_specialised() {
+        Ok(PathBuf::from(format!(
+            "nixos-generation-{}-specialisation-{}-{}.efi",
+            generation, specialisation_name, stub_input_hash
+        )))
+    } else {
+        Ok(PathBuf::from(format!(
+            "nixos-generation-{}-{}.efi",
+            generation, stub_input_hash
+        )))
     }
 }
 

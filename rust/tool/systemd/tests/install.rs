@@ -36,7 +36,7 @@ fn do_not_install_duplicates() -> Result<()> {
 }
 
 #[test]
-fn overwrite_unsigned_images() -> Result<()> {
+fn do_not_overwrite_images() -> Result<()> {
     let esp = tempdir()?;
     let tmpdir = tempdir()?;
     let profiles = tempdir()?;
@@ -59,7 +59,7 @@ fn overwrite_unsigned_images() -> Result<()> {
     let output2 = common::lanzaboote_install(0, esp.path(), generation_links)?;
     assert!(output2.status.success());
 
-    assert!(verify_signature(&image1)?);
+    assert!(!verify_signature(&image1)?);
     assert!(verify_signature(&image2)?);
 
     Ok(())
