@@ -13,6 +13,8 @@ log = { version = "0.4.18", features = ["std"] }
 clap = { version = "4.3.1", features = ["derive"] }
 lanzaboote_tool = { path = "../shared" }
 indoc = "2.0.1"
+serde_json = "1.0.96"
+sha2 = "0.10.6"
 tempfile = "3.5.0"
 nix = { version = "0.26.2", default-features = false, features = [ "fs" ] }
 
@@ -21,8 +23,6 @@ assert_cmd = "2.0.11"
 expect-test = "1.4.1"
 filetime = "0.2.21"
 rand = "0.8.5"
-serde_json = "1.0.96"
 goblin = "0.6.1"
 serde = { version = "1.0.163", features = ["derive"] }
 walkdir = "2.3.3"
-sha2 = "0.10.6"

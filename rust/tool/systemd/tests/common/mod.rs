@@ -6,16 +6,18 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io::Write;
-use std::os::unix::prelude::MetadataExt;
+use std::os::unix::prelude::{MetadataExt, OsStrExt};
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use anyhow::{Context, Result};
 use assert_cmd::Command;
+use base32ct::{Base32Unpadded, Encoding};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use tempfile::TempDir;
 
 use lanzaboote_tool::architecture::Architecture;
 use lzbt_systemd::architecture::SystemdArchitectureExt;
@@ -236,4 +238,24 @@ pub fn verify_signature(path: &Path) -> Result<bool> {
 
 pub fn count_files(path: &Path) -> Result<usize> {
     Ok(fs::read_dir(path)?.count())
+}
+
+pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBuf> {
+    let stub_inputs = [
+        // Generation numbers can be reused if the latest generation was deleted.
+        // To detect this, the stub path depends on the actual toplevel used.
+        ("toplevel", toplevel.as_os_str().as_bytes()),
+        // If the key is rotated, the signed stubs must be re-generated.
+        // So we make their path depend on the public key used for signature.
+        (
+            "public_key",
+            &std::fs::read("tests/fixtures/uefi-keys/db.pem")?,
+        ),
+    ];
+    let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
+        serde_json::to_string(&stub_inputs).unwrap(),
+    ));
+    Ok(esp.path().join(format!(
+        "EFI/Linux/nixos-generation-{version}-{stub_input_hash}.efi"
+    )))
 }

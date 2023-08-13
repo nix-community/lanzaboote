@@ -11,18 +11,16 @@ fn generate_expected_os_release() -> Result<()> {
     let esp_mountpoint = tempdir()?;
     let tmpdir = tempdir()?;
     let profiles = tempdir()?;
+    let toplevel = common::setup_toplevel(tmpdir.path())?;
 
-    let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1)
-        .expect("Failed to setup generation link");
+    let generation_link =
+        common::setup_generation_link_from_toplevel(&toplevel, profiles.path(), 1)
+            .expect("Failed to setup generation link");
 
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), vec![generation_link])?;
     assert!(output0.status.success());
 
-    let stub_data = fs::read(
-        esp_mountpoint
-            .path()
-            .join("EFI/Linux/nixos-generation-1.efi"),
-    )?;
+    let stub_data = fs::read(common::image_path(&esp_mountpoint, 1, &toplevel)?)?;
     let os_release_section = pe_section(&stub_data, ".osrel")
         .context("Failed to read .osrelease PE section.")?
         .to_owned();

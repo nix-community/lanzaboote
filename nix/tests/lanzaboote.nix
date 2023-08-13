@@ -258,7 +258,7 @@ in
         # It is expected that the initrd contains the original secret.
         machine.succeed("cmp ${originalSecret} /secret-from-initramfs")
 
-        machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant.efi")
+        machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant-\*.efi")
         machine.succeed("sync")
         machine.crash()
         machine.start()
@@ -301,7 +301,7 @@ in
       machine.start()
       print(machine.succeed("ls -lah /boot/EFI/Linux"))
       # TODO: make it more reliable to find this filename, i.e. read it from somewhere?
-      machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant.efi")
+      machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant-\*.efi")
       machine.succeed("sync")
       machine.fail("efibootmgr")
       machine.crash()
@@ -359,8 +359,8 @@ in
       # TODO: this should work -- machine.succeed("efibootmgr -d /dev/vda -c -l \\EFI\\Linux\\nixos-generation-1.efi") -- efivars are not persisted
       # across reboots atm?
       # cheat code no 1
-      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1.efi /boot/EFI/BOOT/BOOTX64.EFI")
-      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1.efi /boot/EFI/systemd/systemd-bootx64.efi")
+      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/BOOT/BOOTX64.EFI")
+      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/systemd/systemd-bootx64.efi")
 
       # Let's reboot.
       machine.succeed("sync")

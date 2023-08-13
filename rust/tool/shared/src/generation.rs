@@ -84,7 +84,14 @@ impl Generation {
             .build_time
             .map(|x| x.to_string())
             .unwrap_or_else(|| String::from("Unknown"));
-        format!("Generation {}, Built on {}", self.version, build_time)
+        if self.is_specialised().is_some() {
+            format!(
+                "Generation {}-specialised, Built on {}",
+                self.version, build_time
+            )
+        } else {
+            format!("Generation {}, Built on {}", self.version, build_time)
+        }
     }
 }
 
