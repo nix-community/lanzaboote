@@ -1,12 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
+use std::fs::{self, File};
+use std::os::fd::AsRawFd;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::string::ToString;
 
 use anyhow::{anyhow, Context, Result};
-use nix::unistd::sync;
+use nix::unistd::syncfs;
 use tempfile::TempDir;
 
 use crate::esp::{EspGenerationPaths, EspPaths};
@@ -110,8 +111,8 @@ impl Installer {
                 Garbage collection is disabled because you have malformed NixOS generations that do
                 not contain a readable bootspec document.
 
-                Remove the malformed generations to re-enable garbage collection with 
-                `nix-env --delete-generations {}` 
+                Remove the malformed generations to re-enable garbage collection with
+                `nix-env --delete-generations {}`
             ", self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" ")};
             log::warn!("{warning}");
         };
@@ -161,7 +162,8 @@ impl Installer {
         // Sync files to persistent storage. This may improve the
         // chance of a consistent boot directory in case the system
         // crashes.
-        sync();
+        let boot = File::open(&self.esp_paths.esp).context("Failed to open ESP root directory.")?;
+        syncfs(boot.as_raw_fd()).context("Failed to sync ESP filesystem.")?;
 
         Ok(())
     }
