@@ -95,18 +95,20 @@
 
           inherit (pkgs) lib;
 
-          uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/stub/rust-toolchain.toml;
+          uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/uefi/rust-toolchain.toml;
           craneLib = crane.lib.x86_64-linux.overrideToolchain uefi-rust-stable;
 
           # Build attributes for a Rust application.
           buildRustApp = lib.makeOverridable (
-            { src
+            { pname
+            , src
             , target ? null
             , doCheck ? true
             , extraArgs ? { }
             }:
             let
               commonArgs = {
+                inherit pname;
                 inherit src;
                 CARGO_BUILD_TARGET = target;
                 inherit doCheck;
@@ -148,7 +150,8 @@
           );
 
           stubCrane = buildRustApp {
-            src = craneLib.cleanCargoSource ./rust/stub;
+            pname = "lanzaboote-stub";
+            src = craneLib.cleanCargoSource ./rust/uefi;
             target = "x86_64-unknown-uefi";
             doCheck = false;
           };
@@ -163,6 +166,7 @@
           fatStub = fatStubCrane.package;
 
           toolCrane = buildRustApp {
+            pname = "lanzaboote-tool";
             src = ./rust/tool;
             extraArgs = {
               TEST_SYSTEMD = pkgs.systemd;

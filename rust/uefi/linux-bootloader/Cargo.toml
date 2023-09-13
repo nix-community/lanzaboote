@@ -1,6 +1,6 @@
 [package]
 name = "linux-bootloader"
-version = "0.3.0"
+version.workspace = true
 edition = "2021"
 publish = true
 license = "GPL-3.0-only"
@@ -8,6 +8,8 @@ keywords = ["osdev", "linux", "bootloader"]
 categories = ["embedded", "hardware-support", "no-std", "os::linux-apis"]
 description = "Utilities to build Linux-based bootloaders"
 repository = "https://github.com/nix-community/lanzaboote/"
+# For UEFI target
+rust-version = "1.68"
 
 [dependencies]
 uefi = { version = "0.24.0", default-features = false, features = [ "alloc", "global_allocator" ] }

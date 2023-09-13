@@ -1,10 +1,8 @@
 [package]
 name = "lanzaboote_stub"
-version = "0.3.0"
+version.workspace = true
 edition = "2021"
 publish = false
-# For UEFI target
-rust-version = "1.68"
 
 [dependencies]
 uefi = { version = "0.24.0", default-features = false, features = [ "alloc", "global_allocator" ] }
@@ -20,7 +18,3 @@ linux-bootloader = { path = "../linux-bootloader" }
 default = [ "thin" ]
 thin = ["dep:sha2"]
 fat = []
-
-[profile.release]
-opt-level = "s"
-lto = true
