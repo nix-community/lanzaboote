@@ -1,0 +1,17 @@
+[workspace]
+
+members = [
+    "stub",
+    "linux-bootloader",
+]
+
+default-members = [
+    "stub"
+]
+
+[workspace.package]
+version = "0.3.0"
+
+[profile.release]
+opt-level = "s"
+lto = true

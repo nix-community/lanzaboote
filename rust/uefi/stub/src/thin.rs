@@ -4,8 +4,8 @@ use sha2::{Digest, Sha256};
 use uefi::{prelude::*, proto::loaded_image::LoadedImage, CStr16, CString16, Result};
 
 use crate::common::{boot_linux_unchecked, extract_string};
-use crate::pe_section::pe_section;
-use crate::{linux_loader::InitrdLoader, uefi_helpers::booted_image_file};
+use linux_bootloader::pe_section::pe_section;
+use linux_bootloader::{linux_loader::InitrdLoader, uefi_helpers::booted_image_file};
 
 type Hash = sha2::digest::Output<Sha256>;
 

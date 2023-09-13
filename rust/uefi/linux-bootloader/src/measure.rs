@@ -12,10 +12,7 @@ use crate::{
 
 const TPM_PCR_INDEX_KERNEL_IMAGE: PcrIndex = PcrIndex(11);
 
-pub unsafe fn measure_image(
-    system_table: &SystemTable<Boot>,
-    image: PeInMemory,
-) -> uefi::Result<u32> {
+pub fn measure_image(system_table: &SystemTable<Boot>, image: PeInMemory) -> uefi::Result<u32> {
     let runtime_services = system_table.runtime_services();
     let boot_services = system_table.boot_services();
 

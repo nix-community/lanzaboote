@@ -46,11 +46,7 @@ fn disk_get_part_uuid(boot_services: &BootServices, disk_handle: Handle) -> Resu
 pub const BOOT_LOADER_VENDOR_UUID: VariableVendor =
     VariableVendor(guid!("4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"));
 
-/// Lanzaboote stub name
-pub static STUB_INFO_STRING: &str = concat!("lanzastub ", env!("CARGO_PKG_VERSION"));
-
 bitflags! {
-
     #[repr(transparent)]
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
     /// Feature flags as described in https://systemd.io/BOOT_LOADER_INTERFACE/
@@ -146,7 +142,7 @@ where
 }
 
 /// Exports systemd-stub style EFI variables
-pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
+pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boot>) -> Result<()> {
     let boot_services = system_table.boot_services();
     let runtime_services = system_table.runtime_services();
 
@@ -243,7 +239,7 @@ pub fn export_efi_variables(system_table: &SystemTable<Boot>) -> Result<()> {
             cstr16!("StubInfo"),
             &BOOT_LOADER_VENDOR_UUID,
             default_attributes,
-            &STUB_INFO_STRING
+            &stub_info_name
                 .encode_utf16()
                 .flat_map(|c| c.to_le_bytes())
                 .collect::<Vec<u8>>(),
