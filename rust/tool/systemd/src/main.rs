@@ -4,6 +4,7 @@ mod install;
 mod version;
 
 use clap::Parser;
+
 use cli::Cli;
 
 fn main() {
