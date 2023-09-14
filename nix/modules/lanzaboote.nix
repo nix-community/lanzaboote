@@ -103,8 +103,10 @@ in
           ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
         ''}
 
+        # Use the system from the kernel's hostPlatform because this should
+        # always, even in the cross compilation case, be the right system.
         ${cfg.package}/bin/lzbt install \
-          --system ${config.nixpkgs.hostPlatform.system or config.boot.kernelPackages.stdenv.hostPlatform.system} \
+          --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${loaderConfigFile} \
           --public-key ${cfg.publicKeyFile} \

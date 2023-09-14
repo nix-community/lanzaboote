@@ -29,7 +29,7 @@ impl Architecture {
         Ok(match system_double {
             "x86_64-linux" => Self::X86,
             "aarch64-linux" => Self::AArch64,
-            _ => bail!("Unsupported NixOS system double: {}, please open an issue or a PR if you think this should be supported.", system_double)
+            _ => bail!(format!("Unsupported NixOS system: {}.", system_double)),
         })
     }
 }
