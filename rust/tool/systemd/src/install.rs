@@ -36,6 +36,7 @@ pub struct Installer {
 }
 
 impl Installer {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         lanzaboote_stub: PathBuf,
         arch: Architecture,
