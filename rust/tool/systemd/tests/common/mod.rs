@@ -126,7 +126,7 @@ pub fn lanzaboote_install(
     let test_loader_config = r"timeout 0\nconsole-mode 1\n";
     fs::write(test_loader_config_path.path(), test_loader_config)?;
 
-    let mut cmd = Command::cargo_bin("lzbt")?;
+    let mut cmd = Command::cargo_bin("lzbt-systemd")?;
     let output = cmd
         .env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("-vv")

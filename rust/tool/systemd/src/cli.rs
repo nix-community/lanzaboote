@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use crate::install;
-use crate::signature::KeyPair;
+use lanzaboote_tool::signature::KeyPair;
 
 /// The default log level.
 ///

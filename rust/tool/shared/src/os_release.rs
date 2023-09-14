@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use std::fmt;
+use std::{collections::BTreeMap, str::FromStr};
 
 use anyhow::{Context, Result};
 
@@ -34,14 +34,17 @@ impl OsRelease {
 
         Ok(Self(map))
     }
+}
 
+impl FromStr for OsRelease {
+    type Err = anyhow::Error;
     /// Parse the string representation of a os-release file.
     ///
     /// **Beware before reusing this function!**
     ///
     /// This parser might not parse all valid os-release files correctly. It is only designed to
     /// read the `VERSION` key from the os-release of a systemd-boot binary.
-    pub fn from_str(value: &str) -> Result<Self> {
+    fn from_str(value: &str) -> Result<Self> {
         let mut map = BTreeMap::new();
 
         // All valid lines

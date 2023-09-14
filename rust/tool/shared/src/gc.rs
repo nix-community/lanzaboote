@@ -80,6 +80,12 @@ impl Roots {
     }
 }
 
+impl Default for Roots {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

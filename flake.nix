@@ -165,8 +165,10 @@
           stub = stubCrane.package;
           fatStub = fatStubCrane.package;
 
+          # TODO: when we will have more backends
+          # let's generalize this properly.
           toolCrane = buildRustApp {
-            pname = "lanzaboote-tool";
+            pname = "lzbt-systemd";
             src = ./rust/tool;
             extraArgs = {
               TEST_SYSTEMD = pkgs.systemd;
@@ -187,7 +189,7 @@
 
             # Clean PATH to only contain what we need to do objcopy. Also
             # tell lanzatool where to find our UEFI binaries.
-            makeWrapper ${tool}/bin/lzbt $out/bin/lzbt \
+            makeWrapper ${tool}/bin/lzbt-systemd $out/bin/lzbt \
               --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
               --set LANZABOOTE_STUB ${stub}/bin/lanzaboote_stub.efi
           '';

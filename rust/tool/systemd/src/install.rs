@@ -10,14 +10,15 @@ use anyhow::{anyhow, Context, Result};
 use nix::unistd::syncfs;
 use tempfile::TempDir;
 
-use crate::esp::{EspGenerationPaths, EspPaths};
-use crate::gc::Roots;
-use crate::generation::{Generation, GenerationLink};
-use crate::os_release::OsRelease;
-use crate::pe;
-use crate::signature::KeyPair;
-use crate::systemd::SystemdVersion;
-use crate::utils::{file_hash, SecureTempDirExt};
+use crate::esp::SystemdEspPaths;
+use crate::version::SystemdVersion;
+use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths};
+use lanzaboote_tool::gc::Roots;
+use lanzaboote_tool::generation::{Generation, GenerationLink};
+use lanzaboote_tool::os_release::OsRelease;
+use lanzaboote_tool::pe;
+use lanzaboote_tool::signature::KeyPair;
+use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
 
 pub struct Installer {
     broken_gens: BTreeSet<u64>,
@@ -27,7 +28,7 @@ pub struct Installer {
     systemd_boot_loader_config: PathBuf,
     key_pair: KeyPair,
     configuration_limit: usize,
-    esp_paths: EspPaths,
+    esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
 }
 
@@ -42,8 +43,8 @@ impl Installer {
         generation_links: Vec<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
-        let esp_paths = EspPaths::new(esp);
-        gc_roots.extend(esp_paths.to_iter());
+        let esp_paths = SystemdEspPaths::new(esp);
+        gc_roots.extend(esp_paths.iter());
 
         Self {
             broken_gens: BTreeSet::new(),
