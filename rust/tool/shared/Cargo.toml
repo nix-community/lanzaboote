@@ -6,23 +6,23 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.72"
-clap = { version = "4.3.17", features = ["derive"] }
-goblin = "0.7.1"
-nix = { version = "0.26.2", default-features = false, features = [ "fs" ] }
-serde = { version = "1.0.172", features = ["derive"] }
-serde_json = "1.0.103"
+anyhow = "1"
+clap = { version = "4.3", features = ["derive"] }
+goblin = "0.7"
+nix = { version = "0.26", default-features = false, features = [ "fs" ] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tempfile = "3.6.0"
-bootspec = "1.0"
-walkdir = "2.3.3"
-time = "0.3.23"
-sha2 = "0.10.7"
+bootspec = "1"
+walkdir = "2"
+time = "0.3"
+sha2 = "0.10"
 # Keep the fastrand version aligned with the one from tempfile to avoid two
 # different versions.
 fastrand = "2.0.0"
-log = { version = "0.4.19", features = ["std"] }
-stderrlog = "0.5.4"
-indoc = "2.0.3"
+log = { version = "0.4", features = ["std"] }
+stderrlog = "0.5"
+indoc = "2"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
