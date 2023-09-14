@@ -53,7 +53,7 @@ Boot effective:
 
 These steps will not be covered here.
 
-### `lzbt`, the Lanzaboote tool
+### `lzbt-*`, the Lanzaboote tool
 
 At the moment, boot loaders, kernels and initrds on NixOS are signed
 on the current system. These then need to be prepared as [Unified
@@ -68,7 +68,13 @@ installs the UKI along with other required files to the
 ESP. `lzbt` is also aware of multiple NixOS generations and will
 sign all configurations that should be bootable.
 
-`lzbt` lives in [`rust/tool`](rust/tool).
+We have multiple backends for `lzbt`:
+
+- `lzbt-systemd` lives in [`rust/tool/systemd`](rust/tool/systemd)
+
+In the future, `lzbt` may support more backends.
+
+Shared code lives in [`rust/tool/shared`](rust/tool/shared).
 
 ### Stub
 
