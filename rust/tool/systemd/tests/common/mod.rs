@@ -24,13 +24,15 @@ use lzbt_systemd::architecture::SystemdArchitectureExt;
 /// in the system double format for
 /// our usual targets.
 #[cfg(target_arch = "aarch64")]
-pub static TARGET_SYSTEM_DOUBLE: &'static str = "aarch64-linux";
+pub static SYSTEM: &str = "aarch64-linux";
 
+// We do not actually care much about 32 bit. However we can use this to easily test that lzbt
+// works with another architecture.
 #[cfg(target_arch = "x86")]
-pub static TARGET_SYSTEM_DOUBLE: &'static str = "i686-linux";
+pub static SYSTEM: &str = "i686-linux";
 
 #[cfg(target_arch = "x86_64")]
-pub static TARGET_SYSTEM_DOUBLE: &'static str = "x86_64-linux";
+pub static SYSTEM: &str = "x86_64-linux";
 
 /// Create a mock generation link.
 ///
@@ -70,7 +72,7 @@ pub fn setup_generation_link_from_toplevel(
           ],
           "label": "LanzaOS",
           "toplevel": toplevel,
-          "system": TARGET_SYSTEM_DOUBLE,
+          "system": SYSTEM,
         },
         "org.nixos-community.lanzaboote": { "osRelease": toplevel.join("os-release") }
     });
@@ -93,7 +95,7 @@ pub fn setup_generation_link_from_toplevel(
 /// Accepts the temporary directory as a parameter so that the invoking function retains control of
 /// it (and when it goes out of scope).
 pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
-    let system = Architecture::from_nixos_system(TARGET_SYSTEM_DOUBLE)?;
+    let system = Architecture::from_nixos_system(SYSTEM)?;
     // Generate a random toplevel name so that multiple toplevel paths can live alongside each
     // other in the same directory.
     let toplevel = tmpdir.join(format!("toplevel-{}", random_string(8)));
@@ -139,7 +141,7 @@ pub fn lanzaboote_install(
 ) -> Result<Output> {
     // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
     // the comment in setup_toplevel for details.
-    let system = Architecture::from_nixos_system(TARGET_SYSTEM_DOUBLE)?;
+    let system = Architecture::from_nixos_system(SYSTEM)?;
     let test_systemd = systemd_location_from_env()?;
     let systemd_stub_filename = system.systemd_stub_filename();
     let test_systemd_stub = format!(
@@ -157,7 +159,7 @@ pub fn lanzaboote_install(
         .arg("-vv")
         .arg("install")
         .arg("--system")
-        .arg(TARGET_SYSTEM_DOUBLE)
+        .arg(SYSTEM)
         .arg("--systemd")
         .arg(test_systemd)
         .arg("--systemd-boot-loader-config")

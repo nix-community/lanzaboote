@@ -8,7 +8,7 @@ use tempfile::tempdir;
 
 mod common;
 
-use common::{hash_file, mtime, remove_signature, verify_signature, TARGET_SYSTEM_DOUBLE};
+use common::{hash_file, mtime, remove_signature, verify_signature, SYSTEM};
 
 #[test]
 fn keep_systemd_boot_binaries() -> Result<()> {
@@ -115,14 +115,14 @@ fn overwrite_unsigned_systemd_boot_binaries() -> Result<()> {
 }
 
 fn systemd_boot_path(esp: &tempfile::TempDir) -> PathBuf {
-    let arch = Architecture::from_nixos_system(TARGET_SYSTEM_DOUBLE).unwrap();
+    let arch = Architecture::from_nixos_system(SYSTEM).unwrap();
     esp.path()
         .join("EFI/systemd/")
         .join(arch.systemd_filename())
 }
 
 fn systemd_boot_fallback_path(esp: &tempfile::TempDir) -> PathBuf {
-    let arch = Architecture::from_nixos_system(TARGET_SYSTEM_DOUBLE).unwrap();
+    let arch = Architecture::from_nixos_system(SYSTEM).unwrap();
     esp.path()
         .join("EFI/BOOT/")
         .join(arch.efi_fallback_filename())
