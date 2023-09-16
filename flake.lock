@@ -97,16 +97,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1698610559,
-        "narHash": "sha256-i8vFNXJz9VcH05oNe/3Jm5f+CtE3g5uOUvF/dobTMUQ=",
-        "owner": "NixOS",
+        "lastModified": 1694877797,
+        "narHash": "sha256-sAQfXtRn2wbNgpDELo7uI/ny2c4JnOPpIFbUWntc5Cs=",
+        "owner": "RaitoBezarius",
         "repo": "nixpkgs",
-        "rev": "4e43dd49630303b00120c11d00d4fb01bb40188d",
+        "rev": "4e1c47bfc65e7fe35789fffd4d09b9695615a1fc",
         "type": "github"
       },
       "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable-small",
+        "owner": "RaitoBezarius",
+        "ref": "uboot-uefi",
         "repo": "nixpkgs",
         "type": "github"
       }

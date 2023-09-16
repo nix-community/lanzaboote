@@ -2,7 +2,7 @@
   description = "Secure Boot for NixOS";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
+    nixpkgs.url = "github:RaitoBezarius/nixpkgs/uboot-uefi";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
@@ -53,6 +53,17 @@
           ];
 
           boot.lanzaboote.package = perSystem.config.packages.tool;
+        }
+      );
+
+      flake.nixosModules.ubootLanzaboote = moduleWithSystem (
+        perSystem@{ config }:
+        { ... }: {
+          imports = [
+            ./nix/modules/lanzaboote.nix
+          ];
+
+          boot.lanzaboote.package = perSystem.config.packages.extlinuxCompatibleTool;
         }
       );
 
@@ -156,23 +167,23 @@
           stub = stubCrane.package;
           fatStub = fatStubCrane.package;
 
-          # TODO: when we will have more backends
-          # let's generalize this properly.
-          toolCrane = buildRustApp {
-            pname = "lzbt-systemd";
+          toolCrane = backend: buildRustApp rec {
+            pname = "lzbt-${backend}";
             src = ./rust/tool;
             extraArgs = {
-              TEST_SYSTEMD = pkgs.systemd;
               nativeCheckInputs = with pkgs; [
                 binutils-unwrapped
                 sbsigntool
               ];
+              cargoExtraArgs = "--package ${pname}";
+            } // lib.optionalAttrs (backend == "systemd") {
+              TEST_SYSTEMD = pkgs.systemd;
             };
           };
 
-          tool = toolCrane.package;
+          tool = backend: (toolCrane backend).package;
 
-          wrappedTool = pkgs.runCommand "lzbt"
+          wrappedTool = backend: pkgs.runCommand "lzbt"
             {
               nativeBuildInputs = [ pkgs.makeWrapper ];
             } ''
@@ -180,20 +191,24 @@
 
             # Clean PATH to only contain what we need to do objcopy. Also
             # tell lanzatool where to find our UEFI binaries.
-            makeWrapper ${tool}/bin/lzbt-systemd $out/bin/lzbt \
+            makeWrapper ${(tool backend)}/bin/lzbt-${backend} $out/bin/lzbt \
               --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
               --set LANZABOOTE_STUB ${stub}/bin/lanzaboote_stub.efi
           '';
         in
         {
-          packages = {
+          packages = rec {
             inherit stub fatStub;
-            tool = wrappedTool;
-            lzbt = wrappedTool;
+            systemdTool = wrappedTool "systemd";
+            extlinuxCompatibleTool = wrappedTool "extlinux-compatible";
+
+            # systemd is the blessed implementation
+            tool = systemdTool;
+            lzbt = systemdTool;
           };
 
           overlayAttrs = {
-            inherit (config.packages) tool;
+            inherit (config.packages) tool systemdTool extlinuxCompatibleTool;
           };
 
           checks =
@@ -205,10 +220,10 @@
               };
             in
             {
-              toolClippy = toolCrane.clippy;
+              systemdToolClippy = (toolCrane "systemd").clippy;
               stubClippy = stubCrane.clippy;
               fatStubClippy = fatStubCrane.clippy;
-              toolFmt = toolCrane.rustfmt;
+              systemdToolFmt = (toolCrane "systemd").rustfmt;
               stubFmt = stubCrane.rustfmt;
             } // (import ./nix/tests/lanzaboote.nix {
               inherit pkgs;
@@ -216,6 +231,9 @@
             }) // (import ./nix/tests/stub.nix {
               inherit pkgs runTest;
               ukiModule = self.nixosModules.uki;
+            }) // (import ./nix/tests/uboot.nix {
+              inherit pkgs runTest;
+              lanzabooteModule = self.nixosModules.ubootLanzaboote;
             });
 
           pre-commit = {
