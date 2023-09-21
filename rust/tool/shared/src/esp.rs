@@ -15,6 +15,9 @@ pub trait EspPaths<const N: usize> {
     /// Return the used file paths to store as garbage collection roots.
     fn iter(&self) -> std::array::IntoIter<&PathBuf, N>;
 
+    /// Returns the ESP root path
+    fn esp_path(&self) -> &Path;
+
     /// Returns the path containing NixOS EFI binaries
     fn nixos_path(&self) -> &Path;
 

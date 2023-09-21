@@ -42,6 +42,10 @@ impl EspPaths<10> for SystemdEspPaths {
         }
     }
 
+    fn esp_path(&self) -> &Path {
+        &self.esp
+    }
+
     fn nixos_path(&self) -> &Path {
         &self.nixos
     }

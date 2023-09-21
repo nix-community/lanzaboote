@@ -5,3 +5,5 @@ pub mod os_release;
 pub mod pe;
 pub mod signature;
 pub mod utils;
+pub mod builder;
+pub mod install;
