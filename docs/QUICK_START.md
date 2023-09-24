@@ -284,13 +284,6 @@ System:
 
 That's all! 🥳
 
-## Troubleshooting
-
-If your system doesn't boot with Secure Boot enabled, the most likely
-issue is that Lanzaboote could not verify a cryptographic hash. To
-recover from this, disable Secure Boot in your firmware
-settings. Please file a bug, if you hit this issue.
-
 ## Disabling Secure Boot and Lanzaboote
 
 When you want to permanently get back to a system without the Secure
