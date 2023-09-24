@@ -465,17 +465,29 @@ fn assemble_kernel_cmdline(init: &Path, kernel_params: Vec<String>) -> Vec<Strin
 
 /// Atomically copy a file.
 ///
-/// The file is first written to the destination with a `.tmp` suffix and then renamed to its final
-/// name. This is atomic, because a rename is an atomic operation on POSIX platforms.
+/// First, the content is written to a temporary file (with a `.tmp` extension).
+/// Then, this file is synced, to ensure its data and metadata are fully on disk before continuing.
+/// In the last step, the temporary file is renamed to the final destination.
+///
+/// Due to the deficiencies of FAT32, it is possible for the filesystem to become corrupted after power loss.
+/// It is not possible to fully defend against this situation, so this operation is not actually fully atomic.
+/// However, in all other cases, the target file is either present with its correct content or not present at all.
 fn atomic_copy(from: &Path, to: &Path) -> Result<()> {
-    let to_tmp = to.with_extension(".tmp");
-
-    fs::copy(from, &to_tmp)
-        .with_context(|| format!("Failed to copy from {from:?} to {to_tmp:?}",))?;
-
-    fs::rename(&to_tmp, to).with_context(|| {
-        format!("Failed to move temporary file {to_tmp:?} to final location {to:?}")
-    })
+    let tmp = to.with_extension(".tmp");
+    {
+        let mut from_file =
+            File::open(from).with_context(|| format!("Failed to read the source file {from:?}"))?;
+        let mut tmp_file = File::create(&tmp)
+            .with_context(|| format!("Failed to create the temporary file {tmp:?}"))?;
+        std::io::copy(&mut from_file, &mut tmp_file).with_context(|| {
+            format!("Failed to copy from {from:?} to the temporary file {tmp:?}")
+        })?;
+        tmp_file
+            .sync_all()
+            .with_context(|| format!("Failed to sync the temporary file {tmp:?}"))?;
+    }
+    fs::rename(&tmp, to)
+        .with_context(|| format!("Failed to move temporary file {tmp:?} to target {to:?}"))
 }
 
 /// Set the octal permission bits of the specified file.
