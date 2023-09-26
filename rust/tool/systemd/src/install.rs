@@ -21,7 +21,7 @@ use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
-use lanzaboote_tool::pe;
+use lanzaboote_tool::pe::{self, lanzaboote_image};
 use lanzaboote_tool::signature::KeyPair;
 use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
 
@@ -232,29 +232,32 @@ impl Installer {
         // Assemble, sign and install the Lanzaboote stub.
         let os_release = OsRelease::from_generation(generation)
             .context("Failed to build OsRelease from generation.")?;
-        let os_release_path = tempdir
-            .write_secure_file(os_release.to_string().as_bytes())
-            .context("Failed to write os-release file.")?;
+
+        let os_release_contents = os_release.to_string();
+
         let kernel_cmdline =
             assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
-        let lanzaboote_image = pe::lanzaboote_image(
-            &tempdir,
+
+        let parameters = pe::StubParameters::new(
             &self.lanzaboote_stub,
-            &os_release_path,
-            &kernel_cmdline,
             &bootspec.kernel,
-            &kernel_target,
             &initrd_location,
+            &kernel_target,
             &initrd_target,
             &self.esp_paths.esp,
-        )
-        .context("Failed to assemble lanzaboote image.")?;
+        )?
+        .with_cmdline(&kernel_cmdline)
+        .with_os_release_contents(os_release_contents.as_bytes());
+
+        let lanzaboote_image_path = lanzaboote_image(&tempdir, &parameters)
+            .context("Failed to build and sign lanzaboote stub image.")?;
+
         let stub_target = self
             .esp_paths
             .linux
             .join(stub_name(generation, &self.key_pair.public_key)?);
         self.gc_roots.extend([&stub_target]);
-        install_signed(&self.key_pair, &lanzaboote_image, &stub_target)
+        install_signed(&self.key_pair, &lanzaboote_image_path, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
 
         Ok(())
