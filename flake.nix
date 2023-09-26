@@ -207,7 +207,6 @@
               inherit (self.nixosModules) lanzaboote uki;
             };
           });
-
           devShells.default = pkgs.mkShell {
             shellHook = ''
               ${config.pre-commit.installationScript}
