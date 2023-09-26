@@ -3,7 +3,6 @@ use std::fs::{self, File};
 use std::os::fd::AsRawFd;
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::string::ToString;
 
 use anyhow::{anyhow, Context, Result};
@@ -16,28 +15,28 @@ use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths};
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
-use lanzaboote_tool::pe;
-use lanzaboote_tool::signature::KeyPair;
+use lanzaboote_tool::pe::{self, append_initrd_secrets};
+use lanzaboote_tool::signature::LanzabooteSigner;
 use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
 
-pub struct Installer {
+pub struct Installer<S: LanzabooteSigner> {
     broken_gens: BTreeSet<u64>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
     systemd_boot_loader_config: PathBuf,
-    key_pair: KeyPair,
+    signer: S,
     configuration_limit: usize,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
 }
 
-impl Installer {
+impl<S: LanzabooteSigner> Installer<S> {
     pub fn new(
         lanzaboote_stub: PathBuf,
         systemd: PathBuf,
         systemd_boot_loader_config: PathBuf,
-        key_pair: KeyPair,
+        signer: S,
         configuration_limit: usize,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
@@ -52,7 +51,7 @@ impl Installer {
             lanzaboote_stub,
             systemd,
             systemd_boot_loader_config,
-            key_pair,
+            signer,
             configuration_limit,
             esp_paths,
             generation_links,
@@ -157,7 +156,7 @@ impl Installer {
         .context("Failed to build signed generation artifacts.")?;
 
         generation_artifacts
-            .install(&self.key_pair)
+            .install()
             .context("Failed to install files.")?;
 
         // Sync files to persistent storage. This may improve the
@@ -347,13 +346,13 @@ impl Installer {
             if newer_systemd_boot_available {
                 log::info!("Updating {to:?}...")
             };
-            let systemd_boot_is_signed = &self.key_pair.verify(to);
+            let systemd_boot_is_signed = &self.signer.verify_path(to)?;
             if !systemd_boot_is_signed {
                 log::warn!("${to:?} is not signed. Replacing it with a signed binary...")
             };
 
             if newer_systemd_boot_available || !systemd_boot_is_signed {
-                install_signed(&self.key_pair, from, to)
+                install_signed(&self.signer, from, to)
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
             }
         }
@@ -428,25 +427,17 @@ impl GenerationArtifacts {
         }
     }
 
-    /// Add source and destination of a PE file to be signed.
-    ///
-    /// Files are stored in the HashMap using their destination path as the key to ensure that the
-    /// destination paths are unique.
-    fn add_signed(&mut self, from: &Path, to: &Path) {
-        self.add_file(FileSource::SignedFile(from.to_path_buf()), to);
-    }
-
     /// Add source and destination of an arbitrary file.
     fn add_unsigned(&mut self, from: &Path, to: &Path) {
         self.add_file(FileSource::UnsignedFile(from.to_path_buf()), to);
     }
 
     /// Install all files to the ESP.
-    fn install(&self, key_pair: &KeyPair) -> Result<()> {
+    fn install(&self) -> Result<()> {
         for (to, from) in &self.files {
             match from {
                 FileSource::SignedFile(from) => {
-                    install_signed(key_pair, from, to).with_context(|| {
+                    install_signed(signer, from, to).with_context(|| {
                         format!("Failed to sign and install from {from:?} to {to:?}")
                     })?
                 }
@@ -466,11 +457,11 @@ impl GenerationArtifacts {
 /// This is implemented as an atomic write. The file is first written to the destination with a
 /// `.tmp` suffix and then renamed to its final name. This is atomic, because a rename is an atomic
 /// operation on POSIX platforms.
-fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
+fn install_signed(signer: &impl LanzabooteSigner, from: &Path, to: &Path) -> Result<()> {
     log::debug!("Signing and installing {to:?}...");
     let to_tmp = to.with_extension(".tmp");
     ensure_parent_dir(&to_tmp);
-    key_pair
+    signer
         .sign_and_copy(from, &to_tmp)
         .with_context(|| format!("Failed to copy and sign file from {from:?} to {to:?}"))?;
     fs::rename(&to_tmp, to).with_context(|| {
@@ -504,24 +495,6 @@ fn force_install(from: &Path, to: &Path) -> Result<()> {
     atomic_copy(from, to)?;
     set_permission_bits(to, 0o755)
         .with_context(|| format!("Failed to set permission bits to 0o755 on file: {to:?}"))?;
-    Ok(())
-}
-
-pub fn append_initrd_secrets(
-    append_initrd_secrets_path: &Path,
-    initrd_path: &PathBuf,
-) -> Result<()> {
-    let status = Command::new(append_initrd_secrets_path)
-        .args(vec![initrd_path])
-        .status()
-        .context("Failed to append initrd secrets")?;
-    if !status.success() {
-        return Err(anyhow::anyhow!(
-            "Failed to append initrd secrets with args `{:?}`",
-            vec![append_initrd_secrets_path, initrd_path]
-        ));
-    }
-
     Ok(())
 }
 

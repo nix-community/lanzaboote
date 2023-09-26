@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
 use crate::install;
-use lanzaboote_tool::signature::KeyPair;
+use lanzaboote_tool::signature::{local::LocalKeyPair, remote::RemoteSigningServer, LanzabooteSigner};
 
 /// The default log level.
 ///
@@ -39,12 +39,10 @@ struct InstallCommand {
     systemd_boot_loader_config: PathBuf,
 
     /// sbsign Public Key
-    #[arg(long)]
-    public_key: PathBuf,
+    #[arg(long, group = "local-keys")]
+    public_key: Option<PathBuf>,
 
-    /// sbsign Private Key
     #[arg(long)]
-    private_key: PathBuf,
 
     /// Configuration limit
     #[arg(long, default_value_t = 1)]
@@ -86,13 +84,11 @@ fn install(args: InstallCommand) -> Result<()> {
     let lanzaboote_stub =
         std::env::var("LANZABOOTE_STUB").context("Failed to read LANZABOOTE_STUB env variable")?;
 
-    let key_pair = KeyPair::new(&args.public_key, &args.private_key);
-
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
         args.systemd,
         args.systemd_boot_loader_config,
-        key_pair,
+        signer,
         args.configuration_limit,
         args.esp,
         args.generations,
