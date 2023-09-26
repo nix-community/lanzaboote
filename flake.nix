@@ -205,6 +205,10 @@
           checks =
             let
               nixosLib = import (pkgs.path + "/nixos/lib") { };
+              lanzaLib = import ./nix/tests/lib.nix {
+                inherit pkgs;
+                lanzabooteModule = self.nixosModules.lanzaboote;
+              };
               runTest = module: nixosLib.runTest {
                 imports = [ module ];
                 hostPkgs = pkgs;
@@ -217,7 +221,7 @@
               toolFmt = toolCrane.rustfmt;
               stubFmt = stubCrane.rustfmt;
             } // (import ./nix/tests/lanzaboote.nix {
-              inherit pkgs;
+              inherit pkgs lanzaLib;
               lanzabooteModule = self.nixosModules.lanzaboote;
             }) // (import ./nix/tests/stub.nix {
               inherit pkgs runTest;
