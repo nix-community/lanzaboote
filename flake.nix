@@ -57,6 +57,17 @@
         }
       );
 
+      flake.nixosModules.lanzasignd = moduleWithSystem (
+        perSystem@{ config }:
+        { ... }: {
+          imports = [
+            ./nix/modules/lanzasignd.nix
+          ];
+
+          services.lanzasignd.package = perSystem.config.packages.lanzasignd;
+        }
+      );
+
       flake.nixosModules.uki = moduleWithSystem (
         perSystem@{ config }:
         { lib, ... }: {
