@@ -68,6 +68,7 @@ impl StubParameters {
 pub fn append_initrd_secrets(
     append_initrd_secrets_path: &Path,
     initrd_path: &PathBuf,
+    generation_version: u64,
 ) -> Result<()> {
     let status = Command::new(append_initrd_secrets_path)
         .args(vec![initrd_path])
@@ -75,7 +76,8 @@ pub fn append_initrd_secrets(
         .context("Failed to append initrd secrets")?;
     if !status.success() {
         return Err(anyhow::anyhow!(
-            "Failed to append initrd secrets with args `{:?}`",
+            "Failed to append initrd secrets for generation {} with args `{:?}`",
+            generation_version,
             vec![append_initrd_secrets_path, initrd_path]
         ));
     }
