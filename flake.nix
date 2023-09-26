@@ -159,6 +159,14 @@
             };
           };
 
+          lanzasigndCrane = buildRustApp {
+            pname = "lanzasignd";
+            src = craneLib.cleanCargoSource ./rust/tool;
+            doCheck = false;
+            packages = [ "lanzasignd" ];
+          };
+
+          lanzasignd = lanzasigndCrane.package;
           stub = stubCrane.package;
           fatStub = fatStubCrane.package;
 
@@ -193,13 +201,13 @@
         in
         {
           packages = {
-            inherit stub fatStub;
+            inherit stub fatStub lanzasignd;
             tool = wrappedTool;
             lzbt = wrappedTool;
           };
 
           overlayAttrs = {
-            inherit (config.packages) tool;
+            inherit (config.packages) tool lanzasignd;
           };
 
           checks =
@@ -253,6 +261,7 @@
             packages = [
               pkgs.uefi-run
               pkgs.openssl
+              pkgs.pkg-config
               (pkgs.sbctl.override { databasePath = "pki"; })
               pkgs.sbsigntool
               pkgs.efitools
