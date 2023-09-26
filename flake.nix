@@ -244,6 +244,9 @@
             }) // (import ./nix/tests/stub.nix {
               inherit pkgs runTest;
               ukiModule = self.nixosModules.uki;
+            }) // (import ./nix/tests/remote-signing.nix {
+              inherit pkgs lanzaLib;
+              lanzasigndModule = self.nixosModules.lanzasignd;
             });
 
           devShells.default = pkgs.mkShell {
