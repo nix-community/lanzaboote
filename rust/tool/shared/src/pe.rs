@@ -6,39 +6,111 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 use goblin::pe::PE;
+use serde::{Serialize, Deserialize};
 use tempfile::TempDir;
 
 use crate::esp::EspGenerationPaths;
 use crate::utils::{file_hash, tmpname, SecureTempDirExt};
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StubParameters {
+    pub lanzaboote_store_path: PathBuf,
+    pub kernel_cmdline: Vec<String>,
+    pub os_release_contents: Vec<u8>,
+    pub kernel_store_path: PathBuf,
+    pub initrd_store_path: PathBuf,
+    /// Actually, the appender script is critical
+    /// to know what is the actual "initrd hash",
+    /// otherwise, we may end up hashing against
+    /// the wrong hash.
+    pub append_initrd_script_store_path: Option<PathBuf>,
+    /// Kernel path rooted at the ESP
+    /// i.e. if you refer to /boot/efi/EFI/NixOS/kernel.efi
+    /// this gets turned into \\EFI\\NixOS\\kernel.efi as a UTF-16 string
+    /// at assembling time.
+    pub kernel_path_at_esp: String,
+    /// Same as kernel.
+    pub initrd_path_at_esp: String
+}
+
+impl StubParameters {
+    pub fn new(lanzaboote_stub: &Path,
+        kernel_path: &Path,
+        initrd_path: &Path,
+        append_initrd_script: Option<&Path>,
+        esp_gen_paths: &EspGenerationPaths, esp: &Path) -> Result<Self> {
+        // Resolve maximally those paths
+        // We won't verify they are store paths, otherwise the mocking strategy will fail for our
+        // unit tests.
+
+        Ok(Self {
+            lanzaboote_store_path: lanzaboote_stub.to_path_buf(),
+            kernel_store_path: kernel_path.to_path_buf(),
+            initrd_store_path: initrd_path.to_path_buf(),
+            append_initrd_script_store_path: append_initrd_script.map(|script| script.to_path_buf()),
+            kernel_path_at_esp: esp_relative_uefi_path(esp, &esp_gen_paths.kernel)?,
+            initrd_path_at_esp: esp_relative_uefi_path(esp, &esp_gen_paths.initrd)?,
+            kernel_cmdline: Vec::new(),
+            os_release_contents: Vec::new(),
+        })
+    }
+
+    pub fn with_os_release_contents(mut self, os_release_contents: &[u8]) -> Self {
+        self.os_release_contents = os_release_contents.to_vec();
+        self
+    }
+
+    pub fn with_cmdline(mut self, cmdline: &[String]) -> Self {
+        self.kernel_cmdline = cmdline.to_vec();
+        self
+    }
+}
+
+/// Performs the evil operation
+/// of calling the appender script to append
+/// initrd "secrets" (not really) to the initrd.
+pub fn append_initrd_secrets(
+    append_initrd_secrets_path: &Path,
+    initrd_path: &PathBuf,
+) -> Result<()> {
+    let status = Command::new(append_initrd_secrets_path)
+        .args(vec![initrd_path])
+        .status()
+        .context("Failed to append initrd secrets")?;
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "Failed to append initrd secrets with args `{:?}`",
+            vec![append_initrd_secrets_path, initrd_path]
+        ));
+    }
+
+    Ok(())
+}
+
 /// Assemble a lanzaboote image.
-#[allow(clippy::too_many_arguments)]
 pub fn lanzaboote_image(
     // Because the returned path of this function is inside the tempdir as well, the tempdir must
     // live longer than the function. This is why it cannot be created inside the function.
     tempdir: &TempDir,
-    lanzaboote_stub: &Path,
-    os_release: &Path,
-    kernel_cmdline: &[String],
-    kernel_path: &Path,
-    initrd_path: &Path,
-    esp_gen_paths: &EspGenerationPaths,
-    esp: &Path,
-) -> Result<PathBuf> {
+    stub_parameters: &StubParameters) -> Result<PathBuf> {
     // objcopy can only copy files into the PE binary. That's why we
     // have to write the contents of some bootspec properties to disk.
-    let kernel_cmdline_file = tempdir.write_secure_file(kernel_cmdline.join(" "))?;
+    let kernel_cmdline_file = tempdir.write_secure_file(stub_parameters.kernel_cmdline.join(" "))?;
 
     let kernel_path_file =
-        tempdir.write_secure_file(esp_relative_uefi_path(esp, &esp_gen_paths.kernel)?)?;
-    let kernel_hash_file = tempdir.write_secure_file(file_hash(kernel_path)?.as_slice())?;
+        tempdir.write_secure_file(&stub_parameters.kernel_path_at_esp)?;
+    let kernel_hash_file = tempdir.write_secure_file(file_hash(&stub_parameters.kernel_store_path)?.as_slice())?;
 
     let initrd_path_file =
-        tempdir.write_secure_file(esp_relative_uefi_path(esp, &esp_gen_paths.initrd)?)?;
-    let initrd_hash_file = tempdir.write_secure_file(file_hash(initrd_path)?.as_slice())?;
+        tempdir.write_secure_file(&stub_parameters.initrd_path_at_esp)?;
+    if let Some(appender_script) = &stub_parameters.append_initrd_script_store_path {
+        append_initrd_secrets(appender_script, &initrd_path_file)?;
+    }
+    let initrd_hash_file = tempdir.write_secure_file(file_hash(&stub_parameters.initrd_store_path)?.as_slice())?;
 
-    let os_release_offs = stub_offset(lanzaboote_stub)?;
-    let kernel_cmdline_offs = os_release_offs + file_size(os_release)?;
+    let os_release = tempdir.write_secure_file(&stub_parameters.os_release_contents)?;
+    let os_release_offs = stub_offset(&stub_parameters.lanzaboote_store_path)?;
+    let kernel_cmdline_offs = os_release_offs + file_size(&os_release)?;
     let initrd_path_offs = kernel_cmdline_offs + file_size(&kernel_cmdline_file)?;
     let kernel_path_offs = initrd_path_offs + file_size(&initrd_path_file)?;
     let initrd_hash_offs = kernel_path_offs + file_size(&kernel_path_file)?;
@@ -54,7 +126,7 @@ pub fn lanzaboote_image(
     ];
 
     let image_path = tempdir.path().join(tmpname());
-    wrap_in_pe(lanzaboote_stub, sections, &image_path)?;
+    wrap_in_pe(&stub_parameters.lanzaboote_store_path, sections, &image_path)?;
     Ok(image_path)
 }
 

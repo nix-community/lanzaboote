@@ -290,9 +290,7 @@ impl<S: LanzabooteSigner> Installer<S> {
 
         let os_release = OsRelease::from_generation(generation)
             .context("Failed to build OsRelease from generation.")?;
-        let os_release_path = tempdir
-            .write_secure_file(os_release.to_string().as_bytes())
-            .context("Failed to write os-release file.")?;
+        let os_release_contents = os_release.to_string();
 
         let kernel_path: &Path = generation_artifacts
             .files
@@ -306,19 +304,16 @@ impl<S: LanzabooteSigner> Installer<S> {
             .context("Failed to retrieve initrd path from GenerationArtifacts.")?
             .into();
 
-        let lanzaboote_image = pe::lanzaboote_image(
-            tempdir,
-            &self.lanzaboote_stub,
-            &os_release_path,
-            &kernel_cmdline,
-            kernel_path,
-            initrd_path,
-            &esp_gen_paths,
-            &self.esp_paths.esp,
-        )
-        .context("Failed to assemble lanzaboote image.")?;
+        assert_eq!(bootspec.kernel, kernel_path);
 
-        generation_artifacts.add_signed(&lanzaboote_image, &esp_gen_paths.lanzaboote_image);
+        let parameters = pe::StubParameters::new(&self.lanzaboote_stub, kernel_path, initrd_store_path, initrd_secrets_appender_path, &esp_gen_paths, &self.esp_paths.esp)?
+            .with_cmdline(&kernel_cmdline)
+            .with_os_release_contents(os_release_contents.as_bytes());
+
+        let lanzaboote_image = self.signer.build_and_sign_stub(&parameters).context("Failed to build and sign lanzaboote stub image.")?;
+        let lanzaboote_image_path = tempdir.write_secure_file(lanzaboote_image).context("Failed to write securely the signed lanzaboote stub image.")?;
+
+        generation_artifacts.add_signed(&lanzaboote_image_path, &esp_gen_paths.lanzaboote_image);
 
         Ok(())
     }
