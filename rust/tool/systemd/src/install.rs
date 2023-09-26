@@ -4,7 +4,6 @@ use std::fs::{self, File};
 use std::os::fd::AsRawFd;
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::string::ToString;
 
 use anyhow::{anyhow, Context, Result};
@@ -21,31 +20,31 @@ use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
-use lanzaboote_tool::pe::{self, lanzaboote_image};
-use lanzaboote_tool::signature::KeyPair;
+use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
+use lanzaboote_tool::signature::LanzabooteSigner;
 use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
 
-pub struct Installer {
+pub struct Installer<S: LanzabooteSigner> {
     broken_gens: BTreeSet<u64>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
     systemd_boot_loader_config: PathBuf,
-    key_pair: KeyPair,
+    signer: S,
     configuration_limit: usize,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
 }
 
-impl Installer {
-    #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
+impl<S: LanzabooteSigner> Installer<S> {
     pub fn new(
         lanzaboote_stub: PathBuf,
         arch: Architecture,
         systemd: PathBuf,
         systemd_boot_loader_config: PathBuf,
-        key_pair: KeyPair,
+        signer: S,
         configuration_limit: usize,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
@@ -60,7 +59,7 @@ impl Installer {
             lanzaboote_stub,
             systemd,
             systemd_boot_loader_config,
-            key_pair,
+            signer,
             configuration_limit,
             esp_paths,
             generation_links,
@@ -255,9 +254,9 @@ impl Installer {
         let stub_target = self
             .esp_paths
             .linux
-            .join(stub_name(generation, &self.key_pair.public_key)?);
+            .join(stub_name(generation, &self.signer)?);
         self.gc_roots.extend([&stub_target]);
-        install_signed(&self.key_pair, &lanzaboote_image_path, &stub_target)
+        install_signed(&self.signer, &lanzaboote_image_path, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
 
         Ok(())
@@ -270,7 +269,7 @@ impl Installer {
         let stub_target = self
             .esp_paths
             .linux
-            .join(stub_name(generation, &self.key_pair.public_key)?);
+            .join(stub_name(generation, &self.signer)?);
         let stub = fs::read(&stub_target)?;
         let kernel_path = resolve_efi_path(
             &self.esp_paths.esp,
@@ -330,13 +329,13 @@ impl Installer {
             if newer_systemd_boot_available {
                 log::info!("Updating {to:?}...")
             };
-            let systemd_boot_is_signed = &self.key_pair.verify(to);
+            let systemd_boot_is_signed = &self.signer.verify_path(to)?;
             if !systemd_boot_is_signed {
                 log::warn!("${to:?} is not signed. Replacing it with a signed binary...")
             };
 
             if newer_systemd_boot_available || !systemd_boot_is_signed {
-                install_signed(&self.key_pair, from, to)
+                install_signed(&self.signer, from, to)
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
             }
         }
@@ -364,15 +363,16 @@ fn resolve_efi_path(esp: &Path, efi_path: &[u8]) -> Result<PathBuf> {
 /// Compute the file name to be used for the stub of a certain generation, signed with the given key.
 ///
 /// The generated name is input-addressed by the toplevel corresponding to the generation and the public part of the signing key.
-fn stub_name(generation: &Generation, public_key: &Path) -> Result<PathBuf> {
+fn stub_name<S: LanzabooteSigner>(generation: &Generation, signer: &S) -> Result<PathBuf> {
     let bootspec = &generation.spec.bootspec.bootspec;
+    let public_key = signer.get_public_key()?;
     let stub_inputs = [
         // Generation numbers can be reused if the latest generation was deleted.
         // To detect this, the stub path depends on the actual toplevel used.
         ("toplevel", bootspec.toplevel.0.as_os_str().as_bytes()),
         // If the key is rotated, the signed stubs must be re-generated.
         // So we make their path depend on the public key used for signature.
-        ("public_key", &fs::read(public_key)?),
+        ("public_key", &public_key),
     ];
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
@@ -397,11 +397,11 @@ fn stub_name(generation: &Generation, public_key: &Path) -> Result<PathBuf> {
 /// This is implemented as an atomic write. The file is first written to the destination with a
 /// `.tmp` suffix and then renamed to its final name. This is atomic, because a rename is an atomic
 /// operation on POSIX platforms.
-fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
+fn install_signed(signer: &impl LanzabooteSigner, from: &Path, to: &Path) -> Result<()> {
     log::debug!("Signing and installing {to:?}...");
     let to_tmp = to.with_extension(".tmp");
     ensure_parent_dir(&to_tmp);
-    key_pair
+    signer
         .sign_and_copy(from, &to_tmp)
         .with_context(|| format!("Failed to copy and sign file from {from:?} to {to:?}"))?;
     fs::rename(&to_tmp, to).with_context(|| {
@@ -435,26 +435,6 @@ fn force_install(from: &Path, to: &Path) -> Result<()> {
     atomic_copy(from, to)?;
     set_permission_bits(to, 0o755)
         .with_context(|| format!("Failed to set permission bits to 0o755 on file: {to:?}"))?;
-    Ok(())
-}
-
-pub fn append_initrd_secrets(
-    append_initrd_secrets_path: &Path,
-    initrd_path: &PathBuf,
-    generation_version: u64,
-) -> Result<()> {
-    let status = Command::new(append_initrd_secrets_path)
-        .args(vec![initrd_path])
-        .status()
-        .context("Failed to append initrd secrets")?;
-    if !status.success() {
-        return Err(anyhow::anyhow!(
-            "Failed to append initrd secrets for generation {} with args `{:?}`",
-            generation_version,
-            vec![append_initrd_secrets_path, initrd_path],
-        ));
-    }
-
     Ok(())
 }
 

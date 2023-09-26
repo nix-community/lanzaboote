@@ -4,8 +4,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use crate::install;
-use lanzaboote_tool::architecture::Architecture;
-use lanzaboote_tool::signature::KeyPair;
+use lanzaboote_tool::{architecture::Architecture, signature::local::LocalKeyPair};
 
 /// The default log level.
 ///
@@ -45,11 +44,11 @@ struct InstallCommand {
 
     /// sbsign Public Key
     #[arg(long)]
-    public_key: PathBuf,
+    public_key: Option<PathBuf>,
 
     /// sbsign Private Key
     #[arg(long)]
-    private_key: PathBuf,
+    private_key: Option<PathBuf>,
 
     /// Configuration limit
     #[arg(long, default_value_t = 1)]
@@ -91,14 +90,17 @@ fn install(args: InstallCommand) -> Result<()> {
     let lanzaboote_stub =
         std::env::var("LANZABOOTE_STUB").context("Failed to read LANZABOOTE_STUB env variable")?;
 
-    let key_pair = KeyPair::new(&args.public_key, &args.private_key);
+    let local_signer = LocalKeyPair::new(
+        &args.public_key.expect("Failed to obtain public key"),
+        &args.private_key.expect("Failed to obtain private key"),
+    );
 
     install::Installer::new(
         PathBuf::from(lanzaboote_stub),
         Architecture::from_nixos_system(&args.system)?,
         args.systemd,
         args.systemd_boot_loader_config,
-        key_pair,
+        local_signer,
         args.configuration_limit,
         args.esp,
         args.generations,
