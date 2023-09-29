@@ -313,7 +313,7 @@ impl<S: LanzabooteSigner> Installer<S> {
         let lanzaboote_image = self.signer.build_and_sign_stub(&parameters).context("Failed to build and sign lanzaboote stub image.")?;
         let lanzaboote_image_path = tempdir.write_secure_file(lanzaboote_image).context("Failed to write securely the signed lanzaboote stub image.")?;
 
-        generation_artifacts.add_signed(&lanzaboote_image_path, &esp_gen_paths.lanzaboote_image);
+        generation_artifacts.add_presigned(&lanzaboote_image_path, &esp_gen_paths.lanzaboote_image);
 
         Ok(())
     }
@@ -371,14 +371,14 @@ impl<S: LanzabooteSigner> Installer<S> {
 /// needs to be signed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum FileSource {
-    SignedFile(PathBuf),
+    PreSignedFile(PathBuf),
     UnsignedFile(PathBuf),
 }
 
 impl<'a> From<&'a FileSource> for &'a Path {
     fn from(value: &'a FileSource) -> Self {
         match value {
-            FileSource::SignedFile(p) | FileSource::UnsignedFile(p) => p,
+            FileSource::UnsignedFile(p) | FileSource::PreSignedFile(p) => p,
         }
     }
 }
@@ -427,16 +427,17 @@ impl GenerationArtifacts {
         self.add_file(FileSource::UnsignedFile(from.to_path_buf()), to);
     }
 
+    /// Add a presigned file, this holds the same semantics as
+    /// adding an unsigned file.
+    fn add_presigned(&mut self, from: &Path, to: &Path) {
+        self.add_file(FileSource::PreSignedFile(from.to_path_buf()), to);
+    }
+
     /// Install all files to the ESP.
     fn install(&self) -> Result<()> {
         for (to, from) in &self.files {
             match from {
-                FileSource::SignedFile(from) => {
-                    install_signed(signer, from, to).with_context(|| {
-                        format!("Failed to sign and install from {from:?} to {to:?}")
-                    })?
-                }
-                FileSource::UnsignedFile(from) => install(from, to)
+                FileSource::UnsignedFile(from) | FileSource::PreSignedFile(from) => install(from, to)
                     .with_context(|| format!("Failed to install from {from:?} to {to:?}"))?,
             }
         }
