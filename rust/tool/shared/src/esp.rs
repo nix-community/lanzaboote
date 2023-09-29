@@ -3,14 +3,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use indoc::indoc;
 
+use crate::architecture::Architecture;
 use crate::generation::Generation;
 
 /// Generic ESP paths which can be specific to a bootloader
 pub trait EspPaths<const N: usize> {
     /// Build an ESP path structure out of the ESP root directory
-    fn new(esp: impl AsRef<Path>) -> Self;
+    fn new(esp: impl AsRef<Path>, arch: Architecture) -> Self;
 
     /// Return the used file paths to store as garbage collection roots.
     fn iter(&self) -> std::array::IntoIter<&PathBuf, N>;
@@ -33,8 +35,17 @@ impl EspGenerationPaths {
     pub fn new<const N: usize, P: EspPaths<N>>(
         esp_paths: &P,
         generation: &Generation,
+        system: Architecture,
     ) -> Result<Self> {
         let bootspec = &generation.spec.bootspec.bootspec;
+        let bootspec_system: Architecture = Architecture::from_nixos_system(&bootspec.system)?;
+
+        if system != bootspec_system {
+            bail!(indoc! {r#"
+                The CPU architecture declared in your module differs from the one declared in the
+                bootspec of the current generation.
+            "#})
+        }
 
         Ok(Self {
             kernel: esp_paths

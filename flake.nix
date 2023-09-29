@@ -74,11 +74,12 @@
         "x86_64-linux"
 
         # Not actively tested, but may work:
-        # "aarch64-linux"
+        "aarch64-linux"
       ];
 
       perSystem = { config, system, pkgs, ... }:
         let
+          rustTarget = "${pkgs.hostPlatform.qemuArch}-unknown-uefi";
           pkgs = import nixpkgs {
             system = system;
             overlays = [
@@ -89,7 +90,7 @@
           inherit (pkgs) lib;
 
           uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/uefi/rust-toolchain.toml;
-          craneLib = crane.lib.x86_64-linux.overrideToolchain uefi-rust-stable;
+          craneLib = crane.lib.${system}.overrideToolchain uefi-rust-stable;
 
           # Build attributes for a Rust application.
           buildRustApp = lib.makeOverridable (
@@ -145,7 +146,7 @@
           stubCrane = buildRustApp {
             pname = "lanzaboote-stub";
             src = craneLib.cleanCargoSource ./rust/uefi;
-            target = "x86_64-unknown-uefi";
+            target = rustTarget;
             doCheck = false;
           };
 
@@ -234,6 +235,7 @@
               let
                 systemdUkify = pkgs.systemdMinimal.override {
                   withEfi = true;
+                  withBootloader = true;
                   withUkify = true;
                 };
               in

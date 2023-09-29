@@ -17,6 +17,23 @@ use rand::{thread_rng, Rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
+use lanzaboote_tool::architecture::Architecture;
+use lzbt_systemd::architecture::SystemdArchitectureExt;
+
+/// Returns the host platform system
+/// in the system double format for
+/// our usual targets.
+#[cfg(target_arch = "aarch64")]
+pub static SYSTEM: &str = "aarch64-linux";
+
+// We do not actually care much about 32 bit. However we can use this to easily test that lzbt
+// works with another architecture.
+#[cfg(target_arch = "x86")]
+pub static SYSTEM: &str = "i686-linux";
+
+#[cfg(target_arch = "x86_64")]
+pub static SYSTEM: &str = "x86_64-linux";
+
 /// Create a mock generation link.
 ///
 /// Works like `setup_generation_link_from_toplevel` but already sets up toplevel.
@@ -55,7 +72,7 @@ pub fn setup_generation_link_from_toplevel(
           ],
           "label": "LanzaOS",
           "toplevel": toplevel,
-          "system": "x86_64-linux",
+          "system": SYSTEM,
         },
         "org.nixos-community.lanzaboote": { "osRelease": toplevel.join("os-release") }
     });
@@ -78,13 +95,18 @@ pub fn setup_generation_link_from_toplevel(
 /// Accepts the temporary directory as a parameter so that the invoking function retains control of
 /// it (and when it goes out of scope).
 pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
+    let system = Architecture::from_nixos_system(SYSTEM)?;
     // Generate a random toplevel name so that multiple toplevel paths can live alongside each
     // other in the same directory.
     let toplevel = tmpdir.join(format!("toplevel-{}", random_string(8)));
     fs::create_dir(&toplevel)?;
 
     let test_systemd = systemd_location_from_env()?;
-    let test_systemd_stub = format!("{test_systemd}/lib/systemd/boot/efi/linuxx64.efi.stub");
+    let systemd_stub_filename = system.systemd_stub_filename();
+    let test_systemd_stub = format!(
+        "{test_systemd}/lib/systemd/boot/efi/{systemd_stub_filename}",
+        systemd_stub_filename = systemd_stub_filename.display()
+    );
 
     let initrd_path = toplevel.join("initrd");
     let kernel_path = toplevel.join("kernel");
@@ -119,8 +141,13 @@ pub fn lanzaboote_install(
 ) -> Result<Output> {
     // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
     // the comment in setup_toplevel for details.
+    let system = Architecture::from_nixos_system(SYSTEM)?;
     let test_systemd = systemd_location_from_env()?;
-    let test_systemd_stub = format!("{test_systemd}/lib/systemd/boot/efi/linuxx64.efi.stub");
+    let systemd_stub_filename = system.systemd_stub_filename();
+    let test_systemd_stub = format!(
+        "{test_systemd}/lib/systemd/boot/efi/{systemd_stub_filename}",
+        systemd_stub_filename = systemd_stub_filename.display()
+    );
 
     let test_loader_config_path = tempfile::NamedTempFile::new()?;
     let test_loader_config = r"timeout 0\nconsole-mode 1\n";
@@ -131,6 +158,8 @@ pub fn lanzaboote_install(
         .env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("-vv")
         .arg("install")
+        .arg("--system")
+        .arg(SYSTEM)
         .arg("--systemd")
         .arg(test_systemd)
         .arg("--systemd-boot-loader-config")

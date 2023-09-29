@@ -10,8 +10,10 @@ use anyhow::{anyhow, Context, Result};
 use nix::unistd::syncfs;
 use tempfile::TempDir;
 
+use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
 use crate::version::SystemdVersion;
+use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths};
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
@@ -30,11 +32,14 @@ pub struct Installer {
     configuration_limit: usize,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
+    arch: Architecture,
 }
 
 impl Installer {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         lanzaboote_stub: PathBuf,
+        arch: Architecture,
         systemd: PathBuf,
         systemd_boot_loader_config: PathBuf,
         key_pair: KeyPair,
@@ -43,7 +48,7 @@ impl Installer {
         generation_links: Vec<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
-        let esp_paths = SystemdEspPaths::new(esp);
+        let esp_paths = SystemdEspPaths::new(esp, arch);
         gc_roots.extend(esp_paths.iter());
 
         Self {
@@ -56,6 +61,7 @@ impl Installer {
             configuration_limit,
             esp_paths,
             generation_links,
+            arch,
         }
     }
 
@@ -238,7 +244,7 @@ impl Installer {
 
         let bootspec = &generation.spec.bootspec.bootspec;
 
-        let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation)?;
+        let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation, self.arch)?;
         self.gc_roots.extend(esp_gen_paths.to_iter());
 
         let initrd_content = fs::read(
@@ -284,7 +290,7 @@ impl Installer {
 
         let bootspec = &generation.spec.bootspec.bootspec;
 
-        let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation)?;
+        let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation, self.arch)?;
 
         let kernel_cmdline =
             assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
@@ -335,7 +341,8 @@ impl Installer {
     fn install_systemd_boot(&self) -> Result<()> {
         let systemd_boot = self
             .systemd
-            .join("lib/systemd/boot/efi/systemd-bootx64.efi");
+            .join("lib/systemd/boot/efi")
+            .join(self.arch.systemd_filename());
 
         let paths = [
             (&systemd_boot, &self.esp_paths.efi_fallback),

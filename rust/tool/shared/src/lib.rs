@@ -1,3 +1,4 @@
+pub mod architecture;
 pub mod esp;
 pub mod gc;
 pub mod generation;
