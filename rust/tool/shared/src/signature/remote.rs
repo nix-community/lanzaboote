@@ -3,9 +3,8 @@ use std::time::Duration;
 use crate::pe::StubParameters;
 
 use super::LanzabooteSigner;
-use anyhow::{Result, Context};
-use log::warn;
-use serde::{Serialize, Deserialize};
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use ureq::{Agent, AgentBuilder};
 use url::Url;
 
@@ -24,7 +23,7 @@ use url::Url;
 pub struct RemoteSigningServer {
     server_url: Url,
     user_agent: String,
-    client: Agent
+    client: Agent,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -35,9 +34,8 @@ pub struct VerificationResponse {
     /// attached to this machine
     /// This is not always a reliable piece of information
     /// TODO: rework me.
-    pub valid_according_secureboot_policy: bool
+    pub valid_according_secureboot_policy: bool,
 }
-
 
 impl RemoteSigningServer {
     pub fn new(server_url: &str, user_agent: &str) -> Result<Self> {
@@ -46,9 +44,10 @@ impl RemoteSigningServer {
             .timeout_write(Duration::from_secs(5))
             .build();
         Ok(Self {
-            server_url: Url::parse(&server_url).with_context(|| format!("Failed to parse {} as an URL", server_url))?,
+            server_url: Url::parse(server_url)
+                .with_context(|| format!("Failed to parse {} as an URL", server_url))?,
             user_agent: user_agent.to_string(),
-            client
+            client,
         })
     }
 
@@ -58,31 +57,36 @@ impl RemoteSigningServer {
     /// If the remote server agrees on providing that stub
     /// It will return it signed.
     fn request_signature(&self, stub_parameters: &StubParameters) -> Result<Vec<u8>> {
-        let response = self.client
-            .post(self.server_url.join("/sign-stub")?.as_str())
+        let response = self
+            .client
+            .post(self.server_url.join("/sign/stub")?.as_str())
             .set("User-Agent", &self.user_agent)
             .send_json(stub_parameters)
             .context("Failed to request signature")?;
 
-        let len: Option<usize>;
-        if response.has("Transfer-Encoding") && response.header("Transfer-Encoding").unwrap() == "chunked" {
-            len = None;
+        let len: Option<usize> = if response.has("Transfer-Encoding")
+            && response.header("Transfer-Encoding").unwrap() == "chunked"
+        {
+            None
         } else {
-            len = Some(response.header("Content-Length")
-                .ok_or(anyhow::anyhow!("No content length in server response for stub signature"))?
-                .parse()?);
-        }
+            Some(
+                response
+                    .header("Content-Length")
+                    .ok_or(anyhow::anyhow!(
+                        "No content length in server response for stub signature"
+                    ))?
+                    .parse()?,
+            )
+        };
 
-        let mut reader = response
-            .into_reader();
+        let mut reader = response.into_reader();
 
         let mut binary = match len {
             Some(len) => Vec::with_capacity(len),
-            None => Vec::new()
+            None => Vec::new(),
         };
 
-        reader
-            .read_to_end(&mut binary)?;
+        reader.read_to_end(&mut binary)?;
 
         Ok(binary)
     }
@@ -90,49 +94,92 @@ impl RemoteSigningServer {
     /// Asks for the remote server to sign an arbitrary
     /// store path.
     fn request_store_path_signature(&self, store_path: &str) -> Result<Vec<u8>> {
-        let response = self.client
-            .post(self.server_url.join("/sign-store-path")?.as_str())
+        let response = self
+            .client
+            .post(self.server_url.join("/sign/store-path")?.as_str())
             .set("User-Agent", &self.user_agent)
             .set("Content-Type", "text/plain; charset=utf8")
             .send_string(store_path)
             .context("Failed to request signature")?;
 
-        let len: Option<usize>;
-        if response.has("Transfer-Encoding") && response.header("Transfer-Encoding").unwrap() == "chunked" {
-            len = None;
+        let len: Option<usize> = if response.has("Transfer-Encoding")
+            && response.header("Transfer-Encoding").unwrap() == "chunked"
+        {
+            None
         } else {
-            len = Some(response.header("Content-Length")
-                .ok_or(anyhow::anyhow!("No content length in server response for stub signature"))?
-                .parse()?);
-        }
+            Some(
+                response
+                    .header("Content-Length")
+                    .ok_or(anyhow::anyhow!(
+                        "No content length in server response for stub signature"
+                    ))?
+                    .parse()?,
+            )
+        };
 
-        let mut reader = response
-            .into_reader();
+        let mut reader = response.into_reader();
 
         let mut binary = match len {
             Some(len) => Vec::with_capacity(len),
-            None => Vec::new()
+            None => Vec::new(),
         };
 
-        reader
-            .read_to_end(&mut binary)?;
+        reader.read_to_end(&mut binary)?;
 
         Ok(binary)
     }
 }
 
 impl LanzabooteSigner for RemoteSigningServer {
+    fn get_public_key(&self) -> Result<Vec<u8>> {
+        let response = self
+            .client
+            .get(self.server_url.join("/publickey")?.as_str())
+            .set("User-Agent", &self.user_agent)
+            .set("Content-Type", "application/octet-stream")
+            .call()
+            .context("Failed to request public key")?;
+
+        let len: Option<usize> = if response.has("Transfer-Encoding")
+            && response.header("Transfer-Encoding").unwrap() == "chunked"
+        {
+            None
+        } else {
+            Some(
+                response
+                    .header("Content-Length")
+                    .ok_or(anyhow::anyhow!(
+                        "No content length in server response for stub signature"
+                    ))?
+                    .parse()?,
+            )
+        };
+
+        let mut reader = response.into_reader();
+
+        let mut binary = match len {
+            Some(len) => Vec::with_capacity(len),
+            None => Vec::new(),
+        };
+
+        reader.read_to_end(&mut binary)?;
+        Ok(binary)
+    }
+
     fn build_and_sign_stub(&self, stub: &StubParameters) -> Result<Vec<u8>> {
         self.request_signature(stub)
     }
     fn sign_store_path(&self, store_path: &std::path::Path) -> Result<Vec<u8>> {
         self.request_store_path_signature(
-            store_path.to_str().ok_or_else(|| anyhow::anyhow!("Failed to transform store path into valid UTF-8"))?
+            store_path.to_str().ok_or_else(|| {
+                anyhow::anyhow!("Failed to transform store path into valid UTF-8")
+            })?,
         )
     }
 
     fn verify(&self, pe_binary: &[u8]) -> Result<bool> {
-        let resp: VerificationResponse = self.client
+        let resp: VerificationResponse = self
+            .client
             .post(self.server_url.join("/verify")?.as_str())
             .set("User-Agent", &self.user_agent)
             .set("Content-Type", "application/octet-stream")
