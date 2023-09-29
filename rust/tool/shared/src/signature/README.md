@@ -10,5 +10,3 @@ we can offer.
 You are responsible for securing them and ensuring they are not accessible by an attacker.
 
 Signature happens via `sbsign` which will copy your input inside a temporary directory, sign it, read it and offers it to you again.
-
-In the future, we may remove `sbsign` dependency to perform signature in-memory without any temporary directory.

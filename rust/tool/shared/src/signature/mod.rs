@@ -3,6 +3,10 @@ use std::path::Path;
 
 use crate::pe::StubParameters;
 
+pub mod local;
+#[cfg(feature = "remote_signature")]
+pub mod remote;
+
 pub trait LanzabooteSigner {
     fn sign_store_path(&self, store_path: &Path) -> Result<Vec<u8>>;
     fn build_and_sign_stub(&self, stub: &StubParameters) -> Result<Vec<u8>>;
@@ -21,5 +25,3 @@ pub trait LanzabooteSigner {
         self.verify(&std::fs::read(from).expect("Failed to read the path to verify"))
     }
 }
-
-pub mod local;
