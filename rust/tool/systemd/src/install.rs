@@ -20,7 +20,7 @@ use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
-use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
+use lanzaboote_tool::pe::{self, append_initrd_secrets};
 use lanzaboote_tool::signature::LanzabooteSigner;
 use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
 
@@ -248,15 +248,22 @@ impl<S: LanzabooteSigner> Installer<S> {
         .with_cmdline(&kernel_cmdline)
         .with_os_release_contents(os_release_contents.as_bytes());
 
-        let lanzaboote_image_path = lanzaboote_image(&tempdir, &parameters)
+        let lanzaboote_image = self
+            .signer
+            .build_and_sign_stub(&parameters)
             .context("Failed to build and sign lanzaboote stub image.")?;
+        let lanzaboote_image_path = tempdir
+            .write_secure_file(lanzaboote_image)
+            .context("Failed to write securely the signed lanzaboote stub image.")?;
 
         let stub_target = self
             .esp_paths
             .linux
             .join(stub_name(generation, &self.signer)?);
+
         self.gc_roots.extend([&stub_target]);
-        install_signed(&self.signer, &lanzaboote_image_path, &stub_target)
+
+        install(&lanzaboote_image_path, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
 
         Ok(())

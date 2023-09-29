@@ -23,3 +23,4 @@ pub trait LanzabooteSigner {
 }
 
 pub mod local;
+pub mod remote;
