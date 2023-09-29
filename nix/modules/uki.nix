@@ -21,6 +21,7 @@ in
     let
       systemdUkify = pkgs.systemdMinimal.override {
         withEfi = true;
+        withBootloader = true;
         withUkify = true;
       };
     in
