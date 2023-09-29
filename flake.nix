@@ -79,7 +79,7 @@
 
       perSystem = { config, system, pkgs, ... }:
         let
-          rustTarget = "${pkgs.hostPlatform.qemuArch}-unknown-uefi";
+          rustTarget = "${pkgs.stdenv.hostPlatform.qemuArch}-unknown-uefi";
           pkgs = import nixpkgs {
             system = system;
             overlays = [
