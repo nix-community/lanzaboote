@@ -23,6 +23,8 @@ fastrand = "2.0.0"
 log = { version = "0.4", features = ["std"] }
 stderrlog = "0.5"
 indoc = "2"
+ureq = { version = "2.7.1", features = [ "json" ] }
+url = "2.4.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
