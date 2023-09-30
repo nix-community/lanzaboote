@@ -240,17 +240,21 @@ impl<S: LanzabooteSigner> Installer<S> {
         let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation)?;
         self.gc_roots.extend(esp_gen_paths.to_iter());
 
-        let initrd_content = fs::read(
-            bootspec
-                .initrd
-                .as_ref()
-                .context("Lanzaboote does not support missing initrd yet")?,
-        )?;
-        let initrd_location = tempdir
-            .write_secure_file(initrd_content)
-            .context("Failed to copy initrd to tempfile.")?;
+        let initrd_location: PathBuf;
+        let bootspec_initrd_location = bootspec
+            .initrd
+            .as_ref()
+            .context("Lanzaboote does not support missing initrd yet")?;
+
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
+            let initrd_content = fs::read(bootspec_initrd_location)?;
+            initrd_location = tempdir
+                .write_secure_file(initrd_content)
+                .context("Failed to copy initrd to tempfile.")?;
+
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
+        } else {
+            initrd_location = bootspec_initrd_location.to_path_buf();
         }
 
         // The initrd and kernel don't need to be signed. The stub has their hashes embedded and
@@ -298,11 +302,8 @@ impl<S: LanzabooteSigner> Installer<S> {
             .context("Failed to retrieve kernel path from GenerationArtifacts.")?
             .into();
 
-        let initrd_path = generation_artifacts
-            .files
-            .get(&esp_gen_paths.initrd)
-            .context("Failed to retrieve initrd path from GenerationArtifacts.")?
-            .into();
+        let initrd_store_path = bootspec.initrd.as_ref().context("Lanzaboote does not support missing initrd yet")?;
+        let initrd_secrets_appender_path = bootspec.initrd_secrets.as_ref().map(|p| p.as_path());
 
         assert_eq!(bootspec.kernel, kernel_path);
 
