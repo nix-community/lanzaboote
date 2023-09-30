@@ -96,6 +96,8 @@
             , src
             , target ? null
             , doCheck ? true
+              # By default, it builds the default members of the workspace.
+            , packages ? null
             , extraArgs ? { }
             }:
             let
@@ -123,7 +125,9 @@
                   #[cfg_attr(any(target_os = "none", target_os = "uefi"), export_name = "efi_main")]
                   fn main() {}
                 '';
-              } // extraArgs;
+
+                cargoExtraArgs = (extraArgs.cargoExtraArgs or "") + (if packages != null then (lib.concatStringsSep " " (map (p: "--package ${p}") packages)) else "");
+              } // builtins.removeAttrs extraArgs [ "cargoExtraArgs" ];
 
               cargoArtifacts = craneLib.buildDepsOnly commonArgs;
             in
