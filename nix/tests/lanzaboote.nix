@@ -144,7 +144,7 @@ let
       machine.crash()
       machine.start()
     '' + (if useSecureBoot then ''
-      machine.wait_for_console_text("Hash mismatch")
+      machine.wait_for_console_text("hash does not match")
     '' else ''
       # Just check that the system came up.
       print(machine.succeed("bootctl", timeout=120))
