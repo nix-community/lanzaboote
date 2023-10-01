@@ -77,7 +77,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     #[cfg(feature = "thin")]
     {
-        status = thin::boot_linux(handle, system_table)
+        status = thin::boot_linux(handle, system_table).status()
     }
 
     status
