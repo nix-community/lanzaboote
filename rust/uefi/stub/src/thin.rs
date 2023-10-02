@@ -1,8 +1,8 @@
 use log::{error, warn};
 use sha2::{Digest, Sha256};
-use uefi::{fs::FileSystem, guid, prelude::*, table::runtime::VariableVendor, CString16, Result};
+use uefi::{fs::FileSystem, prelude::*, CString16, Result};
 
-use crate::common::{boot_linux_unchecked, extract_string};
+use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
 use linux_bootloader::pe_section::pe_section;
 use linux_bootloader::uefi_helpers::booted_image_file;
 
@@ -91,39 +91,7 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> uefi::
         .expect("Failed to extract configuration from binary. Did you run lzbt?")
     };
 
-    // The firmware initialized SecureBoot to 1 if performing signature checks, and 0 if it doesn't.
-    // Applications are not supposed to modify this variable (in particular, don't change the value from 1 to 0).
-    let secure_boot_enabled = system_table
-        .runtime_services()
-        .get_variable(
-            cstr16!("SecureBoot"),
-            &VariableVendor(guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c")),
-            &mut [1],
-        )
-        .and_then(|(value, _)| match value {
-            [0] => Ok(false),
-            [1] => Ok(true),
-            [v] => {
-                warn!(
-                    "Unexpected value of SecureBoot variable: {v}. Performing verification anyway."
-                );
-                Ok(true)
-            }
-            _ => Err(Status::BAD_BUFFER_SIZE.into()),
-        })
-        .unwrap_or_else(|err| {
-            if err.status() == Status::NOT_FOUND {
-                warn!("SecureBoot variable not found. Assuming Secure Boot is not supported.");
-                false
-            } else {
-                warn!("Failed to read SecureBoot variable: {err}. Performing verification anyway.");
-                true
-            }
-        });
-
-    if !secure_boot_enabled {
-        warn!("Secure Boot is not active!");
-    }
+    let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
 
     let kernel_data;
     let initrd_data;
@@ -143,6 +111,12 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> uefi::
             .expect("Failed to read initrd file into memory");
     }
 
+    let cmdline = get_cmdline(
+        &config.cmdline,
+        system_table.boot_services(),
+        secure_boot_enabled,
+    );
+
     check_hash(
         &kernel_data,
         config.kernel_hash,
@@ -156,11 +130,5 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> uefi::
         secure_boot_enabled,
     )?;
 
-    boot_linux_unchecked(
-        handle,
-        system_table,
-        kernel_data,
-        &config.cmdline,
-        initrd_data,
-    )
+    boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
 }
