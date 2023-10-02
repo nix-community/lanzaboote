@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use uefi::{prelude::*, CString16, Result};
 
-use crate::common::{boot_linux_unchecked, extract_string};
+use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot};
 use linux_bootloader::pe_section::pe_section;
 use linux_bootloader::uefi_helpers::booted_image_file;
 
@@ -56,12 +56,8 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> Status
         .expect("Failed to extract configuration from binary.")
     };
 
-    boot_linux_unchecked(
-        handle,
-        system_table,
-        config.kernel,
-        &config.cmdline,
-        config.initrd,
-    )
-    .status()
+    let secure_boot = get_secure_boot(system_table.runtime_services());
+    let cmdline = get_cmdline(&config.cmdline, system_table.boot_services(), secure_boot);
+
+    boot_linux_unchecked(handle, system_table, config.kernel, &cmdline, config.initrd).status()
 }
