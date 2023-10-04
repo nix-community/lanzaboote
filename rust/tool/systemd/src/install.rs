@@ -1,20 +1,23 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
+use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::os::fd::AsRawFd;
-use std::os::unix::prelude::PermissionsExt;
+use std::os::unix::prelude::{OsStrExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::string::ToString;
 
 use anyhow::{anyhow, Context, Result};
+use base32ct::{Base32Unpadded, Encoding};
 use nix::unistd::syncfs;
+use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
 use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
-use lanzaboote_tool::esp::{EspGenerationPaths, EspPaths};
+use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
@@ -74,9 +77,7 @@ impl Installer {
             .map(GenerationLink::from_path)
             .collect::<Result<Vec<GenerationLink>>>()?;
 
-        // Sort the links by version. The links need to always be sorted to ensure the secrets of
-        // the latest generation are appended to the initrd when multiple generations point to the
-        // same initrd.
+        // Sort the links by version, so that the limit actually skips the oldest generations.
         links.sort_by_key(|l| l.version);
 
         // A configuration limit of 0 means there is no limit.
@@ -129,64 +130,7 @@ impl Installer {
     }
 
     /// Install all generations from the provided `GenerationLinks`.
-    ///
-    /// Iterates over the links twice:
-    ///     (1) First, building all unsigned artifacts and storing the mapping from source to
-    ///     destination in `GenerationArtifacts`. `GenerationArtifacts` ensures that there are no
-    ///     duplicate destination paths and thus ensures that the hashes embedded in the lanzaboote
-    ///     image do not get invalidated because the files to which they point get overwritten by a
-    ///     later generation.
-    ///     (2) Second, building all signed artifacts using the previously built mapping from source to
-    ///     destination in the `GenerationArtifacts`.
-    ///
-    /// This way, in the second step, all paths and thus all hashes for all generations are already
-    /// known. The signed files can now be constructed with known good hashes **across** all
-    /// generations.
     fn install_generations_from_links(&mut self, links: &[GenerationLink]) -> Result<()> {
-        // This struct must live for the entire lifetime of this function so that the contained
-        // tempdir does not go out of scope and thus does not get deleted.
-        let mut generation_artifacts =
-            GenerationArtifacts::new().context("Failed to create GenerationArtifacts.")?;
-
-        self.build_generation_artifacts_from_links(
-            &mut generation_artifacts,
-            links,
-            Self::build_unsigned_generation_artifacts,
-        )
-        .context("Failed to build unsigned generation artifacts.")?;
-
-        self.build_generation_artifacts_from_links(
-            &mut generation_artifacts,
-            links,
-            Self::build_signed_generation_artifacts,
-        )
-        .context("Failed to build signed generation artifacts.")?;
-
-        generation_artifacts
-            .install(&self.key_pair)
-            .context("Failed to install files.")?;
-
-        // Sync files to persistent storage. This may improve the
-        // chance of a consistent boot directory in case the system
-        // crashes.
-        let boot = File::open(&self.esp_paths.esp).context("Failed to open ESP root directory.")?;
-        syncfs(boot.as_raw_fd()).context("Failed to sync ESP filesystem.")?;
-
-        Ok(())
-    }
-
-    /// Build all generation artifacts from a list of `GenerationLink`s.
-    ///
-    /// This function accepts a closure to build the generation artifacts for a single generation.
-    fn build_generation_artifacts_from_links<F>(
-        &mut self,
-        generation_artifacts: &mut GenerationArtifacts,
-        links: &[GenerationLink],
-        mut build_generation_artifacts: F,
-    ) -> Result<()>
-    where
-        F: FnMut(&mut Self, &Generation, &mut GenerationArtifacts) -> Result<()>,
-    {
         let generations = links
             .iter()
             .filter_map(|link| {
@@ -214,120 +158,149 @@ impl Installer {
         }
 
         for generation in generations {
-            build_generation_artifacts(self, &generation, generation_artifacts)
-                .context("Failed to build generation artifacts.")?;
-
+            // The kernels and initrds are content-addressed.
+            // Thus, this cannot overwrite files of old generation with different content.
+            self.install_generation(&generation)
+                .context("Failed to install generation.")?;
             for (name, bootspec) in &generation.spec.bootspec.specialisations {
                 let specialised_generation = generation.specialise(name, bootspec)?;
-
-                build_generation_artifacts(self, &specialised_generation, generation_artifacts)
-                    .context("Failed to build generation artifacts for specialisation.")?;
+                self.install_generation(&specialised_generation)
+                    .context("Failed to install specialisation.")?;
             }
         }
 
+        // Sync files to persistent storage. This may improve the
+        // chance of a consistent boot directory in case the system
+        // crashes.
+        let boot = File::open(&self.esp_paths.esp).context("Failed to open ESP root directory.")?;
+        syncfs(boot.as_raw_fd()).context("Failed to sync ESP filesystem.")?;
+
         Ok(())
     }
 
-    /// Build the unsigned generation artifacts for a single generation.
+    /// Install the given `Generation`.
     ///
-    /// Stores the mapping from source to destination for the artifacts in the provided
-    /// `GenerationArtifacts`. Does not install any files to the ESP.
-    ///
-    /// Because this function already has an complete view of all required paths in the ESP for
-    /// this generation, it stores all paths as GC roots.
-    fn build_unsigned_generation_artifacts(
-        &mut self,
-        generation: &Generation,
-        generation_artifacts: &mut GenerationArtifacts,
-    ) -> Result<()> {
-        let tempdir = &generation_artifacts.tempdir;
+    /// The kernel and initrd are content-addressed, and the stub name identifies the generation.
+    /// Hence, this function cannot overwrite files of other generations with different contents.
+    /// All installed files are added as garbage collector roots.
+    fn install_generation(&mut self, generation: &Generation) -> Result<()> {
+        // If the generation is already properly installed, don't overwrite it.
+        if self.register_installed_generation(generation).is_ok() {
+            return Ok(());
+        }
 
+        let tempdir = TempDir::new().context("Failed to create temporary directory.")?;
         let bootspec = &generation.spec.bootspec.bootspec;
 
-        let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation, self.arch)?;
-        self.gc_roots.extend(esp_gen_paths.to_iter());
+        // The kernel is a file in /nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-linux-<version>/.
+        // (On x86, that file is called bzImage, but other architectures may differ.)
+        let kernel_dirname = bootspec
+            .kernel
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(OsStr::to_str)
+            .context("Failed to extract the kernel directory name.")?;
+        let kernel_version = kernel_dirname
+            .rsplit('-')
+            .next()
+            .context("Failed to extract the kernel version.")?;
 
-        let initrd_content = fs::read(
-            bootspec
-                .initrd
-                .as_ref()
-                .context("Lanzaboote does not support missing initrd yet")?,
-        )?;
+        // Install the kernel and record its path on the ESP.
+        let kernel_target = self
+            .install_nixos_ca(&bootspec.kernel, &format!("kernel-{}", kernel_version))
+            .context("Failed to install the kernel.")?;
+
+        // Assemble and install the initrd, and record its path on the ESP.
         let initrd_location = tempdir
-            .write_secure_file(initrd_content)
-            .context("Failed to copy initrd to tempfile.")?;
+            .write_secure_file(
+                fs::read(
+                    bootspec
+                        .initrd
+                        .as_ref()
+                        .context("Lanzaboote does not support missing initrd yet.")?,
+                )
+                .context("Failed to read the initrd.")?,
+            )
+            .context("Failed to copy the initrd to the temporary directory.")?;
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
             append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
         }
+        let initrd_target = self
+            .install_nixos_ca(&initrd_location, &format!("initrd-{}", kernel_version))
+            .context("Failed to install the initrd.")?;
 
-        // The initrd and kernel don't need to be signed. The stub has their hashes embedded and
-        // will refuse loading on hash mismatches.
-        //
-        // The kernel is not signed because systemd-boot could be tricked into loading the signed
-        // kernel in combination with an malicious unsigned initrd. This could be achieved because
-        // systemd-boot also honors the type #1 boot loader specification.
-        generation_artifacts.add_unsigned(&bootspec.kernel, &esp_gen_paths.kernel);
-        generation_artifacts.add_unsigned(&initrd_location, &esp_gen_paths.initrd);
-
-        Ok(())
-    }
-
-    /// Build the signed generation artifacts for a single generation.
-    ///
-    /// Stores the mapping from source to destination for the artifacts in the provided
-    /// `GenerationArtifacts`. Does not install any files to the ESP.
-    ///
-    /// This function expects an already pre-populated `GenerationArtifacts`. It can only be called
-    /// if ALL unsigned artifacts are already built and stored in `GenerationArtifacts`. More
-    /// specifically, this function can only be called after `build_unsigned_generation_artifacts`
-    /// has been executed.
-    fn build_signed_generation_artifacts(
-        &mut self,
-        generation: &Generation,
-        generation_artifacts: &mut GenerationArtifacts,
-    ) -> Result<()> {
-        let tempdir = &generation_artifacts.tempdir;
-
-        let bootspec = &generation.spec.bootspec.bootspec;
-
-        let esp_gen_paths = EspGenerationPaths::new(&self.esp_paths, generation, self.arch)?;
-
-        let kernel_cmdline =
-            assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
-
+        // Assemble, sign and install the Lanzaboote stub.
         let os_release = OsRelease::from_generation(generation)
             .context("Failed to build OsRelease from generation.")?;
         let os_release_path = tempdir
             .write_secure_file(os_release.to_string().as_bytes())
             .context("Failed to write os-release file.")?;
-
-        let kernel_path: &Path = generation_artifacts
-            .files
-            .get(&esp_gen_paths.kernel)
-            .context("Failed to retrieve kernel path from GenerationArtifacts.")?
-            .into();
-
-        let initrd_path = generation_artifacts
-            .files
-            .get(&esp_gen_paths.initrd)
-            .context("Failed to retrieve initrd path from GenerationArtifacts.")?
-            .into();
-
+        let kernel_cmdline =
+            assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
         let lanzaboote_image = pe::lanzaboote_image(
-            tempdir,
+            &tempdir,
             &self.lanzaboote_stub,
             &os_release_path,
             &kernel_cmdline,
-            kernel_path,
-            initrd_path,
-            &esp_gen_paths,
+            &bootspec.kernel,
+            &kernel_target,
+            &initrd_location,
+            &initrd_target,
             &self.esp_paths.esp,
         )
         .context("Failed to assemble lanzaboote image.")?;
-
-        generation_artifacts.add_signed(&lanzaboote_image, &esp_gen_paths.lanzaboote_image);
+        let stub_target = self
+            .esp_paths
+            .linux
+            .join(stub_name(generation, &self.key_pair.public_key)?);
+        self.gc_roots.extend([&stub_target]);
+        install_signed(&self.key_pair, &lanzaboote_image, &stub_target)
+            .context("Failed to install the Lanzaboote stub.")?;
 
         Ok(())
+    }
+
+    /// Register the files of an already installed generation as garbage collection roots.
+    ///
+    /// An error should not be considered fatal; the generation should be (re-)installed instead.
+    fn register_installed_generation(&mut self, generation: &Generation) -> Result<()> {
+        let stub_target = self
+            .esp_paths
+            .linux
+            .join(stub_name(generation, &self.key_pair.public_key)?);
+        let stub = fs::read(&stub_target)?;
+        let kernel_path = resolve_efi_path(
+            &self.esp_paths.esp,
+            pe::read_section_data(&stub, ".kernelp").context("Missing kernel path.")?,
+        )?;
+        let initrd_path = resolve_efi_path(
+            &self.esp_paths.esp,
+            pe::read_section_data(&stub, ".initrdp").context("Missing initrd path.")?,
+        )?;
+
+        if !kernel_path.exists() && !initrd_path.exists() {
+            anyhow::bail!("Missing kernel or initrd.");
+        }
+        self.gc_roots
+            .extend([&stub_target, &kernel_path, &initrd_path]);
+
+        Ok(())
+    }
+
+    /// Install a content-addressed file to the `EFI/nixos` directory on the ESP.
+    ///
+    /// It is automatically added to the garbage collector roots.
+    /// The full path to the target file is returned.
+    fn install_nixos_ca(&mut self, from: &Path, label: &str) -> Result<PathBuf> {
+        let hash = file_hash(from).context("Failed to read the source file.")?;
+        let to = self.esp_paths.nixos.join(format!(
+            "{}-{}.efi",
+            label,
+            Base32Unpadded::encode_string(&hash)
+        ));
+        self.gc_roots.extend([&to]);
+        install(from, &to)?;
+        Ok(to)
     }
 
     /// Install systemd-boot to ESP.
@@ -380,89 +353,37 @@ impl Installer {
     }
 }
 
-/// A location in the ESP together with information whether the file
-/// needs to be signed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum FileSource {
-    SignedFile(PathBuf),
-    UnsignedFile(PathBuf),
+/// Translate an EFI path to an absolute path on the mounted ESP.
+fn resolve_efi_path(esp: &Path, efi_path: &[u8]) -> Result<PathBuf> {
+    Ok(esp.join(std::str::from_utf8(&efi_path[1..])?.replace('\\', "/")))
 }
 
-impl<'a> From<&'a FileSource> for &'a Path {
-    fn from(value: &'a FileSource) -> Self {
-        match value {
-            FileSource::SignedFile(p) | FileSource::UnsignedFile(p) => p,
-        }
-    }
-}
-
-/// Stores the source and destination of all artifacts needed to install all generations.
+/// Compute the file name to be used for the stub of a certain generation, signed with the given key.
 ///
-/// The key feature of this data structure is that the mappings are automatically deduplicated
-/// because they are stored in a HashMap using the destination as the key. Thus, there is only
-/// unique destination paths.
-///
-/// This enables a two step installation process where all artifacts across all generations are
-/// first collected and then installed. This deduplication in the collection phase reduces the
-/// number of accesesses and writes to the ESP. More importantly, however, in the second step, all
-/// paths on the ESP are uniquely determined and the images can be generated while being sure that
-/// the hashes embedded in them will point to a valid file on the ESP because the file will not be
-/// overwritten by a later generation.
-struct GenerationArtifacts {
-    /// Temporary directory that stores all temporary files that are created when building the
-    /// GenerationArtifacts.
-    tempdir: TempDir,
-
-    /// A mapping from target location to source.
-    files: BTreeMap<PathBuf, FileSource>,
-}
-
-impl GenerationArtifacts {
-    fn new() -> Result<Self> {
-        Ok(Self {
-            tempdir: TempDir::new().context("Failed to create temporary directory.")?,
-            files: Default::default(),
-        })
-    }
-
-    /// Add a file to be installed.
-    ///
-    /// Adding the same file multiple times with the same source is ok
-    /// and will drop the old source.
-    fn add_file(&mut self, from: FileSource, to: &Path) {
-        if let Some(_prev_from) = self.files.insert(to.to_path_buf(), from) {
-            // Should we log something here?
-        }
-    }
-
-    /// Add source and destination of a PE file to be signed.
-    ///
-    /// Files are stored in the HashMap using their destination path as the key to ensure that the
-    /// destination paths are unique.
-    fn add_signed(&mut self, from: &Path, to: &Path) {
-        self.add_file(FileSource::SignedFile(from.to_path_buf()), to);
-    }
-
-    /// Add source and destination of an arbitrary file.
-    fn add_unsigned(&mut self, from: &Path, to: &Path) {
-        self.add_file(FileSource::UnsignedFile(from.to_path_buf()), to);
-    }
-
-    /// Install all files to the ESP.
-    fn install(&self, key_pair: &KeyPair) -> Result<()> {
-        for (to, from) in &self.files {
-            match from {
-                FileSource::SignedFile(from) => {
-                    install_signed(key_pair, from, to).with_context(|| {
-                        format!("Failed to sign and install from {from:?} to {to:?}")
-                    })?
-                }
-                FileSource::UnsignedFile(from) => install(from, to)
-                    .with_context(|| format!("Failed to install from {from:?} to {to:?}"))?,
-            }
-        }
-
-        Ok(())
+/// The generated name is input-addressed by the toplevel corresponding to the generation and the public part of the signing key.
+fn stub_name(generation: &Generation, public_key: &Path) -> Result<PathBuf> {
+    let bootspec = &generation.spec.bootspec.bootspec;
+    let stub_inputs = [
+        // Generation numbers can be reused if the latest generation was deleted.
+        // To detect this, the stub path depends on the actual toplevel used.
+        ("toplevel", bootspec.toplevel.0.as_os_str().as_bytes()),
+        // If the key is rotated, the signed stubs must be re-generated.
+        // So we make their path depend on the public key used for signature.
+        ("public_key", &fs::read(public_key)?),
+    ];
+    let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
+        serde_json::to_string(&stub_inputs).unwrap(),
+    ));
+    if let Some(specialisation_name) = generation.is_specialised() {
+        Ok(PathBuf::from(format!(
+            "nixos-generation-{}-specialisation-{}-{}.efi",
+            generation, specialisation_name, stub_input_hash
+        )))
+    } else {
+        Ok(PathBuf::from(format!(
+            "nixos-generation-{}-{}.efi",
+            generation, stub_input_hash
+        )))
     }
 }
 
@@ -544,17 +465,29 @@ fn assemble_kernel_cmdline(init: &Path, kernel_params: Vec<String>) -> Vec<Strin
 
 /// Atomically copy a file.
 ///
-/// The file is first written to the destination with a `.tmp` suffix and then renamed to its final
-/// name. This is atomic, because a rename is an atomic operation on POSIX platforms.
+/// First, the content is written to a temporary file (with a `.tmp` extension).
+/// Then, this file is synced, to ensure its data and metadata are fully on disk before continuing.
+/// In the last step, the temporary file is renamed to the final destination.
+///
+/// Due to the deficiencies of FAT32, it is possible for the filesystem to become corrupted after power loss.
+/// It is not possible to fully defend against this situation, so this operation is not actually fully atomic.
+/// However, in all other cases, the target file is either present with its correct content or not present at all.
 fn atomic_copy(from: &Path, to: &Path) -> Result<()> {
-    let to_tmp = to.with_extension(".tmp");
-
-    fs::copy(from, &to_tmp)
-        .with_context(|| format!("Failed to copy from {from:?} to {to_tmp:?}",))?;
-
-    fs::rename(&to_tmp, to).with_context(|| {
-        format!("Failed to move temporary file {to_tmp:?} to final location {to:?}")
-    })
+    let tmp = to.with_extension(".tmp");
+    {
+        let mut from_file =
+            File::open(from).with_context(|| format!("Failed to read the source file {from:?}"))?;
+        let mut tmp_file = File::create(&tmp)
+            .with_context(|| format!("Failed to create the temporary file {tmp:?}"))?;
+        std::io::copy(&mut from_file, &mut tmp_file).with_context(|| {
+            format!("Failed to copy from {from:?} to the temporary file {tmp:?}")
+        })?;
+        tmp_file
+            .sync_all()
+            .with_context(|| format!("Failed to sync the temporary file {tmp:?}"))?;
+    }
+    fs::rename(&tmp, to)
+        .with_context(|| format!("Failed to move temporary file {tmp:?} to target {to:?}"))
 }
 
 /// Set the octal permission bits of the specified file.

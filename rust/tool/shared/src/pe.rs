@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use goblin::pe::PE;
 use tempfile::TempDir;
 
-use crate::esp::EspGenerationPaths;
 use crate::utils::{file_hash, tmpname, SecureTempDirExt};
 
 /// Assemble a lanzaboote image.
@@ -20,9 +19,10 @@ pub fn lanzaboote_image(
     lanzaboote_stub: &Path,
     os_release: &Path,
     kernel_cmdline: &[String],
-    kernel_path: &Path,
-    initrd_path: &Path,
-    esp_gen_paths: &EspGenerationPaths,
+    kernel_source: &Path,
+    kernel_target: &Path,
+    initrd_source: &Path,
+    initrd_target: &Path,
     esp: &Path,
 ) -> Result<PathBuf> {
     // objcopy can only copy files into the PE binary. That's why we
@@ -30,12 +30,12 @@ pub fn lanzaboote_image(
     let kernel_cmdline_file = tempdir.write_secure_file(kernel_cmdline.join(" "))?;
 
     let kernel_path_file =
-        tempdir.write_secure_file(esp_relative_uefi_path(esp, &esp_gen_paths.kernel)?)?;
-    let kernel_hash_file = tempdir.write_secure_file(file_hash(kernel_path)?.as_slice())?;
+        tempdir.write_secure_file(esp_relative_uefi_path(esp, kernel_target)?)?;
+    let kernel_hash_file = tempdir.write_secure_file(file_hash(kernel_source)?.as_slice())?;
 
     let initrd_path_file =
-        tempdir.write_secure_file(esp_relative_uefi_path(esp, &esp_gen_paths.initrd)?)?;
-    let initrd_hash_file = tempdir.write_secure_file(file_hash(initrd_path)?.as_slice())?;
+        tempdir.write_secure_file(esp_relative_uefi_path(esp, initrd_target)?)?;
+    let initrd_hash_file = tempdir.write_secure_file(file_hash(initrd_source)?.as_slice())?;
 
     let os_release_offs = stub_offset(lanzaboote_stub)?;
     let kernel_cmdline_offs = os_release_offs + file_size(os_release)?;

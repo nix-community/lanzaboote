@@ -133,30 +133,13 @@ let
   # `src` is copied to `dst` inside th VM. Optionally append some random data
   # ("crap") to the end of the file at `dst`. This is useful to easily change
   # the hash of a file and produce a hash mismatch when booting the stub.
-  mkHashMismatchTest = { name, path, appendCrap ? false, useSecureBoot ? true }: mkSecureBootTest {
+  mkHashMismatchTest = { name, appendCrapGlob, useSecureBoot ? true }: mkSecureBootTest {
     inherit name;
     inherit useSecureBoot;
 
     testScript = ''
-      import json
-      import os.path
-      bootspec = None
-
-      def convert_to_esp(store_file_path):
-          store_dir = os.path.basename(os.path.dirname(store_file_path))
-          filename = os.path.basename(store_file_path)
-          return f'/boot/EFI/nixos/{store_dir}-{filename}.efi'
-
       machine.start()
-      bootspec = json.loads(machine.succeed("cat /run/current-system/boot.json")).get('org.nixos.bootspec.v1')
-      assert bootspec is not None, "Unsupported bootspec version!"
-      src_path = ${path.src}
-      dst_path = ${path.dst}
-      machine.succeed(f"cp -rf {src_path} {dst_path}")
-    '' + lib.optionalString appendCrap ''
-      machine.succeed(f"echo Foo >> {dst_path}")
-    '' +
-    ''
+      machine.succeed("echo some_garbage_to_change_the_hash | tee -a ${appendCrapGlob} > /dev/null")
       machine.succeed("sync")
       machine.crash()
       machine.start()
@@ -174,24 +157,12 @@ let
   # that would make the kernel still accept it.
   mkModifiedInitrdTest = { name, useSecureBoot }: mkHashMismatchTest {
     inherit name useSecureBoot;
-
-    path = {
-      src = "bootspec.get('initrd')";
-      dst = "convert_to_esp(bootspec.get('initrd'))";
-    };
-
-    appendCrap = true;
+    appendCrapGlob = "/boot/EFI/nixos/initrd-*.efi";
   };
 
   mkModifiedKernelTest = { name, useSecureBoot }: mkHashMismatchTest {
     inherit name useSecureBoot;
-
-    path = {
-      src = "bootspec.get('kernel')";
-      dst = "convert_to_esp(bootspec.get('kernel'))";
-    };
-
-    appendCrap = true;
+    appendCrapGlob = "/boot/EFI/nixos/kernel-*.efi";
   };
 
 in
@@ -248,8 +219,9 @@ in
   # path) does not change. 
   #
   # An unfortunate result of this NixOS feature is that updating the secrets
-  # without creating a new initrd might break previous generations. Lanzaboote
-  # has no control over that.
+  # without creating a new initrd might break previous generations. Verify that
+  # a new initrd (which is supposed to only differ by the secrets) is created
+  # in this case.
   #
   # This tests uses a specialisation to imitate a newer generation. This works
   # because `lzbt` installs the specialisation of a generation AFTER installing
@@ -279,12 +251,19 @@ in
         machine.start()
         machine.wait_for_unit("multi-user.target")
 
-        # Assert that only two boot files exists (a single kernel and a single
-        # initrd). If there are two initrds, the test would not be able to test
-        # updating the secret of an already existing initrd.
-        assert int(machine.succeed("ls -1 /boot/EFI/nixos | wc -l")) == 2
+        # Assert that only three boot files exists (a single kernel and a two
+        # initrds).
+        assert int(machine.succeed("ls -1 /boot/EFI/nixos | wc -l")) == 3
 
-        # It is expected that the initrd contains the new secret.
+        # It is expected that the initrd contains the original secret.
+        machine.succeed("cmp ${originalSecret} /secret-from-initramfs")
+
+        machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant-\*.efi")
+        machine.succeed("sync")
+        machine.crash()
+        machine.start()
+        machine.wait_for_unit("multi-user.target")
+        # It is expected that the initrd of the specialisation contains the new secret.
         machine.succeed("cmp ${newSecret} /secret-from-initramfs")
       '';
     };
@@ -322,7 +301,7 @@ in
       machine.start()
       print(machine.succeed("ls -lah /boot/EFI/Linux"))
       # TODO: make it more reliable to find this filename, i.e. read it from somewhere?
-      machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant.efi")
+      machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant-\*.efi")
       machine.succeed("sync")
       machine.fail("efibootmgr")
       machine.crash()
@@ -380,8 +359,8 @@ in
       # TODO: this should work -- machine.succeed("efibootmgr -d /dev/vda -c -l \\EFI\\Linux\\nixos-generation-1.efi") -- efivars are not persisted
       # across reboots atm?
       # cheat code no 1
-      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1.efi /boot/EFI/BOOT/BOOTX64.EFI")
-      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1.efi /boot/EFI/systemd/systemd-bootx64.efi")
+      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/BOOT/BOOTX64.EFI")
+      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/systemd/systemd-bootx64.efi")
 
       # Let's reboot.
       machine.succeed("sync")
