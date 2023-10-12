@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 use log::warn;
 use sha2::{Digest, Sha256};
+use uefi::fs::FileSystem;
 use uefi::{prelude::*, proto::loaded_image::LoadedImage, CStr16, CString16, Result};
 
 use crate::common::{boot_linux_unchecked, extract_string};
@@ -124,10 +125,11 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> Status
     let initrd_data;
 
     {
-        let mut file_system = system_table
+        let file_system = system_table
             .boot_services()
             .get_image_file_system(handle)
             .expect("Failed to get file system handle");
+        let mut file_system = FileSystem::new(file_system);
 
         kernel_data = file_system
             .read(&*config.kernel_filename)
