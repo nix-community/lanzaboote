@@ -24,6 +24,7 @@ in
 
     configurationLimit = mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
+      defaultText = "config.boot.loader.systemd-boot.configurationLimit";
       example = 120;
       type = types.nullOr types.int;
       description = lib.mdDoc ''
@@ -43,18 +44,21 @@ in
     publicKeyFile = mkOption {
       type = types.path;
       default = "${cfg.pkiBundle}/keys/db/db.pem";
+      defaultText = "\${cfg.pkiBundle}/keys/db/db.pem";
       description = "Public key to sign your boot files";
     };
 
     privateKeyFile = mkOption {
       type = types.path;
       default = "${cfg.pkiBundle}/keys/db/db.key";
+      defaultText = "\${cfg.pkiBundle}/keys/db/db.key";
       description = "Private key to sign your boot files";
     };
 
     package = mkOption {
       type = types.package;
       default = pkgs.lzbt;
+      defaultText = "pkgs.lzbt";
       description = "Lanzaboote tool (lzbt) package";
     };
 
@@ -71,6 +75,15 @@ in
         editor = config.boot.loader.systemd-boot.editor;
         default = "nixos-*";
       };
+
+      defaultText = ''
+        {
+          timeout = config.boot.loader.timeout;
+          console-mode = config.boot.loader.systemd-boot.consoleMode;
+          editor = config.boot.loader.systemd-boot.editor;
+          default = "nixos-*";
+        }
+      '';
 
       example = literalExpression ''
         {
