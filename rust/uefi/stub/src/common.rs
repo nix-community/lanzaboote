@@ -47,26 +47,37 @@ pub fn get_secure_boot_status(runtime_services: &RuntimeServices) -> bool {
     // The firmware initialized SecureBoot to 1 if performing signature checks, and 0 if it doesn't.
     // Applications are not supposed to modify this variable (in particular, don't change the value from 1 to 0).
     let mut secure_boot_value = [1];
-    let secure_boot_result = runtime_services.get_variable(
-        cstr16!("SecureBoot"),
-        &VariableVendor(guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c")),
-        &mut secure_boot_value,
-    );
-    let secure_boot = match secure_boot_result {
-        // Secure Boot is explicitly disabled, make verification errors non-fatal.
-        Ok((&[0], _)) => false,
-        // Secure Boot is not supported, make verification errors non-fatal.
-        Err(e) if e.status() == Status::NOT_FOUND => false,
-        // If Secure Boot is enabled, verification errors must be treated as fatal.
-        // To be on the safe side, if anything goes wrong, treat Secure Boot as enabled.
-        _ => true,
-    };
+    let secure_boot_enabled = runtime_services
+        .get_variable(
+            cstr16!("SecureBoot"),
+            &VariableVendor(guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c")),
+            &mut secure_boot_value,
+        )
+        .and_then(|v| {
+            if !v.0.is_empty() {
+                // Be defensive and treat everything that is not 0 as enabled.
+                Ok(v.0[0] != 0)
+            } else {
+                Err(uefi::Error::from(Status::BAD_BUFFER_SIZE))
+            }
+        })
+        .or_else(|e| -> Result<bool, ()> {
+            if e.status() == Status::NOT_FOUND {
+                warn!("SecureBoot variable not found. Assuming Secure Boot is disabled.");
+                Ok(false)
+            } else {
+                warn!("Failed reading SecureBoot variable: {e}! Assuming it's enabled.");
+                Ok(true)
+            }
+        })
+        // Safe, because we map all Err to Ok above. Once ! is stabilized, we can replace () with ! above.
+        .unwrap();
 
-    if !secure_boot {
+    if !secure_boot_enabled {
         warn!("Secure Boot is not active!");
     }
 
-    secure_boot
+    secure_boot_enabled
 }
 
 /// Boot the Linux kernel without checking the PE signature.
