@@ -2,7 +2,7 @@ use log::{error, warn};
 use sha2::{Digest, Sha256};
 use uefi::{fs::FileSystem, prelude::*, CString16, Result};
 
-use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot};
+use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
 use linux_bootloader::pe_section::pe_section;
 use linux_bootloader::uefi_helpers::booted_image_file;
 
@@ -91,7 +91,7 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> uefi::
         .expect("Failed to extract configuration from binary. Did you run lzbt?")
     };
 
-    let secure_boot = get_secure_boot(system_table.runtime_services());
+    let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
 
     let kernel_data;
     let initrd_data;
@@ -111,10 +111,24 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> uefi::
             .expect("Failed to read initrd file into memory");
     }
 
-    let cmdline = get_cmdline(&config.cmdline, system_table.boot_services(), secure_boot);
+    let cmdline = get_cmdline(
+        &config.cmdline,
+        system_table.boot_services(),
+        secure_boot_enabled,
+    );
 
-    check_hash(&kernel_data, config.kernel_hash, "Kernel", secure_boot)?;
-    check_hash(&initrd_data, config.initrd_hash, "Initrd", secure_boot)?;
+    check_hash(
+        &kernel_data,
+        config.kernel_hash,
+        "Kernel",
+        secure_boot_enabled,
+    )?;
+    check_hash(
+        &initrd_data,
+        config.initrd_hash,
+        "Initrd",
+        secure_boot_enabled,
+    )?;
 
     boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
 }

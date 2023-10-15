@@ -20,8 +20,12 @@ pub fn extract_string(pe_data: &[u8], section: &str) -> Result<CString16> {
 ///
 /// If Secure Boot is active, this is always the embedded one (since the one passed from the bootloader may come from a malicious type 1 entry).
 /// If Secure Boot is not active, the command line passed from the bootloader is used, falling back to the embedded one.
-pub fn get_cmdline(embedded: &CStr16, boot_services: &BootServices, secure_boot: bool) -> Vec<u8> {
-    if secure_boot {
+pub fn get_cmdline(
+    embedded: &CStr16,
+    boot_services: &BootServices,
+    secure_boot_enabled: bool,
+) -> Vec<u8> {
+    if secure_boot_enabled {
         // The command line passed from the bootloader cannot be trusted, so it is not used when Secure Boot is active.
         embedded.as_bytes().to_vec()
     } else {
@@ -39,7 +43,7 @@ pub fn get_cmdline(embedded: &CStr16, boot_services: &BootServices, secure_boot:
 /// Check whether Secure Boot is active, and we should be enforcing integrity checks.
 ///
 /// In case of doubt, true is returned to be on the safe side.
-pub fn get_secure_boot(runtime_services: &RuntimeServices) -> bool {
+pub fn get_secure_boot_status(runtime_services: &RuntimeServices) -> bool {
     // The firmware initialized SecureBoot to 1 if performing signature checks, and 0 if it doesn't.
     // Applications are not supposed to modify this variable (in particular, don't change the value from 1 to 0).
     let mut secure_boot_value = [1];
