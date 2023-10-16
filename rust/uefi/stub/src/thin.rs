@@ -1,12 +1,10 @@
-use alloc::vec::Vec;
-use log::warn;
+use log::{error, warn};
 use sha2::{Digest, Sha256};
-use uefi::fs::FileSystem;
-use uefi::{prelude::*, proto::loaded_image::LoadedImage, CStr16, CString16, Result};
+use uefi::{fs::FileSystem, prelude::*, CString16, Result};
 
-use crate::common::{boot_linux_unchecked, extract_string};
+use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
 use linux_bootloader::pe_section::pe_section;
-use linux_bootloader::{linux_loader::InitrdLoader, uefi_helpers::booted_image_file};
+use linux_bootloader::uefi_helpers::booted_image_file;
 
 type Hash = sha2::digest::Output<Sha256>;
 
@@ -59,53 +57,25 @@ impl EmbeddedConfiguration {
     }
 }
 
-/// Boot the Linux kernel via the UEFI PE loader.
+/// Verify some data against its expected hash.
 ///
-/// This should only succeed when UEFI Secure Boot is off (or
-/// broken...), because the Lanzaboote tool does not sign the kernel.
-///
-/// In essence, we can use this routine to detect whether Secure Boot
-/// is actually enabled.
-fn boot_linux_uefi(
-    handle: Handle,
-    system_table: SystemTable<Boot>,
-    kernel_data: Vec<u8>,
-    kernel_cmdline: &CStr16,
-    initrd_data: Vec<u8>,
-) -> uefi::Result<()> {
-    let kernel_handle = system_table.boot_services().load_image(
-        handle,
-        uefi::table::boot::LoadImageSource::FromBuffer {
-            buffer: &kernel_data,
-            file_path: None,
-        },
-    )?;
-
-    let mut kernel_image = system_table
-        .boot_services()
-        .open_protocol_exclusive::<LoadedImage>(kernel_handle)?;
-
-    unsafe {
-        kernel_image.set_load_options(
-            kernel_cmdline.as_ptr() as *const u8,
-            // This unwrap is "safe" in the sense that any
-            // command-line that doesn't fit 4G is surely broken.
-            u32::try_from(kernel_cmdline.num_bytes()).unwrap(),
-        );
+/// In case of a mismatch:
+/// * If Secure Boot is active, an error message is logged, and the SECURITY_VIOLATION error is returned to stop the boot.
+/// * If Secure Boot is not active, only a warning is logged, and the boot process is allowed to continue.
+fn check_hash(data: &[u8], expected_hash: Hash, name: &str, secure_boot: bool) -> uefi::Result<()> {
+    let hash_correct = Sha256::digest(data) == expected_hash;
+    if !hash_correct {
+        if secure_boot {
+            error!("{name} hash does not match!");
+            return Err(Status::SECURITY_VIOLATION.into());
+        } else {
+            warn!("{name} hash does not match! Continuing anyway.");
+        }
     }
-
-    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)?;
-
-    let status = system_table
-        .boot_services()
-        .start_image(kernel_handle)
-        .status();
-
-    initrd_loader.uninstall(system_table.boot_services())?;
-    status.to_result()
+    Ok(())
 }
 
-pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
+pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> uefi::Result<()> {
     uefi_services::init(&mut system_table).unwrap();
 
     // SAFETY: We get a slice that represents our currently running
@@ -120,6 +90,8 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> Status
         )
         .expect("Failed to extract configuration from binary. Did you run lzbt?")
     };
+
+    let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
 
     let kernel_data;
     let initrd_data;
@@ -139,57 +111,24 @@ pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> Status
             .expect("Failed to read initrd file into memory");
     }
 
-    let is_kernel_hash_correct = Sha256::digest(&kernel_data) == config.kernel_hash;
-    let is_initrd_hash_correct = Sha256::digest(&initrd_data) == config.initrd_hash;
+    let cmdline = get_cmdline(
+        &config.cmdline,
+        system_table.boot_services(),
+        secure_boot_enabled,
+    );
 
-    if !is_kernel_hash_correct {
-        warn!("Hash mismatch for kernel!");
-    }
+    check_hash(
+        &kernel_data,
+        config.kernel_hash,
+        "Kernel",
+        secure_boot_enabled,
+    )?;
+    check_hash(
+        &initrd_data,
+        config.initrd_hash,
+        "Initrd",
+        secure_boot_enabled,
+    )?;
 
-    if !is_initrd_hash_correct {
-        warn!("Hash mismatch for initrd!");
-    }
-
-    if is_kernel_hash_correct && is_initrd_hash_correct {
-        boot_linux_unchecked(
-            handle,
-            system_table,
-            kernel_data,
-            &config.cmdline,
-            initrd_data,
-        )
-        .status()
-    } else {
-        // There is no good way to detect whether Secure Boot is
-        // enabled. This is unfortunate, because we want to give the
-        // user a way to recover from hash mismatches when Secure Boot
-        // is off.
-        //
-        // So in case we get a hash mismatch, we will try to load the
-        // Linux image using LoadImage. What happens then depends on
-        // whether Secure Boot is enabled:
-        //
-        // **With Secure Boot**, the firmware will reject loading the
-        // image with status::SECURITY_VIOLATION.
-        //
-        // **Without Secure Boot**, the firmware will just load the
-        // Linux kernel.
-        //
-        // This is the behavior we want. A slight turd is that we
-        // increase the attack surface here by exposing the unverfied
-        // Linux image to the UEFI firmware. But in case the PE loader
-        // of the firmware is broken, we have little hope of security
-        // anyway.
-
-        warn!("Trying to continue as non-Secure Boot. This will fail when Secure Boot is enabled.");
-
-        boot_linux_uefi(
-            handle,
-            system_table,
-            kernel_data,
-            &config.cmdline,
-            initrd_data,
-        )
-        .status()
-    }
+    boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
 }
