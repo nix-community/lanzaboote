@@ -7,19 +7,19 @@ edition.workspace = true
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4.3", features = ["derive"] }
+clap = { version = "4.4", features = ["derive"] }
 goblin = "0.7"
-nix = { version = "0.26", default-features = false, features = [ "fs" ] }
+nix = { version = "0.27", default-features = false, features = [ "fs" ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tempfile = "3.6.0"
+tempfile = "3.8.0"
 bootspec = "1"
 walkdir = "2"
 time = "0.3"
 sha2 = "0.10"
 # Keep the fastrand version aligned with the one from tempfile to avoid two
 # different versions.
-fastrand = "2.0.0"
+fastrand = "2.0.1"
 log = { version = "0.4", features = ["std"] }
 stderrlog = "0.5"
 indoc = "2"
@@ -27,5 +27,5 @@ indoc = "2"
 [dev-dependencies]
 assert_cmd = "2.0.12"
 expect-test = "1.4.1"
-filetime = "0.2.21"
+filetime = "0.2.22"
 rand = "0.8.5"
