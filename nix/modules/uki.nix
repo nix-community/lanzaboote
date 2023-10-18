@@ -26,7 +26,6 @@ in
       };
     in
     lib.mkIf cfg.enable {
-      boot.bootspec.enable = true;
       boot.loader.external = {
         enable = true;
         installHook =
