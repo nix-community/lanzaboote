@@ -86,8 +86,7 @@ let
         ${testScript}
       '';
 
-
-      nodes.machine = { lib, ... }: {
+      nodes.machine = { pkgs, lib, ... }: {
         imports = [
           lanzabooteModule
           machine
@@ -97,11 +96,35 @@ let
           useBootLoader = true;
           useEFIBoot = true;
 
-          efi.OVMF = pkgs.OVMF.override {
-            secureBoot = useSecureBoot;
-            tpmSupport = useTPM2; # This is needed otherwise OVMF won't initialize the TPM2 protocol.
-          };
+          # We actually only want to enable features in OVMF, but at
+          # the moment edk2 202308 is also broken. So we downgrade it
+          # here as well. How painful!
+          #
+          # See #240.
+          efi.OVMF =
+            let
+              edk2Version = "202305";
+              edk2Src = pkgs.fetchFromGitHub {
+                owner = "tianocore";
+                repo = "edk2";
+                rev = "edk2-stable${edk2Version}";
+                fetchSubmodules = true;
+                hash = "sha256-htOvV43Hw5K05g0SF3po69HncLyma3BtgpqYSdzRG4s=";
+              };
 
+              edk2 = pkgs.edk2.overrideAttrs (old: rec {
+                version = edk2Version;
+                src = edk2Src;
+              });
+            in
+            (pkgs.OVMF.override {
+              secureBoot = useSecureBoot;
+              tpmSupport = useTPM2; # This is needed otherwise OVMF won't initialize the TPM2 protocol.
+
+              edk2 = edk2;
+            }).overrideAttrs (old: {
+              src = edk2Src;
+            });
 
           qemu.options = lib.mkIf useTPM2 [
             "-chardev socket,id=chrtpm,path=${tpmSocketPath}"
