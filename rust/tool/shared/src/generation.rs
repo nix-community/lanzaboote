@@ -67,7 +67,16 @@ impl Generation {
         }
     }
 
-    /// Describe the generation in a single line.
+    /// A helper for describe functions below.
+    fn describe_specialisation(&self) -> String {
+        if let Some(specialization) = &self.specialisation_name {
+            format!("-{specialization}")
+        } else {
+            "".to_string()
+        }
+    }
+
+    /// Describe the generation in a single line for humans.
     ///
     /// Emulates how NixOS's current systemd-boot-builder.py describes generations so that the user
     /// interface remains similar.
@@ -83,13 +92,14 @@ impl Generation {
         format!(
             "Generation {}{}, {}",
             self.version,
-            if let Some(specialization) = &self.specialisation_name {
-                format!("-{specialization}")
-            } else {
-                "".to_string()
-            },
+            self.describe_specialisation(),
             build_time
         )
+    }
+
+    /// A unique short identifier.
+    pub fn version_tag(&self) -> String {
+        format!("{}{}", self.version, self.describe_specialisation(),)
     }
 }
 
