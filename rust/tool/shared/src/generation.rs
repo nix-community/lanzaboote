@@ -26,14 +26,14 @@ pub struct ExtendedBootJson {
 /// contains most of the information necessary to install the generation onto the EFI System
 /// Partition. The only information missing is the version number which is encoded in the file name
 /// of the generation link.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Generation {
     /// Profile symlink index
-    version: u64,
+    pub version: u64,
     /// Build time
-    build_time: Option<Date>,
+    pub build_time: Option<Date>,
     /// Top-level specialisation name
-    specialisation_name: Option<SpecialisationName>,
+    pub specialisation_name: Option<SpecialisationName>,
     /// Top-level extended boot specification
     pub spec: ExtendedBootJson,
 }
@@ -57,22 +57,26 @@ impl Generation {
         })
     }
 
-    pub fn specialise(&self, name: &SpecialisationName, bootspec: &BootSpec) -> Result<Self> {
-        Ok(Self {
-            version: self.version,
-            build_time: self.build_time,
+    pub fn specialise(&self, name: &SpecialisationName, bootspec: &BootSpec) -> Self {
+        Self {
             specialisation_name: Some(name.clone()),
             spec: ExtendedBootJson {
                 bootspec: bootspec.clone(),
             },
-        })
+            ..self.clone()
+        }
     }
 
-    pub fn is_specialised(&self) -> Option<SpecialisationName> {
-        self.specialisation_name.clone()
+    /// A helper for describe functions below.
+    fn describe_specialisation(&self) -> String {
+        if let Some(specialization) = &self.specialisation_name {
+            format!("-{specialization}")
+        } else {
+            "".to_string()
+        }
     }
 
-    /// Describe the generation in a single line.
+    /// Describe the generation in a single line for humans.
     ///
     /// Emulates how NixOS's current systemd-boot-builder.py describes generations so that the user
     /// interface remains similar.
@@ -84,14 +88,18 @@ impl Generation {
             .build_time
             .map(|x| x.to_string())
             .unwrap_or_else(|| String::from("Unknown"));
-        if self.is_specialised().is_some() {
-            format!(
-                "Generation {}-specialised, Built on {}",
-                self.version, build_time
-            )
-        } else {
-            format!("Generation {}, Built on {}", self.version, build_time)
-        }
+
+        format!(
+            "Generation {}{}, {}",
+            self.version,
+            self.describe_specialisation(),
+            build_time
+        )
+    }
+
+    /// A unique short identifier.
+    pub fn version_tag(&self) -> String {
+        format!("{}{}", self.version, self.describe_specialisation(),)
     }
 }
 

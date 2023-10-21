@@ -163,7 +163,7 @@ impl Installer {
             self.install_generation(&generation)
                 .context("Failed to install generation.")?;
             for (name, bootspec) in &generation.spec.bootspec.specialisations {
-                let specialised_generation = generation.specialise(name, bootspec)?;
+                let specialised_generation = generation.specialise(name, bootspec);
                 self.install_generation(&specialised_generation)
                     .context("Failed to install specialisation.")?;
             }
@@ -374,7 +374,7 @@ fn stub_name(generation: &Generation, public_key: &Path) -> Result<PathBuf> {
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
-    if let Some(specialisation_name) = generation.is_specialised() {
+    if let Some(specialisation_name) = &generation.specialisation_name {
         Ok(PathBuf::from(format!(
             "nixos-generation-{}-specialisation-{}-{}.efi",
             generation, specialisation_name, stub_input_hash
