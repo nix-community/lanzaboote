@@ -11,8 +11,15 @@ repository = "https://github.com/nix-community/lanzaboote/"
 # For UEFI target
 rust-version = "1.68"
 
+[features]
+# This way, `cargo test --no-default-features --target x86_64-unknown-linux-gnu`
+# can be used to run unit tests. The global allocator of the `uefi` crate
+# prevents unit tests from working.
+default = ["rt"]
+rt = ["uefi/global_allocator"]
+
 [dependencies]
-uefi = { version = "0.25.0", default-features = false, features = [ "alloc", "global_allocator" ] }
+uefi = { version = "0.25.0", default-features = false, features = [ "alloc" ] }
 # Update blocked by #237
 goblin = { version = "=0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
 bitflags = "2.4.1"
