@@ -109,7 +109,7 @@ impl InitrdLoader {
     /// `handle` is the handle where the protocols are registered
     /// on. `file` is the file that is served to Linux.
     pub fn new(boot_services: &BootServices, handle: Handle, initrd_data: Vec<u8>) -> Result<Self> {
-        let mut proto = Box::pin(LoadFile2Protocol {
+        let mut lf2_proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             initrd_data,
         });
@@ -120,28 +120,28 @@ impl InitrdLoader {
         init_linux_initrd_device_path();
 
         unsafe {
-            let mut db_proto = Vec::new();
-            let db_proto = build_linux_initrd_device_path(&mut db_proto);
-            let dp_proto = db_proto.as_ffi_ptr().cast_mut().cast::<c_void>();
+            let mut initrd_proto_buf = Vec::new();
+            let initrd_proto = build_linux_initrd_device_path(&mut initrd_proto_buf);
+            let initrd_proto_ptr = initrd_proto.as_ffi_ptr().cast_mut().cast::<c_void>();
 
             boot_services.install_protocol_interface(
                 Some(handle),
                 &DevicePath::GUID,
-                dp_proto,
+                initrd_proto_ptr,
             )?;
 
-            let lf_proto: *mut LoadFile2Protocol = proto.as_mut().get_mut();
+            let lf2_proto_ptr: *mut LoadFile2Protocol = lf2_proto.as_mut().get_mut();
 
             boot_services.install_protocol_interface(
                 Some(handle),
                 &LoadFile2Protocol::GUID,
-                lf_proto as *mut c_void,
+                lf2_proto_ptr as *mut c_void,
             )?;
         }
 
         Ok(InitrdLoader {
             handle,
-            proto,
+            proto: lf2_proto,
             registered: true,
         })
     }
