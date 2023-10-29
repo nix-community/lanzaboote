@@ -66,24 +66,20 @@ struct LoadFile2Protocol {
 impl LoadFile2Protocol {
     fn load_file(
         &mut self,
-        _file_path: *const FfiDevicePath,
+        _file_path: Option<&FfiDevicePath>,
         _boot_policy: bool,
-        buffer_size: *mut usize,
-        buffer: *mut c_void,
+        buffer_size: Option<&mut usize>,
+        buffer: *mut u8,
     ) -> Result<()> {
-        if buffer.is_null() || unsafe { *buffer_size } < self.initrd_data.len() {
-            unsafe {
-                *buffer_size = self.initrd_data.len();
-            }
-            return Err(Status::BUFFER_TOO_SMALL.into());
-        };
-
-        unsafe {
+        let buffer_size = buffer_size.ok_or(uefi::Error::new(Status::INVALID_PARAMETER, ()))?;
+        if buffer.is_null() || *buffer_size < self.initrd_data.len() {
+            // Give the caller a hint for the right buffer size.
             *buffer_size = self.initrd_data.len();
+            return Err(Status::BUFFER_TOO_SMALL.into());
         }
 
         let output_slice: &mut [u8] =
-            unsafe { &mut *slice_from_raw_parts_mut(buffer as *mut u8, *buffer_size) };
+            unsafe { &mut *slice_from_raw_parts_mut(buffer, self.initrd_data.len()) };
 
         output_slice.copy_from_slice(&self.initrd_data);
 
@@ -98,8 +94,13 @@ unsafe extern "efiapi" fn raw_load_file(
     buffer_size: *mut usize,
     buffer: *mut c_void,
 ) -> Status {
-    this.load_file(file_path, boot_policy, buffer_size, buffer)
-        .status()
+    this.load_file(
+        file_path.as_ref(),
+        boot_policy,
+        buffer_size.as_mut(),
+        buffer.cast(),
+    )
+    .status()
 }
 
 /// A RAII wrapper to install and uninstall the Linux initrd loading
