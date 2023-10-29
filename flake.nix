@@ -228,31 +228,23 @@
           };
 
           devShells.default = pkgs.mkShell {
-            shellHook =
-              let
-                systemdUkify = pkgs.systemdMinimal.override {
-                  withEfi = true;
-                  withBootloader = true;
-                  withUkify = true;
-                };
-              in
-              ''
-                ${config.pre-commit.installationScript}
-                export PATH=$PATH:${systemdUkify}/lib/systemd
-              '';
+            shellHook = ''
+              ${config.pre-commit.installationScript}
+            '';
 
             packages = [
-              pkgs.uefi-run
-              pkgs.openssl
-              (pkgs.sbctl.override { databasePath = "pki"; })
-              pkgs.sbsigntool
-              pkgs.efitools
-              pkgs.python39Packages.ovmfvartool
-              pkgs.qemu
               pkgs.nixpkgs-fmt
               pkgs.statix
               pkgs.cargo-release
               pkgs.cargo-machete
+
+              # Convenience for test fixtures in nix/tests.
+              pkgs.openssl
+              (pkgs.sbctl.override { databasePath = "pki"; })
+
+              # Needed for `cargo test` in rust/tool. We also need
+              # TEST_SYSTEMD below for that.
+              pkgs.sbsigntool
             ];
 
             inputsFrom = [
