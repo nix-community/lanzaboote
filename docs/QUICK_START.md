@@ -23,6 +23,9 @@ To be able to setup Secure Boot on your device, NixOS needs to be
 installed in UEFI mode and
 [`systemd-boot`](https://www.freedesktop.org/wiki/Software/systemd/systemd-boot/)
 must be used as a boot loader.
+This means if you wish to install lanzaboote on a new machine,
+you need to follow the install instruction for systemd-boot
+and than switch to lanzaboote after the first boot.
 
 These prerequisites can be checked via `bootctl status`:
 
