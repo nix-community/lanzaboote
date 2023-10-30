@@ -4,6 +4,7 @@
 
 let
   inherit (pkgs) lib system;
+  defaultTimeout = 5 * 60; # = 5 minutes
 
   mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, useTPM2 ? false, readEfiVariables ? false, testScript }:
     let
@@ -79,6 +80,7 @@ let
     in
     pkgs.nixosTest {
       inherit name;
+      globalTimeout = defaultTimeout;
 
       testScript = ''
         ${lib.optionalString useTPM2 tpm2Initialization}

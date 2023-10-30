@@ -1,6 +1,7 @@
 { pkgs, runTest, ukiModule }:
 
 let
+  defaultTimeout = 5 * 60; # = 5 minutes
   common = _: {
     imports = [ ukiModule ];
 
@@ -21,6 +22,8 @@ in
   # this test fails something is very wrong.
   systemd-stub = runTest {
     name = "systemd-stub";
+    globalTimeout = defaultTimeout;
+
     nodes.machine = _: {
       imports = [ common ];
       boot.loader.uki.stub = "${pkgs.systemd}/lib/systemd/boot/efi/linuxx64.efi.stub";
@@ -33,6 +36,8 @@ in
 
   fatStub = runTest {
     name = "fat-stub";
+    globalTimeout = defaultTimeout;
+
     nodes.machine = _: {
       imports = [ common ];
     };
