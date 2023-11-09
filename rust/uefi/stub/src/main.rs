@@ -16,6 +16,9 @@ mod thin;
 compile_error!("A thin and fat stub cannot be produced at the same time, disable either `thin` or `fat` feature");
 
 use alloc::vec::Vec;
+use linux_bootloader::companions::{
+    discover_credentials, discover_system_extensions, get_default_dropin_directory,
+};
 use linux_bootloader::efivars::{export_efi_variables, get_loader_features, EfiLoaderFeatures};
 use linux_bootloader::measure::measure_image;
 use linux_bootloader::tpm::tpm_available;
@@ -73,6 +76,55 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // A list of dynamically assembled initrds, e.g. credential initrds or system extension
     // initrds.
     let mut dynamic_initrds: Vec<Vec<u8>> = Vec::new();
+
+    {
+        // This is a block for doing filesystem operations once and for all, related to companion
+        // files, nothing can open the LoadedImage protocol here.
+        // Everything must use `filesystem`.
+        let mut companions = Vec::new();
+        let mut filesystem = uefi::fs::FileSystem::new(
+            system_table
+                .boot_services()
+                .get_image_file_system(system_table.boot_services().image_handle())
+                .expect("Failed to open the simple filesystem for this image; netboot?"),
+        );
+        let default_dropin_directory;
+
+        if let Some(loaded_image_path) = pe_in_memory.file_path() {
+            default_dropin_directory = get_default_dropin_directory(system_table.boot_services(), loaded_image_path, &mut filesystem)
+                .expect("Failed to obtain the default drop-in directory");
+        } else {
+            default_dropin_directory = None;
+        }
+
+        // TODO: how to do the proper .as_ref()? Should I take AsRef in the call definition… ?
+        companions.append(
+            &mut discover_credentials(
+                &mut filesystem,
+                default_dropin_directory.as_ref().map(|x| x.as_ref()),
+            )
+            .expect("Failed to discover system credentials"),
+        );
+        if let Some(default_dropin_dir) = default_dropin_directory {
+            companions.append(
+                &mut discover_system_extensions(&mut filesystem, &default_dropin_dir)
+                    .expect("Failed to discover system extensions"),
+            );
+        }
+
+        if is_tpm_available {
+            // TODO: in the future, devise a threat model where this can fail, see above
+            // measurements to understand the context.
+            let _ = measure_companion_initrds(&system_table, &companions);
+        }
+
+        dynamic_initrds.append(
+            &mut companions
+                .into_iter()
+                .map(|initrd| initrd.into_cpio().into_inner())
+                .collect(),
+        );
+    }
 
     #[cfg(feature = "fat")]
     {
