@@ -9,6 +9,12 @@ default-members = [
     "stub"
 ]
 
+[patch.crates-io]
+uefi = { git = "https://github.com/RaitoBezarius/uefi-rs", branch = "fs-improvements" }
+uefi-raw = { git = "https://github.com/RaitoBezarius/uefi-rs", branch = "fs-improvements" }
+uefi-macros = { git = "https://github.com/RaitoBezarius/uefi-rs", branch = "fs-improvements" }
+uefi-services = { git = "https://github.com/RaitoBezarius/uefi-rs", branch = "fs-improvements" }
+
 [workspace.package]
 version = "0.3.0"
 

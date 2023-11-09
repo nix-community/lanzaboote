@@ -3,15 +3,6 @@
 version = 3
 
 [[package]]
-name = "acid_io"
-version = "0.1.0"
-source = "git+https://github.com/dataphract/acid_io#2d549317fe9253df8b510ba6bbdcfe623a837286"
-dependencies = [
- "libc",
- "memchr",
-]
-
-[[package]]
 name = "bit_field"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -68,6 +59,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-io"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -110,6 +107,7 @@ name = "linux-bootloader"
 version = "0.3.0"
 dependencies = [
  "bitflags",
+ "embedded-io",
  "goblin",
  "log",
  "uefi",
@@ -120,12 +118,6 @@ name = "log"
 version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
-
-[[package]]
-name = "memchr"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "plain"
@@ -241,9 +233,8 @@ dependencies = [
 
 [[package]]
 name = "uefi"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07ead9f748a4646479b850add36b527113a80e80a7e0f44d7b0334291850dcc5"
+version = "0.25.0"
+source = "git+https://github.com/RaitoBezarius/uefi-rs?branch=fs-improvements#2b1da832c04ba7d209d386b096de5061eb4bf7b8"
 dependencies = [
  "bitflags",
  "log",
@@ -256,9 +247,8 @@ dependencies = [
 
 [[package]]
 name = "uefi-macros"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26a7b1c2c808c3db854a54d5215e3f7e7aaf5dcfbce095598cba6af29895695d"
+version = "0.12.0"
+source = "git+https://github.com/RaitoBezarius/uefi-rs?branch=fs-improvements#2b1da832c04ba7d209d386b096de5061eb4bf7b8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -267,9 +257,8 @@ dependencies = [
 
 [[package]]
 name = "uefi-raw"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "864ac69eadd877bfb34e7814be1928122ed0057d9f975169a56ee496aa7bdfd7"
+version = "0.4.0"
+source = "git+https://github.com/RaitoBezarius/uefi-rs?branch=fs-improvements#2b1da832c04ba7d209d386b096de5061eb4bf7b8"
 dependencies = [
  "bitflags",
  "ptr_meta",
@@ -278,9 +267,8 @@ dependencies = [
 
 [[package]]
 name = "uefi-services"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a79fcb420624743c895bad0f9480fbc2f64e7c8d8611fb1ada6bdd799942feb4"
+version = "0.22.0"
+source = "git+https://github.com/RaitoBezarius/uefi-rs?branch=fs-improvements#2b1da832c04ba7d209d386b096de5061eb4bf7b8"
 dependencies = [
  "cfg-if",
  "log",
