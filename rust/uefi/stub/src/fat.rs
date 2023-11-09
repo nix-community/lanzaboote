@@ -40,7 +40,11 @@ impl EmbeddedConfiguration {
     }
 }
 
-pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
+pub fn boot_linux(
+    handle: Handle,
+    mut system_table: SystemTable<Boot>,
+    dynamic_initrds: Vec<Vec<u8>>,
+) -> Status {
     uefi_services::init(&mut system_table).unwrap();
 
     // SAFETY: We get a slice that represents our currently running
