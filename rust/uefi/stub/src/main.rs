@@ -15,6 +15,7 @@ mod thin;
 #[cfg(all(feature = "fat", feature = "thin"))]
 compile_error!("A thin and fat stub cannot be produced at the same time, disable either `thin` or `fat` feature");
 
+use alloc::vec::Vec;
 use linux_bootloader::efivars::{export_efi_variables, get_loader_features, EfiLoaderFeatures};
 use linux_bootloader::measure::measure_image;
 use linux_bootloader::tpm::tpm_available;
@@ -69,15 +70,18 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     export_efi_variables(STUB_NAME, &system_table).expect("Failed to export stub EFI variables");
 
     let status;
+    // A list of dynamically assembled initrds, e.g. credential initrds or system extension
+    // initrds.
+    let mut dynamic_initrds: Vec<Vec<u8>> = Vec::new();
 
     #[cfg(feature = "fat")]
     {
-        status = fat::boot_linux(handle, system_table)
+        status = fat::boot_linux(handle, system_table, dynamic_initrds)
     }
 
     #[cfg(feature = "thin")]
     {
-        status = thin::boot_linux(handle, system_table).status()
+        status = thin::boot_linux(handle, system_table, dynamic_initrds).status()
     }
 
     status

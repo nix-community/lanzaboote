@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use log::{error, warn};
 use sha2::{Digest, Sha256};
 use uefi::{fs::FileSystem, prelude::*, CString16, Result};
@@ -75,7 +76,11 @@ fn check_hash(data: &[u8], expected_hash: Hash, name: &str, secure_boot: bool) -
     Ok(())
 }
 
-pub fn boot_linux(handle: Handle, mut system_table: SystemTable<Boot>) -> uefi::Result<()> {
+pub fn boot_linux(
+    handle: Handle,
+    mut system_table: SystemTable<Boot>,
+    dynamic_initrds: Vec<Vec<u8>>,
+) -> uefi::Result<()> {
     uefi_services::init(&mut system_table).unwrap();
 
     // SAFETY: We get a slice that represents our currently running
