@@ -36,7 +36,25 @@
   };
 
   outputs = inputs@{ self, nixpkgs, crane, rust-overlay, flake-parts, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } ({ moduleWithSystem, ... }: {
+    let
+      # Systems supported in CI
+      supportedSystems = [ "x86_64-linux" ];
+      fixupFlakes = outputs: nixpkgs.lib.updateManyAttrsByPath [
+        # Apply post-flakeparts massaging for limited supported systems, e.g. systems for which
+        # we don't have KVM support and cannot test in CI, but we still can meaningfully
+        # build packages.
+        {
+          path = [ "legacyPackages" "unsupportedChecks" ];
+          update = checks: checks // (nixpkgs.lib.filterAttrs (name: _: !builtins.elem name supportedSystems) outputs.checks);
+        }
+        {
+          path = [ "checks" ];
+          update = nixpkgs.lib.filterAttrs (name: _: builtins.elem name supportedSystems);
+        }
+      ]
+        outputs;
+    in
+    fixupFlakes (flake-parts.lib.mkFlake { inherit inputs; } ({ moduleWithSystem, ... }: {
       imports = [
         # Derive the output overlay automatically from all packages that we define.
         inputs.flake-parts.flakeModules.easyOverlay
@@ -255,5 +273,5 @@
             TEST_SYSTEMD = pkgs.systemd;
           };
         };
-    });
+    }));
 }
