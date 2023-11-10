@@ -1,5 +1,7 @@
 # Lanzaboote: Secure Boot for NixOS
 
+test
+
 [![Chat on Matrix](https://matrix.to/img/matrix-badge.svg)](https://matrix.to/#/#nixos-secure-boot:ukvly.org)
 ![GitHub branch checks state](https://img.shields.io/github/checks-status/blitz/lanzaboote/master)
 [![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
