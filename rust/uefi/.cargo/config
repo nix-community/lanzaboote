@@ -1,2 +1,4 @@
 [build]
 target = "x86_64-unknown-uefi"
+# Strip timestamps from binaries.
+rustflags = ["-C", "link-args=/Brepro"]
