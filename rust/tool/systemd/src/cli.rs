@@ -55,6 +55,14 @@ struct InstallCommand {
     #[arg(long, default_value_t = 1)]
     configuration_limit: usize,
 
+    /// Directory containing the global credentials to install in the ESP
+    #[arg(long)]
+    global_credentials_directory: Option<PathBuf>,
+
+    /// Directory containing the local credentials to install in the ESP for latest generation
+    #[arg(long)]
+    local_credentials_directory: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -102,6 +110,8 @@ fn install(args: InstallCommand) -> Result<()> {
         args.configuration_limit,
         args.esp,
         args.generations,
+        args.global_credentials_directory,
+        args.local_credentials_directory,
     )
     .install()
 }

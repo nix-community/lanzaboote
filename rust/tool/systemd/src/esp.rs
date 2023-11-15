@@ -17,9 +17,10 @@ pub struct SystemdEspPaths {
     pub systemd_boot: PathBuf,
     pub loader: PathBuf,
     pub systemd_boot_loader_config: PathBuf,
+    pub global_credentials: PathBuf,
 }
 
-impl EspPaths<10> for SystemdEspPaths {
+impl EspPaths<11> for SystemdEspPaths {
     fn new(esp: impl AsRef<Path>, architecture: Architecture) -> Self {
         let esp = esp.as_ref();
         let efi = esp.join("EFI");
@@ -29,6 +30,7 @@ impl EspPaths<10> for SystemdEspPaths {
         let efi_efi_fallback_dir = efi.join("BOOT");
         let loader = esp.join("loader");
         let systemd_boot_loader_config = loader.join("loader.conf");
+        let global_credentials = loader.join("credentials");
 
         Self {
             esp: esp.to_path_buf(),
@@ -41,6 +43,7 @@ impl EspPaths<10> for SystemdEspPaths {
             systemd_boot: efi_systemd.join(architecture.systemd_filename()),
             loader,
             systemd_boot_loader_config,
+            global_credentials,
         }
     }
 
@@ -52,7 +55,7 @@ impl EspPaths<10> for SystemdEspPaths {
         &self.linux
     }
 
-    fn iter(&self) -> std::array::IntoIter<&PathBuf, 10> {
+    fn iter(&self) -> std::array::IntoIter<&PathBuf, 11> {
         [
             &self.esp,
             &self.efi,
@@ -64,6 +67,7 @@ impl EspPaths<10> for SystemdEspPaths {
             &self.systemd_boot,
             &self.loader,
             &self.systemd_boot_loader_config,
+            &self.global_credentials,
         ]
         .into_iter()
     }

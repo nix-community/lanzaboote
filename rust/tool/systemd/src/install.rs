@@ -7,11 +7,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::string::ToString;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use base32ct::{Base32Unpadded, Encoding};
 use nix::unistd::syncfs;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
+use walkdir::WalkDir;
 
 use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
@@ -36,6 +37,8 @@ pub struct Installer {
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
+    global_credentials_dir: Option<PathBuf>,
+    _local_credentials_dir: Option<PathBuf>,
 }
 
 impl Installer {
@@ -49,6 +52,8 @@ impl Installer {
         configuration_limit: usize,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
+        global_credentials_dir: Option<PathBuf>,
+        local_credentials_dir: Option<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
         let esp_paths = SystemdEspPaths::new(esp, arch);
@@ -65,6 +70,8 @@ impl Installer {
             esp_paths,
             generation_links,
             arch,
+            global_credentials_dir,
+            _local_credentials_dir: local_credentials_dir,
         }
     }
 
@@ -96,6 +103,9 @@ impl Installer {
         self.install_generations_from_links(&links)?;
 
         self.install_systemd_boot()?;
+        if let Some(credentials_dir) = &self.global_credentials_dir {
+            self.install_global_credentials(credentials_dir)?;
+        }
 
         if self.broken_gens.is_empty() {
             log::info!("Collecting garbage...");
@@ -348,6 +358,45 @@ impl Installer {
                 &self.esp_paths.systemd_boot_loader_config
             )
         })?;
+
+        Ok(())
+    }
+
+    /// Install global credentials to ESP.
+    ///
+    /// Global credentials are only updated when they differ from the existing ones.
+    /// Global credentials are never removed manually, but we can warn user of leftover
+    /// global credentials which are not tracked anymore inside of the NixOS system closure.
+    fn install_global_credentials(&self, credentials_dir: &Path) -> Result<()> {
+        for entry in WalkDir::new(credentials_dir) {
+            let entry = entry?;
+            // Skip non-files.
+            if !entry.file_type().is_file() {
+                continue;
+            }
+
+            let ext = entry.path().extension();
+            if ext.is_none() || ext.unwrap() != "cred" {
+                bail!("`{}` is specified as a global credential but does not end with `.cred` as per specification, please correct this issue by moving, renaming or deleting this file.", entry.path().display());
+            }
+
+            // By virtue of previous check, `file_name` must exist.
+            let target_path = self
+                .esp_paths
+                .global_credentials
+                .join(entry.path().file_name().unwrap());
+
+            if !target_path.try_exists()? || file_hash(entry.path())? != file_hash(&target_path)? {
+                log::info!("Updating global credential {target_path:?}...");
+                install(entry.path(), &target_path).with_context(|| {
+                    format!(
+                        "Failed to install global credential {:?} to {:?}",
+                        entry.path(),
+                        &target_path
+                    )
+                })?;
+            }
+        }
 
         Ok(())
     }
