@@ -146,7 +146,9 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
     let boot_services = system_table.boot_services();
     let runtime_services = system_table.runtime_services();
 
-    let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
+    let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition
+        | EfiStubFeatures::PickUpCredentials
+        | EfiStubFeatures::PickUpSysExts;
 
     let loaded_image =
         boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
