@@ -6,7 +6,8 @@ let
   inherit (pkgs) lib system;
   defaultTimeout = 5 * 60; # = 5 minutes
 
-  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, useTPM2 ? false, readEfiVariables ? false, testScript }:
+  # `handInstrumentationOverInInitrd`: stop the test script at initrd time in stage 1 so you can assert stage 1 behavior via https://github.com/NixOS/nixpkgs/pull/256226 backdoor.
+  mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, useTPM2 ? false, readEfiVariables ? false, handInstrumentationInInitrd ? false, globalCredentials ? [ ], localCredentials ? [ ], testScript }:
     let
       tpmSocketPath = "/tmp/swtpm-sock";
       tpmDeviceModels = {
@@ -94,6 +95,9 @@ let
           machine
         ];
 
+        testing.initrdBackdoor = lib.mkIf handInstrumentationInInitrd true;
+        boot.initrd.systemd.enable = lib.mkIf handInstrumentationInInitrd true;
+
         virtualisation = {
           useBootLoader = true;
           useEFIBoot = true;
@@ -146,6 +150,7 @@ let
           enable = true;
           enrollKeys = lib.mkDefault true;
           pkiBundle = ./fixtures/uefi-keys;
+          inherit globalCredentials localCredentials;
         };
       };
     };
@@ -450,4 +455,17 @@ in
     '';
   };
 
+  credentials-basic = mkSecureBootTest {
+    name = "lanzaboote-credentials-basic";
+    readEfiVariables = true;
+    handInstrumentationInInitrd = true;
+    globalCredentials = [
+      (pkgs.writeTextDir "super-secret.cred" "MASTER_KEY=lanzarote")
+    ];
+    testScript = ''
+      machine.start()
+      contents = machine.succeed("cat /.extra/global_credentials/super-secret.cred")
+      assert "MASTER_KEY=lanzarote" == contents, f"Unexpected credential contents, got: {contents}"
+    '';
+  };
 }
