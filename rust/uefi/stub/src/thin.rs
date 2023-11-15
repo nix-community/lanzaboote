@@ -99,7 +99,7 @@ pub fn boot_linux(
     let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
 
     let kernel_data;
-    let initrd_data;
+    let mut initrd_data;
 
     {
         let file_system = system_table
@@ -134,6 +134,14 @@ pub fn boot_linux(
         "Initrd",
         secure_boot_enabled,
     )?;
+
+    // Correctness: dynamic initrds are supposed to be validated by caller,
+    // i.e. they are system extension images or credentials
+    // that are supposedly measured in TPM2.
+    // Therefore, it is normal to not verify their hashes against a configuration.
+    for mut extra_initrd in dynamic_initrds {
+        initrd_data.append(&mut extra_initrd);
+    }
 
     boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
 }

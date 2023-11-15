@@ -51,7 +51,7 @@ pub fn boot_linux(
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
     // might conceivably change while we look at the slice.
-    let config = unsafe {
+    let mut config = unsafe {
         EmbeddedConfiguration::new(
             booted_image_file(system_table.boot_services())
                 .unwrap()
@@ -67,5 +67,16 @@ pub fn boot_linux(
         secure_boot_enabled,
     );
 
-    boot_linux_unchecked(handle, system_table, config.kernel, &cmdline, config.initrd).status()
+    let mut final_initrd = Vec::new();
+    final_initrd.append(&mut config.initrd);
+
+    // Correctness: dynamic initrds are supposed to be validated by caller,
+    // i.e. they are system extension images or credentials
+    // that are supposedly measured in TPM2.
+    // Therefore, it is normal to not verify their hashes against a configuration.
+    for mut extra_initrd in dynamic_initrds {
+        final_initrd.append(&mut extra_initrd);
+    }
+
+    boot_linux_unchecked(handle, system_table, config.kernel, &cmdline, final_initrd).status()
 }
