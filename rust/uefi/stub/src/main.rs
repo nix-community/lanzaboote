@@ -20,7 +20,7 @@ use linux_bootloader::companions::{
     discover_credentials, discover_system_extensions, get_default_dropin_directory,
 };
 use linux_bootloader::efivars::{export_efi_variables, get_loader_features, EfiLoaderFeatures};
-use linux_bootloader::measure::measure_image;
+use linux_bootloader::measure::{measure_companion_initrds, measure_image};
 use linux_bootloader::tpm::tpm_available;
 use linux_bootloader::uefi_helpers::booted_image_file;
 use log::info;
@@ -50,7 +50,10 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
     print_logo();
 
-    if tpm_available(system_table.boot_services()) {
+    let is_tpm_available = tpm_available(system_table.boot_services());
+    let pe_in_memory = booted_image_file(system_table.boot_services()).expect("Failed to extract the in-memory information about our own image");
+
+    if is_tpm_available {
         info!("TPM available, will proceed to measurements.");
         // Iterate over unified sections and measure them
         // For now, ignore failures during measurements.
@@ -58,10 +61,8 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         // and ensure this hard-fail correctly.
         let _ = measure_image(
             &system_table,
-            booted_image_file(system_table.boot_services()).unwrap(),
+            &pe_in_memory
         );
-        // TODO: Measure kernel parameters
-        // TODO: Measure sysexts
     }
 
     if let Ok(features) = get_loader_features(system_table.runtime_services()) {
