@@ -12,6 +12,25 @@ let
     lib.generators.mkKeyValueDefault { } " " k v;
   };
 
+  assembleCredentialDirectoryFromDrv = drv: ''
+    for credential in ${drv}/*; do
+      echo "Processing $credential"
+      if [[ "''${credential##*.}" != "cred" ]]; then
+        echo "Found a non-credential: $credential, please remove it or move it."
+        exit 1
+      fi
+      cp $credential $out/
+    done
+  '';
+
+  assembleCredentialDirectory = drvs: pkgs.runCommand "assemble-credentials" { } ''
+    mkdir -p $out/
+    ${concatStringsSep "\n" (map assembleCredentialDirectoryFromDrv drvs)}
+  '';
+
+  globalCredentialsDirectory = assembleCredentialDirectory cfg.globalCredentials;
+  localCredentialsDirectory = assembleCredentialDirectory cfg.localCredentials;
+
   loaderConfigFile = loaderSettingsFormat.generate "loader.conf" cfg.settings;
 
   configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
@@ -33,6 +52,30 @@ in
 
         `null` means no limit i.e. all generations
         that were not garbage collected yet.
+      '';
+    };
+
+    globalCredentials = mkOption {
+      type = types.listOf types.package;
+      description = lib.mdDoc ''
+        A list of derivations containing multiple .cred files inside of it.
+        If anything else than a .cred is found, in the top-level, this will fail
+        at assembly time.
+
+        This will be installed in $ESP/loader/credentials.
+        In case of data conflict, the installer will fail and ask for manual removal.
+      '';
+    };
+
+    localCredentials = mkOption {
+      type = types.listOf types.package;
+      description = lib.mdDoc ''
+        A list of derivations containing multiple .cred files inside of it.
+        If anything else than a .cred is found, in the top-level, this will fail
+        at assembly time.
+
+        This will be installed in this generation's drop-in directory specifically.
+        In case of data conflict, the installer will fail and ask for manual removal.
       '';
     };
 
@@ -125,6 +168,8 @@ in
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \
+          --global-credentials-directory ${globalCredentialsDirectory} \
+          --local-credentials-directory ${localCredentialsDirectory} \
           ${config.boot.loader.efi.efiSysMountPoint} \
           /nix/var/nix/profiles/system-*-link
       '';
