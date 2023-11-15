@@ -6,13 +6,20 @@ use uefi::{
 };
 
 use crate::{
-    efivars::BOOT_LOADER_VENDOR_UUID, pe_section::pe_section_data, tpm::tpm_log_event_ascii,
-    uefi_helpers::PeInMemory, unified_sections::UnifiedSection,
+    companions::CompanionInitrd, efivars::BOOT_LOADER_VENDOR_UUID, pe_section::pe_section_data,
+    tpm::tpm_log_event_ascii, uefi_helpers::PeInMemory, unified_sections::UnifiedSection,
 };
 
+/// This is where any stub payloads are extended, e.g. kernel ELF image, embedded initrd
+/// and so on.
+/// Compared to PCR4, this contains only the unified sections rather than the whole PE image as-is.
 const TPM_PCR_INDEX_KERNEL_IMAGE: PcrIndex = PcrIndex(11);
+/// This is where lanzastub extends the kernel command line and any passed credentials into
+const TPM_PCR_INDEX_KERNEL_CONFIG: PcrIndex = PcrIndex(12);
+/// This is where we extend the initrd sysext images into which we pass to the booted kernel
+const TPM_PCR_INDEX_SYSEXTS: PcrIndex = PcrIndex(13);
 
-pub fn measure_image(system_table: &SystemTable<Boot>, image: PeInMemory) -> uefi::Result<u32> {
+pub fn measure_image(system_table: &SystemTable<Boot>, image: &PeInMemory) -> uefi::Result<u32> {
     let runtime_services = system_table.runtime_services();
     let boot_services = system_table.boot_services();
 
@@ -55,6 +62,84 @@ pub fn measure_image(system_table: &SystemTable<Boot>, image: PeInMemory) -> uef
             &BOOT_LOADER_VENDOR_UUID,
             VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS,
             &TPM_PCR_INDEX_KERNEL_IMAGE.0.to_le_bytes(),
+        )?;
+    }
+
+    Ok(measurements)
+}
+
+/// Performs all the expected measurements for any list of
+/// companion initrds of any form.
+///
+/// Relies on the passed order of `companions` for measurements in the same PCR.
+/// You are responsible for honoring a stable order.
+pub fn measure_companion_initrds(
+    system_table: &SystemTable<Boot>,
+    companions: &[CompanionInitrd],
+) -> uefi::Result<u32> {
+    let runtime_services = system_table.runtime_services();
+    let boot_services = system_table.boot_services();
+
+    let mut measurements = 0;
+    let mut credentials_measured = 0;
+    let mut sysext_measured = false;
+
+    for initrd in companions {
+        match initrd {
+            CompanionInitrd::PcrSignature(_) | CompanionInitrd::PcrPublicKey(_) => {
+                continue;
+            }
+            CompanionInitrd::Credentials(cpio) => {
+                if tpm_log_event_ascii(
+                    boot_services,
+                    TPM_PCR_INDEX_KERNEL_CONFIG,
+                    cpio.as_ref(),
+                    "Credentials initrd",
+                )? {
+                    measurements += 1;
+                    credentials_measured += 1;
+                }
+            }
+            CompanionInitrd::GlobalCredentials(cpio) => {
+                if tpm_log_event_ascii(
+                    boot_services,
+                    TPM_PCR_INDEX_KERNEL_CONFIG,
+                    cpio.as_ref(),
+                    "Global credentials initrd",
+                )? {
+                    measurements += 1;
+                    credentials_measured += 1;
+                }
+            }
+            CompanionInitrd::SystemExtension(cpio) => {
+                if tpm_log_event_ascii(
+                    boot_services,
+                    TPM_PCR_INDEX_SYSEXTS,
+                    cpio.as_ref(),
+                    "System extension initrd",
+                )? {
+                    measurements += 1;
+                    sysext_measured = true;
+                }
+            }
+        }
+    }
+
+    if credentials_measured > 0 {
+        runtime_services.set_variable(
+            cstr16!("StubPcrKernelParameters"),
+            &BOOT_LOADER_VENDOR_UUID,
+            VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS,
+            &TPM_PCR_INDEX_KERNEL_CONFIG.0.to_le_bytes(),
+        )?;
+    }
+
+    if sysext_measured {
+        runtime_services.set_variable(
+            cstr16!("StubPcrInitRDSysExts"),
+            &BOOT_LOADER_VENDOR_UUID,
+            VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS,
+            &TPM_PCR_INDEX_SYSEXTS.0.to_le_bytes(),
         )?;
     }
 
