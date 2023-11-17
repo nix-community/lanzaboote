@@ -22,6 +22,12 @@ in
 
     enrollKeys = mkEnableOption "Automatic enrollment of the keys using sbctl";
 
+    extraEfiSysMountPoints = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      description = "Additional EFI mount points to which install boot files";
+    };
+
     configurationLimit = mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
       defaultText = "config.boot.loader.systemd-boot.configurationLimit";
@@ -118,15 +124,19 @@ in
 
         # Use the system from the kernel's hostPlatform because this should
         # always, even in the cross compilation case, be the right system.
-        ${cfg.package}/bin/lzbt install \
-          --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
-          --systemd ${config.systemd.package} \
-          --systemd-boot-loader-config ${loaderConfigFile} \
-          --public-key ${cfg.publicKeyFile} \
-          --private-key ${cfg.privateKeyFile} \
-          --configuration-limit ${toString configurationLimit} \
-          ${config.boot.loader.efi.efiSysMountPoint} \
-          /nix/var/nix/profiles/system-*-link
+        ${lib.concatMapStrings (mountPoint: ''
+          ${cfg.package}/bin/lzbt install \
+            --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
+            --systemd ${config.systemd.package} \
+            --systemd-boot-loader-config ${loaderConfigFile} \
+            --public-key ${cfg.publicKeyFile} \
+            --private-key ${cfg.privateKeyFile} \
+            --configuration-limit ${toString configurationLimit} \
+            ${mountPoint} \
+            /nix/var/nix/profiles/system-*-link
+          '')
+          ([ config.boot.loader.efi.efiSysMountPoint ] ++ cfg.extraEfiSysMountPoints)
+        }
       '';
     };
 
