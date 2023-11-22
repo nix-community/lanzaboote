@@ -10,10 +10,20 @@ use lanzaboote_tool::pe;
 
 /// A systemd version.
 ///
-/// The version is parsed into a u32 tuple because systemd does not follow strict semver
-/// conventions. A major version without a minor version, e.g. "252" is represented as `(252, 0)`.
+/// systemd does not follow semver standards, but we try to map it anyway. Version components that are not there are treated as zero.
+///
+/// A notible quirk here is our handling of release candidate
+/// versions. We treat 255-rc2 as 255.-1.2, which should give us the
+/// correct ordering.
 #[derive(PartialEq, PartialOrd, Eq, Debug)]
-pub struct SystemdVersion(u32, u32);
+pub struct SystemdVersion {
+    major: u32,
+
+    /// This is a signed integer, so we can model "rc" versions as -1 here.
+    minor: i32,
+
+    patch: u32,
+}
 
 impl SystemdVersion {
     /// Read the systemd version from the `.osrel` section of a systemd-boot binary.
@@ -55,10 +65,31 @@ impl FromStr for SystemdVersion {
 
         let major = split_version
             .first()
+            .copied()
             .context("Failed to parse major version.")?;
-        let minor = split_version.get(1).unwrap_or(&0);
+        let minor = split_version
+            .get(1)
+            .copied()
+            .unwrap_or(0)
+            .try_into()
+            .unwrap();
 
-        Ok(Self(major.to_owned(), minor.to_owned()))
+        Ok(Self {
+            major,
+            minor,
+            patch: 0,
+        })
+    }
+}
+
+#[cfg(test)]
+impl From<(u32, i32, u32)> for SystemdVersion {
+    fn from(value: (u32, i32, u32)) -> Self {
+        SystemdVersion {
+            major: value.0,
+            minor: value.1,
+            patch: value.2,
+        }
     }
 }
 
@@ -68,9 +99,9 @@ mod tests {
 
     #[test]
     fn parse_version_correctly() {
-        assert_eq!(parse_version("253"), SystemdVersion(253, 0));
-        assert_eq!(parse_version("252.4"), SystemdVersion(252, 4));
-        assert_eq!(parse_version("251.11"), SystemdVersion(251, 11));
+        assert_eq!(parse_version("253"), (253, 0, 0).into());
+        assert_eq!(parse_version("252.4"), (252, 4, 0).into());
+        assert_eq!(parse_version("251.11"), (251, 11, 0).into());
     }
 
     #[test]
