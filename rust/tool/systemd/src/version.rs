@@ -56,29 +56,28 @@ impl FromStr for SystemdVersion {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split_version = s
-            .split('.')
-            .take(2)
-            .map(u32::from_str)
-            .collect::<Result<Vec<u32>, std::num::ParseIntError>>()
-            .context("Failed to parse version string into u32 vector.")?;
-
-        let major = split_version
-            .first()
-            .copied()
-            .context("Failed to parse major version.")?;
-        let minor = split_version
-            .get(1)
-            .copied()
-            .unwrap_or(0)
-            .try_into()
-            .unwrap();
-
-        Ok(Self {
-            major,
-            minor,
-            patch: 0,
-        })
+        if let Some((major_str, rc_str)) = s.split_once("-rc") {
+            // A version that looks like: 253-rc2
+            Ok(Self {
+                major: major_str.parse()?,
+                minor: -1,
+                patch: rc_str.parse()?,
+            })
+        } else if let Some((major_str, minor_str)) = s.split_once('.') {
+            // A version that looks like: 253.7
+            Ok(Self {
+                major: major_str.parse()?,
+                minor: minor_str.parse()?,
+                patch: 0,
+            })
+        } else {
+            // A version that looks like: 253
+            Ok(Self {
+                major: s.parse()?,
+                minor: 0,
+                patch: 0,
+            })
+        }
     }
 }
 
@@ -102,6 +101,7 @@ mod tests {
         assert_eq!(parse_version("253"), (253, 0, 0).into());
         assert_eq!(parse_version("252.4"), (252, 4, 0).into());
         assert_eq!(parse_version("251.11"), (251, 11, 0).into());
+        assert_eq!(parse_version("251-rc7"), (251, -1, 7).into());
     }
 
     #[test]
@@ -109,6 +109,8 @@ mod tests {
         assert!(parse_version("253") > parse_version("252"));
         assert!(parse_version("253") > parse_version("252.4"));
         assert!(parse_version("251.8") == parse_version("251.8"));
+        assert!(parse_version("251-rc5") > parse_version("251-rc4"));
+        assert!(parse_version("251") > parse_version("251-rc9"));
     }
 
     #[test]
@@ -116,7 +118,6 @@ mod tests {
         parse_version_error("");
         parse_version_error("213;k;13");
         parse_version_error("-1.3.123");
-        parse_version_error("253-rc1");
     }
 
     fn parse_version(input: &str) -> SystemdVersion {
