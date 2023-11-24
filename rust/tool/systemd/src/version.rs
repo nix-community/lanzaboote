@@ -10,10 +10,20 @@ use lanzaboote_tool::pe;
 
 /// A systemd version.
 ///
-/// The version is parsed into a u32 tuple because systemd does not follow strict semver
-/// conventions. A major version without a minor version, e.g. "252" is represented as `(252, 0)`.
+/// systemd does not follow semver standards, but we try to map it anyway. Version components that are not there are treated as zero.
+///
+/// A notible quirk here is our handling of release candidate
+/// versions. We treat 255-rc2 as 255.-1.2, which should give us the
+/// correct ordering.
 #[derive(PartialEq, PartialOrd, Eq, Debug)]
-pub struct SystemdVersion(u32, u32);
+pub struct SystemdVersion {
+    major: u32,
+
+    /// This is a signed integer, so we can model "rc" versions as -1 here.
+    minor: i32,
+
+    patch: u32,
+}
 
 impl SystemdVersion {
     /// Read the systemd version from the `.osrel` section of a systemd-boot binary.
@@ -46,19 +56,39 @@ impl FromStr for SystemdVersion {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split_version = s
-            .split('.')
-            .take(2)
-            .map(u32::from_str)
-            .collect::<Result<Vec<u32>, std::num::ParseIntError>>()
-            .context("Failed to parse version string into u32 vector.")?;
+        if let Some((major_str, rc_str)) = s.split_once("-rc") {
+            // A version that looks like: 253-rc2
+            Ok(Self {
+                major: major_str.parse()?,
+                minor: -1,
+                patch: rc_str.parse()?,
+            })
+        } else if let Some((major_str, minor_str)) = s.split_once('.') {
+            // A version that looks like: 253.7
+            Ok(Self {
+                major: major_str.parse()?,
+                minor: minor_str.parse()?,
+                patch: 0,
+            })
+        } else {
+            // A version that looks like: 253
+            Ok(Self {
+                major: s.parse()?,
+                minor: 0,
+                patch: 0,
+            })
+        }
+    }
+}
 
-        let major = split_version
-            .first()
-            .context("Failed to parse major version.")?;
-        let minor = split_version.get(1).unwrap_or(&0);
-
-        Ok(Self(major.to_owned(), minor.to_owned()))
+#[cfg(test)]
+impl From<(u32, i32, u32)> for SystemdVersion {
+    fn from(value: (u32, i32, u32)) -> Self {
+        SystemdVersion {
+            major: value.0,
+            minor: value.1,
+            patch: value.2,
+        }
     }
 }
 
@@ -68,9 +98,10 @@ mod tests {
 
     #[test]
     fn parse_version_correctly() {
-        assert_eq!(parse_version("253"), SystemdVersion(253, 0));
-        assert_eq!(parse_version("252.4"), SystemdVersion(252, 4));
-        assert_eq!(parse_version("251.11"), SystemdVersion(251, 11));
+        assert_eq!(parse_version("253"), (253, 0, 0).into());
+        assert_eq!(parse_version("252.4"), (252, 4, 0).into());
+        assert_eq!(parse_version("251.11"), (251, 11, 0).into());
+        assert_eq!(parse_version("251-rc7"), (251, -1, 7).into());
     }
 
     #[test]
@@ -78,6 +109,8 @@ mod tests {
         assert!(parse_version("253") > parse_version("252"));
         assert!(parse_version("253") > parse_version("252.4"));
         assert!(parse_version("251.8") == parse_version("251.8"));
+        assert!(parse_version("251-rc5") > parse_version("251-rc4"));
+        assert!(parse_version("251") > parse_version("251-rc9"));
     }
 
     #[test]
@@ -85,7 +118,6 @@ mod tests {
         parse_version_error("");
         parse_version_error("213;k;13");
         parse_version_error("-1.3.123");
-        parse_version_error("253-rc1");
     }
 
     fn parse_version(input: &str) -> SystemdVersion {
