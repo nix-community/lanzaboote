@@ -245,6 +245,15 @@ You can see these steps as a video [here](https://www.youtube.com/watch?v=aLuCAh
 > ⚠️ Do not select "Clear All Secure Boot Keys" as it will drop the Forbidden
 > Signature Database (dbx).
 
+#### Framework specific option
+
+On Framework laptops 13. generation or newer you can enter the setup mode like this:
+
+1. Select "Administer Secure Boot"
+2. Select "Erease all Secure Boot Settings"
+
+When you are done, press F10 to save and exit.
+
 ### Enrolling Keys
 
 Once you've booted your system into NixOS again, you have to enroll
