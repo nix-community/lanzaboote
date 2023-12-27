@@ -223,7 +223,7 @@ impl Installer {
             )
             .context("Failed to copy the initrd to the temporary directory.")?;
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
-            append_initrd_secrets(initrd_secrets_script, &initrd_location)?;
+            append_initrd_secrets(initrd_secrets_script, &initrd_location, generation.version)?;
         }
         let initrd_target = self
             .install_nixos_ca(&initrd_location, &format!("initrd-{}", kernel_version))
@@ -438,6 +438,7 @@ fn force_install(from: &Path, to: &Path) -> Result<()> {
 pub fn append_initrd_secrets(
     append_initrd_secrets_path: &Path,
     initrd_path: &PathBuf,
+    generation_version: u64,
 ) -> Result<()> {
     let status = Command::new(append_initrd_secrets_path)
         .args(vec![initrd_path])
@@ -445,8 +446,9 @@ pub fn append_initrd_secrets(
         .context("Failed to append initrd secrets")?;
     if !status.success() {
         return Err(anyhow::anyhow!(
-            "Failed to append initrd secrets with args `{:?}`",
-            vec![append_initrd_secrets_path, initrd_path]
+            "Failed to append initrd secrets for generation {} with args `{:?}`",
+            generation_version,
+            vec![append_initrd_secrets_path, initrd_path],
         ));
     }
 
