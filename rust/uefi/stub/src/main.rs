@@ -51,7 +51,8 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     print_logo();
 
     let is_tpm_available = tpm_available(system_table.boot_services());
-    let pe_in_memory = booted_image_file(system_table.boot_services()).expect("Failed to extract the in-memory information about our own image");
+    let pe_in_memory = booted_image_file(system_table.boot_services())
+        .expect("Failed to extract the in-memory information about our own image");
 
     if is_tpm_available {
         info!("TPM available, will proceed to measurements.");
@@ -59,10 +60,7 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         // For now, ignore failures during measurements.
         // TODO: in the future, devise a threat model where this can fail
         // and ensure this hard-fail correctly.
-        let _ = measure_image(
-            &system_table,
-            &pe_in_memory
-        );
+        let _ = measure_image(&system_table, &pe_in_memory);
     }
 
     if let Ok(features) = get_loader_features(system_table.runtime_services()) {
@@ -92,8 +90,12 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         let default_dropin_directory;
 
         if let Some(loaded_image_path) = pe_in_memory.file_path() {
-            default_dropin_directory = get_default_dropin_directory(system_table.boot_services(), loaded_image_path, &mut filesystem)
-                .expect("Failed to obtain the default drop-in directory");
+            default_dropin_directory = get_default_dropin_directory(
+                system_table.boot_services(),
+                loaded_image_path,
+                &mut filesystem,
+            )
+            .expect("Failed to obtain the default drop-in directory");
         } else {
             default_dropin_directory = None;
         }
