@@ -210,17 +210,27 @@ impl<S: LanzabooteSigner> Installer<S> {
             .context("Failed to install the kernel.")?;
 
         // Assemble and install the initrd, and record its path on the ESP.
-        let initrd_location = tempdir
-            .write_secure_file(
-                fs::read(
-                    bootspec
-                        .initrd
-                        .as_ref()
-                        .context("Lanzaboote does not support missing initrd yet.")?,
+        // It is not needed to write the initrd in a temporary directory
+        // if we do not have any initrd secret.
+        let initrd_location = if bootspec.initrd_secrets.is_some() {
+            tempdir
+                .write_secure_file(
+                    fs::read(
+                        bootspec
+                            .initrd
+                            .as_ref()
+                            .context("Lanzaboote does not support missing initrd yet.")?,
+                    )
+                    .context("Failed to read the initrd.")?,
                 )
-                .context("Failed to read the initrd.")?,
-            )
-            .context("Failed to copy the initrd to the temporary directory.")?;
+                .context("Failed to copy the initrd to the temporary directory.")?
+        } else {
+            bootspec
+                .initrd
+                .clone()
+                .expect("Lanzaboote does not support missing initrd yet.")
+        };
+
         if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
             append_initrd_secrets(initrd_secrets_script, &initrd_location, generation.version)?;
         }
