@@ -30,6 +30,10 @@ impl LanzabooteSigner for LocalKeyPair {
         Ok(std::fs::read(&self.public_key)?)
     }
 
+    fn can_sign_stub(&self, _stub: &crate::pe::StubParameters) -> bool {
+        true
+    }
+
     fn sign_and_copy(&self, from: &Path, to: &Path) -> Result<()> {
         let args: Vec<OsString> = vec![
             OsString::from("--key"),
