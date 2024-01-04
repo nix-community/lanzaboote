@@ -9,6 +9,7 @@ pub mod remote;
 
 pub trait LanzabooteSigner {
     fn sign_store_path(&self, store_path: &Path) -> Result<Vec<u8>>;
+    fn can_sign_stub(&self, stub: &StubParameters) -> bool;
     fn build_and_sign_stub(&self, stub: &StubParameters) -> Result<Vec<u8>>;
     fn get_public_key(&self) -> Result<Vec<u8>>;
 

@@ -60,6 +60,12 @@ impl StubParameters {
         self.kernel_cmdline = cmdline.to_vec();
         self
     }
+
+    pub fn all_signables_in_store(&self) -> bool {
+        self.lanzaboote_store_path.starts_with("/nix/store")
+            && self.kernel_store_path.starts_with("/nix/store")
+            && self.initrd_store_path.starts_with("/nix/store")
+    }
 }
 
 /// Performs the evil operation

@@ -248,6 +248,12 @@ impl<S: LanzabooteSigner> Installer<S> {
         .with_cmdline(&kernel_cmdline)
         .with_os_release_contents(os_release_contents.as_bytes());
 
+        // TODO: how should we handle those cases?
+        if !self.signer.can_sign_stub(&parameters) {
+            log::warn!("Signer is not able to sign this stub, skipping...");
+            return Ok(());
+        }
+
         let lanzaboote_image = self
             .signer
             .build_and_sign_stub(&parameters)

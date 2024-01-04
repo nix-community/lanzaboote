@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::pe::StubParameters;
 
 use super::LanzabooteSigner;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use ureq::{Agent, AgentBuilder};
 use url::Url;
@@ -57,6 +57,10 @@ impl RemoteSigningServer {
     /// If the remote server agrees on providing that stub
     /// It will return it signed.
     fn request_signature(&self, stub_parameters: &StubParameters) -> Result<Vec<u8>> {
+        if !stub_parameters.all_signables_in_store() {
+            bail!("Signable stub parameters contains non-Nix store paths, the remote server cannot sign that!");
+        }
+
         let response = self
             .client
             .post(self.server_url.join("/sign/stub")?.as_str())
@@ -164,6 +168,10 @@ impl LanzabooteSigner for RemoteSigningServer {
 
         reader.read_to_end(&mut binary)?;
         Ok(binary)
+    }
+
+    fn can_sign_stub(&self, stub: &StubParameters) -> bool {
+        stub.all_signables_in_store()
     }
 
     fn build_and_sign_stub(&self, stub: &StubParameters) -> Result<Vec<u8>> {
