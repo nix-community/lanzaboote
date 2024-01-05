@@ -1,8 +1,9 @@
 use std::{io::Read, path::PathBuf};
 
 use lanzaboote_tool::{
-    pe::{lanzaboote_image, StubParameters},
+    pe::StubParameters,
     signature::{remote::VerificationResponse, LanzabooteSigner},
+    utils::SecureTempDirExt,
 };
 use log::{debug, trace, warn};
 use rouille::{try_or_400, Request, Response};
@@ -40,12 +41,16 @@ impl<S: LanzabooteSigner> Handlers<S> {
         let working_tree = tempfile::tempdir().expect("Failed to create a directory");
 
         // Assemble the stub
-        let image =
-            lanzaboote_image(&working_tree, &stub_parameters).expect("Failed to build the stub");
+        let image = stub_parameters
+            .into_image()
+            .expect("Failed to build the stub");
 
         // Sign the stub now
-        let image_to = image.with_extension(".signed");
-        self.signer.sign_and_copy(&image, &image_to).unwrap();
+        let image_from = working_tree
+            .write_secure_file(image)
+            .expect("Failed to write a file in a secure fashion in the temporary working tree");
+        let image_to = image_from.with_extension(".signed");
+        self.signer.sign_and_copy(&image_from, &image_to).unwrap();
 
         Response::from_data(
             "application/octet-stream",
