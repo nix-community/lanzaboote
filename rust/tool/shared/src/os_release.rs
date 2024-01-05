@@ -1,7 +1,7 @@
 use std::fmt;
 use std::{collections::BTreeMap, str::FromStr};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use crate::generation::Generation;
 
@@ -58,31 +58,162 @@ impl FromStr for OsRelease {
     fn from_str(value: &str) -> Result<Self> {
         let mut map = BTreeMap::new();
 
-        // All valid lines
-        let lines = value
-            .lines()
-            .map(str::trim)
-            .filter(|x| !x.starts_with('#') && !x.is_empty());
-        // Split into keys/values
-        let key_value_lines = lines.map(|x| x.split('=').collect::<Vec<&str>>());
-        for kv in key_value_lines {
-            let k = kv
-                .first()
-                .with_context(|| format!("Failed to get first element from {kv:?}"))?;
-            let v = kv
-                .get(1)
-                .map(|s| s.strip_prefix(|c| c == '"' || c == '\'').unwrap_or(s))
-                .map(|s| s.strip_suffix(|c| c == '"' || c == '\'').unwrap_or(s))
-                .with_context(|| format!("Failed to get second element from {kv:?}"))?;
-            // Clean up the value. We already have the value without leading/tailing "
-            // so we just need to unescape the string.
-            let v = v
-                .replace("\\$", "$")
-                .replace("\\\"", "\"")
-                .replace("\\`", "`")
-                .replace("\\\\", "\\");
+        enum State {
+            PreKey,
+            Key,
+            PreValue,
+            Value,
+            ValueEscape,
+            SingleQuoteValue,
+            DoubleQuoteValue,
+            DoubleQuoteValueEscape,
+            Comment,
+            CommentEscape,
+        }
+        use State::*;
 
-            map.insert(String::from(*k), v);
+        let mut state = State::PreKey;
+
+        let mut current_key = String::new();
+        let mut current_value = String::new();
+
+        const COMMENTS: &str = "#;";
+        const WHITESPACE: &str = " \t\n\r";
+        const NEWLINE: &str = "\r\n";
+        const SHELL_NEED_ESCAPE: &str = "\"\\`$";
+
+        for c in value.chars() {
+            match state {
+                PreKey => {
+                    if COMMENTS.contains(c) {
+                        state = Comment;
+                    } else if !WHITESPACE.contains(c) {
+                        state = Key;
+                        current_key.push(c);
+                    }
+                }
+                Key => {
+                    if NEWLINE.contains(c) {
+                        // keys without any '=' are simply ignored
+                        state = PreKey;
+                        current_key.clear();
+                    } else if c == '=' {
+                        state = PreValue;
+                    } else {
+                        current_key.push(c);
+                    }
+                }
+                PreValue => {
+                    if NEWLINE.contains(c) {
+                        state = PreKey;
+                        // strip trailing whitespace from key
+                        let key = current_key.trim_end().to_owned();
+                        map.insert(key, current_value.clone());
+
+                        current_key.clear();
+                        current_value.clear();
+                    } else if c == '\'' {
+                        state = SingleQuoteValue;
+                    } else if c == '"' {
+                        state = DoubleQuoteValue;
+                    } else if c == '\\' {
+                        state = ValueEscape;
+                    } else if !WHITESPACE.contains(c) {
+                        state = Value;
+                        current_value.push(c);
+                    }
+                }
+                Value => {
+                    if NEWLINE.contains(c) {
+                        state = PreKey;
+                        // strip trailing whitespace from key
+                        let key = current_key.trim_end().to_owned();
+                        // strip trailing whitespace from value
+                        let value = current_value.trim_end().to_owned();
+                        map.insert(key, value);
+
+                        current_key.clear();
+                        current_value.clear();
+                    } else if c == '\\' {
+                        state = ValueEscape;
+                    } else {
+                        current_value.push(c);
+                    }
+                }
+                ValueEscape => {
+                    state = Value;
+
+                    if !NEWLINE.contains(c) {
+                        // Escaped newlines we eat up entirely
+                        current_value.push(c);
+                    }
+                }
+                SingleQuoteValue => {
+                    if c == '\'' {
+                        state = PreValue;
+                    } else {
+                        current_value.push(c);
+                    }
+                }
+                DoubleQuoteValue => {
+                    if c == '"' {
+                        state = PreValue;
+                    } else if c == '\\' {
+                        state = DoubleQuoteValueEscape;
+                    } else {
+                        current_value.push(c);
+                    }
+                }
+                DoubleQuoteValueEscape => {
+                    state = DoubleQuoteValue;
+
+                    if SHELL_NEED_ESCAPE.contains(c) {
+                        // If this is a char that needs escaping, just unescape it.
+                        current_value.push(c);
+                    } else if c != '\n' {
+                        // If other char than what needs escaping, keep the "\"
+                        // in place, like the real shell does.
+                        current_value.push('\\');
+                        current_value.push(c);
+                    }
+                    // Escaped newlines (aka "continuation lines") are eaten up entirely
+                }
+                Comment => {
+                    if c == '\\' {
+                        state = CommentEscape;
+                    } else if NEWLINE.contains(c) {
+                        state = PreKey;
+                    }
+                }
+                CommentEscape => {
+                    log::debug!("The line which doesn't begin with \";\" or \"#\", but follows a comment line trailing with escape is now treated as a non comment line since v254.");
+                    if NEWLINE.contains(c) {
+                        state = PreKey;
+                    } else {
+                        state = Comment;
+                    }
+                }
+            }
+        }
+
+        if matches!(
+            state,
+            PreValue
+                | Value
+                | ValueEscape
+                | SingleQuoteValue
+                | DoubleQuoteValue
+                | DoubleQuoteValueEscape
+        ) {
+            // strip trailing whitespace from key
+            let key = current_key.trim_end().to_owned();
+            let value = if matches!(state, Value) {
+                // strip trailing whitespace from value
+                current_value.trim_end().to_owned()
+            } else {
+                current_value
+            };
+            map.insert(key, value);
         }
 
         Ok(Self(map))
@@ -138,7 +269,7 @@ mod tests {
         assert!(os_release.0["ESCAPED_DOLLAR"] == "$1.2");
         assert!(os_release.0["UNESCAPED_BACKTICK"] == "`1.2");
         assert!(os_release.0["ESCAPED_BACKTICK"] == "`1.2");
-        assert!(os_release.0["UNESCAPED_QUOTE"] == "\"1.2");
+        assert!(os_release.0["UNESCAPED_QUOTE"] == "1.2\"");
         assert!(os_release.0["ESCAPED_QUOTE"] == "\"1.2");
 
         Ok(())
