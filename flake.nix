@@ -282,6 +282,40 @@
               pkgs.cargo-release
               pkgs.cargo-machete
 
+              # This is a special script to print out all the offsets
+              # related to OVMF debug binaries.
+              # To use it, you should obtain a debug log (serial console or the 0x402 port)
+              # It contains various offsets necessary to relocate all the offsets.
+              # Then, you need a OVMF tree, you can bring yours or put it in the Nix one.
+              # Once you are done, you can pipe the result of that script in /tmp/gdb-script or something like that.
+              # You can source it with gdb, then you should use `set substitute-paths /build/edk2... /nix/store/...edk2/...`
+              # to rewire the EDK2 source tree to the Nix store.
+              # Usage: `print-debug-script-for-ovmf $location_of_ovmf_debug_output $location_of_edk2_debug_outputs_in_nix_store > /tmp/gdbscript`
+              (pkgs.writeScriptBin "print-debug-script-for-ovmf"
+                (
+                  let
+                    pePythonEnv = pkgs.python3.withPackages (ps: with ps; [ pefile ]);
+                  in
+                  ''
+                    #!${pkgs.stdenv.shell}
+                    LOG=''${1:-build/debug.log}
+                    BUILD=''${2}
+                    SEARCHPATHS="''${BUILD}"
+
+                    cat ''${LOG} | grep Loading | grep -i efi | while read LINE; do
+                      BASE="`echo ''${LINE} | cut -d " " -f4`"
+                      NAME="`echo ''${LINE} | cut -d " " -f6 | tr -d "[:cntrl:]"`"
+                      EFIFILE="`find ''${SEARCHPATHS} -name ''${NAME} -maxdepth 1 -type f`"
+                      ADDR="`${pePythonEnv}/bin/python3 contrib/extract_text_va.py ''${EFIFILE} 2>/dev/null`"
+                      [ ! -z "$ADDR" ] && TEXT="`${pkgs.python3}/bin/python -c "print(hex(''${BASE} + ''${ADDR}))"`"
+                      SYMS="`echo ''${NAME} | sed -e "s/\.efi/\.debug/g"`"
+                      SYMFILE="`find ''${SEARCHPATHS} -name ''${SYMS} -maxdepth 1 -type f`"
+                      [ ! -z "$ADDR" ] && echo "add-symbol-file ''${SYMFILE} ''${TEXT}"
+                    done
+                  ''
+                )
+              )
+
               # Convenience for test fixtures in nix/tests.
               pkgs.openssl
               (pkgs.sbctl.override { databasePath = "pki"; })
