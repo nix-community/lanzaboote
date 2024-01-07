@@ -6,6 +6,9 @@ let
   inherit (pkgs) lib system;
   defaultTimeout = 5 * 60; # = 5 minutes
 
+  inherit (pkgs.stdenv.hostPlatform) efiArch;
+  efiArchUppercased = lib.toUpper efiArch;
+
   mkSecureBootTest = { name, machine ? { }, useSecureBoot ? true, useTPM2 ? false, readEfiVariables ? false, testScript }:
     let
       tpmSocketPath = "/tmp/swtpm-sock";
@@ -241,7 +244,7 @@ in
 
   # Test that the secrets configured to be appended to the initrd get updated
   # when installing a new generation even if the initrd itself (i.e. its store
-  # path) does not change. 
+  # path) does not change.
   #
   # An unfortunate result of this NixOS feature is that updating the secrets
   # without creating a new initrd might break previous generations. Verify that
@@ -360,7 +363,7 @@ in
 
       actual_loader_config = machine.succeed("cat /boot/loader/loader.conf").split("\n")
       expected_loader_config = ["timeout 0", "console-mode auto"]
-      
+
       assert all(cfg in actual_loader_config for cfg in expected_loader_config), \
         f"Expected: {expected_loader_config} is not included in actual config: '{actual_loader_config}'"
     '';
@@ -384,8 +387,8 @@ in
       # TODO: this should work -- machine.succeed("efibootmgr -d /dev/vda -c -l \\EFI\\Linux\\nixos-generation-1.efi") -- efivars are not persisted
       # across reboots atm?
       # cheat code no 1
-      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/BOOT/BOOTX64.EFI")
-      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/systemd/systemd-bootx64.efi")
+      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/BOOT/BOOT${efiArchUppercased}.EFI")
+      machine.succeed("cp /boot/EFI/Linux/nixos-generation-1-*.efi /boot/EFI/systemd/systemd-boot${efiArch}.efi")
 
       # Let's reboot.
       machine.succeed("sync")
@@ -415,7 +418,7 @@ in
       with subtest("Is `StubInfo` correctly set"):
           assert "lanzastub" in read_string_variable("StubInfo"), "Unexpected stub information, provenance is not lanzaboote project!"
 
-      assert_variable_string("LoaderImageIdentifier", "\\EFI\\BOOT\\BOOTX64.EFI")
+      assert_variable_string("LoaderImageIdentifier", "\\EFI\\BOOT\\BOOT${efiArchUppercased}.EFI")
       # TODO: exploit QEMU test infrastructure to pass the good value all the time.
       assert_variable_string("LoaderDevicePartUUID", "1c06f03b-704e-4657-b9cd-681a087a2fdc")
       # OVMF tests are using EDK II tree.
