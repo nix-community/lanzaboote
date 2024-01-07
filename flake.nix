@@ -44,6 +44,10 @@
         # we don't have KVM support and cannot test in CI, but we still can meaningfully
         # build packages.
         {
+          path = [ "legacyPackages" "unsupportedChecks" ];
+          update = checks: checks // (nixpkgs.lib.filterAttrs (name: _: !builtins.elem name supportedSystems) outputs.checks);
+        }
+        {
           path = [ "checks" ];
           update = nixpkgs.lib.filterAttrs (name: _: builtins.elem name supportedSystems);
         }
