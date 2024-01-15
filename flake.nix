@@ -7,6 +7,8 @@
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
+    # Only used during development, can be disabled by flake users like this:
+    #  lanzaboote.inputs.pre-commit-hooks-nix.follows = "";
     pre-commit-hooks-nix = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -55,9 +57,8 @@
         # Derive the output overlay automatically from all packages that we define.
         inputs.flake-parts.flakeModules.easyOverlay
 
-        # Formatting and quality checks.
-        inputs.pre-commit-hooks-nix.flakeModule
-      ];
+        # Formatting and quality checks. 
+      ] ++ (if inputs.pre-commit-hooks-nix ? flakeModule then [ inputs.pre-commit-hooks-nix.flakeModule ] else [ ]);
 
       flake.nixosModules.lanzaboote = moduleWithSystem (
         perSystem@{ config }:
@@ -232,15 +233,6 @@
               ukiModule = self.nixosModules.uki;
             });
 
-          pre-commit = {
-            check.enable = true;
-
-            settings.hooks = {
-              nixpkgs-fmt.enable = true;
-              typos.enable = true;
-            };
-          };
-
           devShells.default = pkgs.mkShell {
             shellHook = ''
               ${config.pre-commit.installationScript}
@@ -267,6 +259,15 @@
             ];
 
             TEST_SYSTEMD = pkgs.systemd;
+          };
+        } // lib.optionalAttrs (inputs.pre-commit-hooks-nix ? flakeModule) {
+          pre-commit = {
+            check.enable = true;
+
+            settings.hooks = {
+              nixpkgs-fmt.enable = true;
+              typos.enable = true;
+            };
           };
         };
     }));
