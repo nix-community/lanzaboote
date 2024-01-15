@@ -26,7 +26,7 @@ in
 
     nodes.machine = _: {
       imports = [ common ];
-      boot.loader.uki.stub = "${pkgs.systemd}/lib/systemd/boot/efi/linuxx64.efi.stub";
+      boot.loader.uki.stub = "${pkgs.systemd}/lib/systemd/boot/efi/linux${pkgs.hostPlatform.efiArch}.efi.stub";
     };
     testScript = ''
       machine.start()
