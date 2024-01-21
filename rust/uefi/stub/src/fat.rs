@@ -9,8 +9,7 @@ use linux_bootloader::uefi_helpers::booted_image_file;
 pub fn extract_bytes(pe_data: &[u8], section: &str) -> Result<Vec<u8>> {
     let bytes: Vec<u8> = pe_section(pe_data, section)
         .ok_or(Status::INVALID_PARAMETER)?
-        .try_into()
-        .map_err(|_| Status::INVALID_PARAMETER)?;
+        .into();
 
     Ok(bytes)
 }

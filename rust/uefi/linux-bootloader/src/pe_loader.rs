@@ -195,7 +195,7 @@ impl Image {
                 self.image.len().try_into().unwrap(),
             );
             loaded_image.set_load_options(
-                load_options.as_ptr() as *const u8,
+                load_options.as_ptr(),
                 u32::try_from(load_options.len()).unwrap(),
             );
         }
