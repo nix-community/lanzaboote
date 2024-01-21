@@ -115,8 +115,8 @@ SecureBoot is available by adding this project to your configuration.
 It relies on [bootspec](https://github.com/NixOS/rfcs/pull/125)
 which is enabled by default since NixOS 23.05.
 
-An optimistic plan is to have a "in-tree" feature preview of Lanzaboote as part
-of NixOS 23.11.
+We are currently working on making Lanzaboote work out of the box in upstream
+Nixpkgs.
 
 ## Funding
 
