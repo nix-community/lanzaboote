@@ -232,7 +232,6 @@
 
               # Convenience for test fixtures in nix/tests.
               pkgs.openssl
-              (pkgs.sbctl.override { databasePath = "pki"; })
 
               # Needed for `cargo test` in rust/tool. We also need
               # TEST_SYSTEMD below for that.
