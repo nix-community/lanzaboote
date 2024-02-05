@@ -8,12 +8,12 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.79"
 base32ct = { version = "0.2.0", features = ["alloc"] }
-stderrlog = "0.5.4"
+stderrlog = "0.6.0"
 log = { version = "0.4.20", features = ["std"] }
 clap = { version = "4.4.18", features = ["derive"] }
 lanzaboote_tool = { path = "../shared" }
 indoc = "2.0.4"
-serde_json = "1.0.112"
+serde_json = "1.0.113"
 sha2 = "0.10.8"
 tempfile = "3.9.0"
 nix = { version = "0.27.1", default-features = false, features = [ "fs" ] }
