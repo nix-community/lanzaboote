@@ -271,11 +271,11 @@ impl Installer {
         let stub = fs::read(&stub_target)?;
         let kernel_path = resolve_efi_path(
             &self.esp_paths.esp,
-            pe::read_section_data(&stub, ".kernelp").context("Missing kernel path.")?,
+            pe::read_section_data(&stub, ".linux").context("Missing kernel path.")?,
         )?;
         let initrd_path = resolve_efi_path(
             &self.esp_paths.esp,
-            pe::read_section_data(&stub, ".initrdp").context("Missing initrd path.")?,
+            pe::read_section_data(&stub, ".initrd").context("Missing initrd path.")?,
         )?;
 
         if !kernel_path.exists() && !initrd_path.exists() {

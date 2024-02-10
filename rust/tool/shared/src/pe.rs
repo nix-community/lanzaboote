@@ -47,10 +47,10 @@ pub fn lanzaboote_image(
     let sections = vec![
         s(".osrel", os_release, os_release_offs),
         s(".cmdline", kernel_cmdline_file, kernel_cmdline_offs),
-        s(".initrdp", initrd_path_file, initrd_path_offs),
-        s(".kernelp", kernel_path_file, kernel_path_offs),
+        s(".initrd", initrd_path_file, initrd_path_offs),
+        s(".linux", kernel_path_file, kernel_path_offs),
         s(".initrdh", initrd_hash_file, initrd_hash_offs),
-        s(".kernelh", kernel_hash_file, kernel_hash_offs),
+        s(".linuxh", kernel_hash_file, kernel_hash_offs),
     ];
 
     let image_path = tempdir.path().join(tmpname());
