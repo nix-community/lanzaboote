@@ -46,10 +46,10 @@ fn extract_hash(pe_data: &[u8], section: &str) -> Result<Hash> {
 impl EmbeddedConfiguration {
     fn new(file_data: &[u8]) -> Result<Self> {
         Ok(Self {
-            kernel_filename: extract_string(file_data, ".kernelp")?,
-            kernel_hash: extract_hash(file_data, ".kernelh")?,
+            kernel_filename: extract_string(file_data, ".linux")?,
+            kernel_hash: extract_hash(file_data, ".linuxh")?,
 
-            initrd_filename: extract_string(file_data, ".initrdp")?,
+            initrd_filename: extract_string(file_data, ".initrd")?,
             initrd_hash: extract_hash(file_data, ".initrdh")?,
 
             cmdline: extract_string(file_data, ".cmdline")?,
