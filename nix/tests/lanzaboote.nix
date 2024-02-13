@@ -125,10 +125,11 @@ let
             (pkgs.OVMF.override {
               secureBoot = useSecureBoot;
               tpmSupport = useTPM2; # This is needed otherwise OVMF won't initialize the TPM2 protocol.
+              fdSize4MB = true;
 
-              edk2 = edk2;
+              # edk2 = edk2;
             }).overrideAttrs (old: {
-              src = edk2Src;
+              # src = edk2Src;
             });
 
           qemu.options = lib.mkIf useTPM2 [
