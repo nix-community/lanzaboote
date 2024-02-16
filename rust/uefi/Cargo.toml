@@ -2,6 +2,7 @@
 
 members = [
     "stub",
+    "pio",
     "linux-bootloader",
 ]
 
