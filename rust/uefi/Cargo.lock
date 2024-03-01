@@ -119,8 +119,10 @@ name = "linux-bootloader"
 version = "0.4.1"
 dependencies = [
  "bitflags",
+ "embedded-io",
  "goblin",
  "log",
+ "pio",
  "uefi",
 ]
 

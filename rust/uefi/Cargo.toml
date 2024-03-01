@@ -17,3 +17,7 @@ version = "0.4.1"
 [profile.release]
 opt-level = "s"
 lto = true
+
+[patch.crates-io]
+uefi = { git = "https://github.com/rust-osdev/uefi-rs" }
+uefi-services = { git = "https://github.com/rust-osdev/uefi-rs" }
