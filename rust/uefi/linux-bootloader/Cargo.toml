@@ -16,9 +16,11 @@ uefi = { version = "0.26.0", default-features = false, features = [ "alloc", "gl
 # Update blocked by #237
 goblin = { version = "=0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
 bitflags = "2.4.2"
+pio = { path = "../pio" }
 
 # Even in debug builds, we don't enable the debug logs, because they generate a lot of spam from goblin.
 log = { version = "0.4.20", default-features = false, features = [ "max_level_info", "release_max_level_warn" ]}
+embedded-io = { version = "0.6.1", default-features = false, features = [ "alloc" ] }
 
 [badges]
 maintenance = { status = "actively-developed" }

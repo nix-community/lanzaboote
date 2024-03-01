@@ -119,16 +119,18 @@ name = "linux-bootloader"
 version = "0.3.0"
 dependencies = [
  "bitflags",
+ "embedded-io",
  "goblin",
  "log",
+ "pio",
  "uefi",
 ]
 
 [[package]]
 name = "log"
-version = "0.4.20"
+version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
+checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "pio"
@@ -200,7 +202,7 @@ checksum = "1db149f81d46d2deba7cd3c50772474707729550221e69588478ebf9ada425ae"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.52",
 ]
 
 [[package]]
@@ -232,7 +234,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.52",
 ]
 
 [[package]]
@@ -248,9 +250,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.50"
+version = "2.0.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74f1bdc9872430ce9b75da68329d1c1746faf50ffac5f19e02b71e37ff881ffb"
+checksum = "b699d15b36d1f02c3e7c69f8ffef53de37aefae075d8488d4ba1a7788d574a07"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -275,8 +277,7 @@ dependencies = [
 [[package]]
 name = "uefi"
 version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07ead9f748a4646479b850add36b527113a80e80a7e0f44d7b0334291850dcc5"
+source = "git+https://github.com/rust-osdev/uefi-rs#ea0d2edc8eab43af2211b0300f9ca5b00339fecf"
 dependencies = [
  "bitflags",
  "log",
@@ -295,7 +296,7 @@ checksum = "26a7b1c2c808c3db854a54d5215e3f7e7aaf5dcfbce095598cba6af29895695d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.50",
+ "syn 2.0.52",
 ]
 
 [[package]]
@@ -312,8 +313,7 @@ dependencies = [
 [[package]]
 name = "uefi-services"
 version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a79fcb420624743c895bad0f9480fbc2f64e7c8d8611fb1ada6bdd799942feb4"
+source = "git+https://github.com/rust-osdev/uefi-rs#ea0d2edc8eab43af2211b0300f9ca5b00339fecf"
 dependencies = [
  "cfg-if",
  "log",

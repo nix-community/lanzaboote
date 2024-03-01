@@ -2,6 +2,8 @@
 
 extern crate alloc;
 
+pub mod companions;
+pub mod cpio;
 pub mod efivars;
 pub mod linux_loader;
 pub mod measure;
