@@ -222,6 +222,8 @@ firmware. At the end of this section, Secure Boot will be enabled on
 your system and your firmware will only boot binaries that are signed
 with your keys.
 
+At least on some ASUS boards and others, you may also need to set the `OS Type` to "Windows UEFI Mode" in the Secure Boot settings, so that Secure Boot does get enabled.
+
 These instructions are specific to Thinkpads and may need to be
 adapted on other systems.
 
