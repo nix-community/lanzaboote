@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = "1.0.80"
 base32ct = { version = "0.2.0", features = ["alloc"] }
 stderrlog = "0.6.0"
-log = { version = "0.4.20", features = ["std"] }
+log = { version = "0.4.21", features = ["std"] }
 clap = { version = "4.5.1", features = ["derive"] }
 lanzaboote_tool = { path = "../shared" }
 indoc = "2.0.4"
@@ -24,4 +24,4 @@ expect-test = "1.4.1"
 filetime = "0.2.23"
 rand = "0.8.5"
 goblin = "0.7.1"
-walkdir = "2.4.0"
+walkdir = "2.5.0"
