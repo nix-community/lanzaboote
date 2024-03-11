@@ -197,27 +197,18 @@
             inherit (config.packages) tool;
           };
 
-          checks =
-            let
-              nixosLib = import (pkgs.path + "/nixos/lib") { };
-              runTest = module: nixosLib.runTest {
-                imports = [ module ];
-                hostPkgs = pkgs;
-              };
-            in
-            {
-              toolClippy = toolCrane.clippy;
-              stubClippy = stubCrane.clippy;
-              fatStubClippy = fatStubCrane.clippy;
-              toolFmt = toolCrane.rustfmt;
-              stubFmt = stubCrane.rustfmt;
-            } // (import ./nix/tests/lanzaboote.nix {
-              inherit pkgs;
-              lanzabooteModule = self.nixosModules.lanzaboote;
-            }) // (import ./nix/tests/stub.nix {
-              inherit pkgs runTest;
-              ukiModule = self.nixosModules.uki;
-            });
+          checks = {
+            toolClippy = toolCrane.clippy;
+            stubClippy = stubCrane.clippy;
+            fatStubClippy = fatStubCrane.clippy;
+            toolFmt = toolCrane.rustfmt;
+            stubFmt = stubCrane.rustfmt;
+          } // (import ./nix/tests {
+            inherit pkgs;
+            extraBaseModules = {
+              inherit (self.nixosModules) lanzaboote uki;
+            };
+          });
 
           devShells.default = pkgs.mkShell {
             shellHook = ''
