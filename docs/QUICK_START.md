@@ -247,12 +247,12 @@ You can see these steps as a video [here](https://www.youtube.com/watch?v=aLuCAh
 > ⚠️ Do not select "Clear All Secure Boot Keys" as it will drop the Forbidden
 > Signature Database (dbx).
 
-#### Framework specific option
+#### Framework-specific: Enter Setup Mode
 
-On Framework laptops 13. generation or newer you can enter the setup mode like this:
+On Framework laptops (13th generation or newer) you can enter the setup mode like this:
 
 1. Select "Administer Secure Boot"
-2. Select "Erease all Secure Boot Settings"
+2. Select "Erase all Secure Boot Settings"
 
 When you are done, press F10 to save and exit.
 
@@ -295,6 +295,15 @@ System:
 > `/sys/firmware/efi/efivars/dbx-*`.
 > Keeping an up to date dbx reduces Secure Boot bypasses, see for example:
 > <https://uefi.org/sites/default/files/resources/dbx_release_info.pdf>.
+
+#### Framework-specific: Enable Secure Boot
+
+On Framework laptops you may need to manually enable Secure Boot:
+
+1. Select "Administer Secure Boot"
+2. Enable "Enforce Secure Boot"
+
+When you are done, press F10 to save and exit.
 
 That's all! 🥳
 
