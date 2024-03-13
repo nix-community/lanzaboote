@@ -256,6 +256,11 @@ On Framework laptops (13th generation or newer) you can enter the setup mode lik
 
 When you are done, press F10 to save and exit.
 
+#### Other systems
+
+On certain systems (e.g. ASUS desktop motherboards), there is no explicit option to enter Setup Mode.
+Instead, choose the option to erase the existing Platform Key.
+
 ### Enrolling Keys
 
 Once you've booted your system into NixOS again, you have to enroll
