@@ -10,9 +10,9 @@ anyhow = "1.0.81"
 base32ct = { version = "0.2.0", features = ["alloc"] }
 stderrlog = "0.6.0"
 log = { version = "0.4.21", features = ["std"] }
-clap = { version = "4.5.3", features = ["derive"] }
+clap = { version = "4.5.4", features = ["derive"] }
 lanzaboote_tool = { path = "../shared" }
-indoc = "2.0.4"
+indoc = "2.0.5"
 serde_json = "1.0.114"
 sha2 = "0.10.8"
 tempfile = "3.10.1"
