@@ -4,7 +4,7 @@ This document attempts to guide users into setting up UEFI Secure Boot
 for their NixOS system using a custom key chain. The audience are
 experienced NixOS users.
 
-This guide has been tested on a Lenovo Thinkpad and is expected to
+This guide has been tested on a Lenovo ThinkPad and is expected to
 work on other Thinkpads without change. On other systems, certain
 steps may be different.
 
@@ -13,6 +13,13 @@ steps may be different.
 Secure Boot for NixOS is still in development and has some sharp
 edges. There may be cases where you end up with a system that does not
 boot.
+
+For Windows dual-booters and BitLocker users, it is highly recommended
+that you export your BitLocker recovery keys and confirm that they are
+correct. Please refer to this [Microsoft support article](https://support.microsoft.com/en-us/windows/finding-your-bitlocker-recovery-key-in-windows-6b71ad27-0b89-ea08-f143-056f5ab347d6) 
+for help. This will be required once you finish this guide to confirm
+with BitLocker that the PCRs changed during the next measurement are 
+intended and allows the TPM unlocking of Windows to work as normal.
 
 **We only recommend this to NixOS users that are comfortable using
 recovery tools to restore their system or have a backup ready.**
@@ -224,7 +231,7 @@ with your keys.
 
 At least on some ASUS boards and others, you may also need to set the `OS Type` to "Windows UEFI Mode" in the Secure Boot settings, so that Secure Boot does get enabled.
 
-These instructions are specific to Thinkpads and may need to be
+These instructions are specific to ThinkPads and may need to be
 adapted on other systems.
 
 ### Entering Secure Boot Setup Mode
