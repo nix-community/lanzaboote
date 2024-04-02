@@ -13,14 +13,14 @@ log = { version = "0.4.21", features = ["std"] }
 clap = { version = "4.5.4", features = ["derive"] }
 lanzaboote_tool = { path = "../shared" }
 indoc = "2.0.5"
-serde_json = "1.0.114"
+serde_json = "1.0.115"
 sha2 = "0.10.8"
 tempfile = "3.10.1"
 nix = { version = "0.28.0", default-features = false, features = [ "fs" ] }
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
-expect-test = "1.4.1"
+expect-test = "1.5.0"
 filetime = "0.2.23"
 rand = "0.8.5"
 goblin = "0.7.1"
