@@ -27,7 +27,7 @@ in
       defaultText = "config.boot.loader.systemd-boot.configurationLimit";
       example = 120;
       type = types.nullOr types.int;
-      description = lib.mdDoc ''
+      description = ''
         Maximum number of latest generations in the boot menu.
         Useful to prevent boot partition running out of disk space.
 
