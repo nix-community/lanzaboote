@@ -10,4 +10,4 @@ embedded-io = { version = "0.6.1", features = [ "alloc" ] }
 snafu = { version = "0.8.2", default-features = false }
 
 [dev-dependencies]
-cpio = "0.3.0"
+cpio = "0.4.0"
