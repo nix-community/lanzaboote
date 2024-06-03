@@ -15,6 +15,8 @@ in
   };
 
   testScript = (import ./common/efivariables-helper.nix) + ''
+    import struct
+
     # We will choose to boot directly on the stub.
     # To perform this trick, we will boot first with systemd-boot.
     # Then, we will add a new boot entry in EFI with higher priority

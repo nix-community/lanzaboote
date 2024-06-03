@@ -1,6 +1,4 @@
 ''
-  import struct
-
   SD_LOADER_GUID = "4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
   def read_raw_variable(var: str) -> bytes:
       attr_var = machine.succeed(f"cat /sys/firmware/efi/efivars/{var}-{SD_LOADER_GUID}").encode('raw_unicode_escape')
@@ -10,10 +8,6 @@
   def read_string_variable(var: str, encoding='utf-16-le') -> str:
       return read_raw_variable(var).decode(encoding).rstrip('\x00')
   # By default, it will read a 4 byte value, read `struct` docs to change the format.
-  def assert_variable_uint(var: str, expected: int, format: str = 'I'):
-      with subtest(f"Is `{var}` set to {expected} (uint)"):
-        value, = struct.unpack(f'<{format}', read_raw_variable(var))
-        assert value == expected, f"Unexpected variable value in `{var}`, expected: `{expected}`, actual: `{value}`"
   def assert_variable_string(var: str, expected: str, encoding='utf-16-le'):
       with subtest(f"Is `{var}` correctly set"):
           value = read_string_variable(var, encoding)

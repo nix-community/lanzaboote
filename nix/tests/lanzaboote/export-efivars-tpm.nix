@@ -22,6 +22,6 @@
           machine.succeed(f"test -e /sys/firmware/efi/efivars/{expected_var}-{SD_LOADER_GUID}")
 
     # "Static" parts of the UKI is measured in PCR11
-    assert_variable_uint("StubPcrKernelImage", 11)
+    assert_variable_string("StubPcrKernelImage", "11")
   '';
 }
