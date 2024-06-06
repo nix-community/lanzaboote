@@ -29,6 +29,9 @@ in
   export-efivars = runTest ./lanzaboote/export-efivars.nix;
   export-efivars-tpm = runTest ./lanzaboote/export-efivars-tpm.nix;
 
+  systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
+  systemd-measured-uki = runTest ./lanzaboote/systemd-measured-uki.nix;
+
   # Stub
   systemd-stub = runTest ./stub/systemd-stub.nix;
   fat-stub = runTest ./stub/fat-stub.nix;

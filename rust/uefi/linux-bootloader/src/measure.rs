@@ -1,3 +1,4 @@
+use alloc::{string::ToString, vec::Vec};
 use log::info;
 use uefi::{
     cstr16,
@@ -48,13 +49,20 @@ pub fn measure_image(system_table: &SystemTable<Boot>, image: PeInMemory) -> uef
     }
 
     if measurements > 0 {
+        let pcr_index_encoded = TPM_PCR_INDEX_KERNEL_IMAGE
+            .0
+            .to_string()
+            .encode_utf16()
+            .flat_map(|c| c.to_le_bytes())
+            .collect::<Vec<u8>>();
+
         // If we did some measurements, expose a variable encoding the PCR where
         // we have done the measurements.
         runtime_services.set_variable(
             cstr16!("StubPcrKernelImage"),
             &BOOT_LOADER_VENDOR_UUID,
             VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS,
-            &TPM_PCR_INDEX_KERNEL_IMAGE.0.to_le_bytes(),
+            &pcr_index_encoded,
         )?;
     }
 
