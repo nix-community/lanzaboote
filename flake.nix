@@ -88,7 +88,7 @@
           inherit (pkgs) lib;
 
           uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/uefi/rust-toolchain.toml;
-          craneLib = crane.lib.${system}.overrideToolchain uefi-rust-stable;
+          craneLib = (crane.mkLib pkgs).overrideToolchain uefi-rust-stable;
 
           # Build attributes for a Rust application.
           buildRustApp = lib.makeOverridable (
