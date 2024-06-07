@@ -18,25 +18,9 @@
     ];
 
     systemd.additionalUpstreamSystemUnits = [
-      "systemd-pcrphase-initrd.service"
-
       "systemd-pcrphase.service"
       "systemd-pcrphase-sysinit.service"
     ];
-
-    boot.initrd.systemd.services.systemd-pcrphase-initrd = {
-      wantedBy = [ "initrd.target" ];
-    };
-
-    systemd.services.systemd-pcrphase-sysinit = {
-      wantedBy = [ "sysinit.target" ];
-    };
-
-    systemd.services.systemd-pcrphase = {
-      wantedBy = [ "sysinit.target" ];
-    };
-
-    boot.initrd.kernelModules = [ "tpm_tis" ];
 
     environment.etc = {
       systemd-pcrlock-builtin = {
@@ -52,9 +36,9 @@
     machine.start()
 
     with subtest("Check if systemd-pcrphase measurements have been made"):
-      machine.succeed("systemctl is-active systemd-pcrphase.service")
-      machine.succeed("systemctl is-active systemd-pcrphase-sysinit.service")
-    
+      machine.wait_for_unit("systemd-pcrphase.service")
+      machine.wait_for_unit("systemd-pcrphase-sysinit.service")
+
     with subtest("Check if all expected IPL measurements are present"):
       (status, log_json) = machine.execute("${pkgs.systemd}/lib/systemd/systemd-pcrlock log --json=short")
       log_data = json.loads(log_json)

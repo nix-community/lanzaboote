@@ -81,7 +81,7 @@ pub fn boot_linux(
     mut system_table: SystemTable<Boot>,
     dynamic_initrds: Vec<Vec<u8>>,
 ) -> uefi::Result<()> {
-    uefi_services::init(&mut system_table).unwrap();
+    uefi::helpers::init(&mut system_table).unwrap();
 
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is

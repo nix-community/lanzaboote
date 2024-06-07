@@ -274,11 +274,12 @@ dependencies = [
 
 [[package]]
 name = "uefi"
-version = "0.27.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ee9c34c612d45735fef4c478450cd2a1e64e59ad1e5988e5024af53914a854"
+checksum = "a9c0a56dc9fed2589aad6ddca11c2584968fc21f227b5d7083bb8961d26a69fa"
 dependencies = [
  "bitflags",
+ "cfg-if",
  "log",
  "ptr_meta",
  "ucs2",
@@ -300,9 +301,9 @@ dependencies = [
 
 [[package]]
 name = "uefi-raw"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cc02890e65b2b8e390d0e081907c0d5ac3931bc6935f452095d68199e3698c5"
+checksum = "efa8716f52e8cab8bcedfd5052388a0f263b69fe5cc2561548dc6a530678333c"
 dependencies = [
  "bitflags",
  "ptr_meta",
@@ -311,12 +312,10 @@ dependencies = [
 
 [[package]]
 name = "uefi-services"
-version = "0.24.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "292d48d6dae6fb4a5f960bab64a72e9dcdbe3db7dd706ae0ace5de24580d2840"
+checksum = "62d502e54e05da57380e0b6f3cb1baa89860e4ae314afb5a17080ed14379b6e2"
 dependencies = [
- "cfg-if",
- "log",
  "uefi",
 ]
 
