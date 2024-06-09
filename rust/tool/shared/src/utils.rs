@@ -34,6 +34,7 @@ impl SecureTempDirExt for TempDir {
     fn create_secure_file(&self, path: &Path) -> Result<fs::File> {
         fs::OpenOptions::new()
             .create(true)
+            .truncate(true)
             .write(true)
             .mode(0o600)
             .open(path)
