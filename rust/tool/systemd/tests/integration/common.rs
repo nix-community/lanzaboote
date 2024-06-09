@@ -71,7 +71,9 @@ pub fn setup_generation_link_from_toplevel(
           "toplevel": toplevel,
           "system": SYSTEM,
         },
-        "org.nixos-community.lanzaboote": { "osRelease": toplevel.join("os-release") }
+        "org.nix-community.lanzaboote": {
+            "sort_key": "lanzaboote",
+        }
     });
 
     let generation_link_path = profiles_directory.join(format!("system-{}-link", version));

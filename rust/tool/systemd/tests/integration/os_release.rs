@@ -26,7 +26,7 @@ fn generate_expected_os_release() -> Result<()> {
         .to_owned();
 
     let expected = expect![[r#"
-        ID=lanza
+        ID=lanzaboote
         PRETTY_NAME=LanzaOS (Generation 1, 1970-01-01)
         VERSION_ID=Generation 1, 1970-01-01
     "#]];

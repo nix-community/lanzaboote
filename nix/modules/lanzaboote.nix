@@ -100,11 +100,24 @@ in
         See `loader.conf(5)` for supported values.
       '';
     };
+
+    sortKey = mkOption {
+      default = "lanzaboote";
+      type = lib.types.str;
+      description = ''
+        The sort key used for the NixOS bootloader entries. This key determines
+        sorting relative to non-NixOS entries. See also
+        https://uapi-group.org/specifications/specs/boot_loader_specification/#sorting
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
     boot.bootspec = {
       enable = true;
+      extensions."org.nix-community.lanzaboote" = {
+        sort_key = config.boot.lanzaboote.sortKey;
+      };
     };
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {

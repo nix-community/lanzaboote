@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use bootspec::BootJson;
 use bootspec::BootSpec;
 use bootspec::SpecialisationName;
+use serde::Deserialize;
 use time::Date;
 
 /// (Possibly) extended Bootspec.
@@ -16,6 +17,20 @@ use time::Date;
 #[derive(Debug, Clone)]
 pub struct ExtendedBootJson {
     pub bootspec: BootSpec,
+    pub lanzaboote_extension: LanzabooteExtension,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LanzabooteExtension {
+    pub sort_key: String,
+}
+
+impl Default for LanzabooteExtension {
+    fn default() -> Self {
+        Self {
+            sort_key: String::from("lanzaboote"),
+        }
+    }
 }
 
 /// A system configuration.
@@ -48,12 +63,20 @@ impl Generation {
                     .context("Failed to read a bootspec (missing bootspec?) and failed to synthesize a valid replacement bootspec."))?;
 
         let bootspec: BootSpec = boot_json.generation.try_into()?;
+        let lanzaboote_extension = boot_json
+            .extensions
+            .get("org.nix-community.lanzaboote")
+            .and_then(|v| serde_json::from_value::<LanzabooteExtension>(v.clone()).ok())
+            .unwrap_or_default();
 
         Ok(Self {
             version: link.version,
             build_time: link.build_time,
             specialisation_name: None,
-            spec: ExtendedBootJson { bootspec },
+            spec: ExtendedBootJson {
+                bootspec,
+                lanzaboote_extension,
+            },
         })
     }
 
@@ -62,6 +85,7 @@ impl Generation {
             specialisation_name: Some(name.clone()),
             spec: ExtendedBootJson {
                 bootspec: bootspec.clone(),
+                lanzaboote_extension: self.spec.lanzaboote_extension.clone(),
             },
             ..self.clone()
         }
