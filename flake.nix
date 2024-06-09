@@ -12,7 +12,6 @@
     pre-commit-hooks-nix = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
       inputs.flake-compat.follows = "flake-compat";
     };
 
@@ -88,7 +87,7 @@
           inherit (pkgs) lib;
 
           uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/uefi/rust-toolchain.toml;
-          craneLib = crane.lib.${system}.overrideToolchain uefi-rust-stable;
+          craneLib = (crane.mkLib pkgs).overrideToolchain uefi-rust-stable;
 
           # Build attributes for a Rust application.
           buildRustApp = lib.makeOverridable (
