@@ -4,9 +4,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use tempfile::tempdir;
 
-mod common;
-
-use common::count_files;
+use crate::common::{self, count_files};
 
 #[test]
 fn keep_only_configured_number_of_generations() -> Result<()> {

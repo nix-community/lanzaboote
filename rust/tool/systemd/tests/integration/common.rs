@@ -1,8 +1,3 @@
-// Utility code in this module can become marked as dead code if it is not used in every single
-// module in `tests/`. Thus we need to allow dead code here. See
-// https://stackoverflow.com/a/67902444
-#![allow(dead_code)]
-
 use std::ffi::OsStr;
 use std::fs;
 use std::io::Write;

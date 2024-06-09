@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use expect_test::expect;
 use tempfile::tempdir;
 
-mod common;
+use crate::common;
 
 #[test]
 fn generate_expected_os_release() -> Result<()> {

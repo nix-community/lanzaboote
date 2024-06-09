@@ -2,10 +2,9 @@ use anyhow::Result;
 use base32ct::{Base32Unpadded, Encoding};
 use tempfile::tempdir;
 
-mod common;
-
-use common::{
-    count_files, hash_file, remove_signature, setup_generation_link_from_toplevel, verify_signature,
+use crate::common::{
+    self, count_files, hash_file, remove_signature, setup_generation_link_from_toplevel,
+    verify_signature,
 };
 
 /// Install two generations that point at the same toplevel.
