@@ -142,7 +142,7 @@
 
           stubCrane = buildRustApp {
             pname = "lanzaboote-stub";
-            src = craneLib.cleanCargoSource ./rust/uefi;
+            src = ./rust/uefi;
             target = rustTarget;
             doCheck = false;
           };
