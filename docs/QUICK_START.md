@@ -113,7 +113,7 @@ secret key so that only root can read it.
 Add `lanzaboote` as a dependency of your niv project and track a stable release tag (https://github.com/nix-community/lanzaboote/releases).
 
 ```console
-$ niv add nix-community/lanzaboote -r v0.3.0 -v 0.3.0
+$ niv add nix-community/lanzaboote -r v0.4.0 -v 0.4.0
 Adding package lanzaboote
   Writing new sources file
 Done: Adding package lanzaboote
@@ -162,10 +162,12 @@ Boot stack.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     lanzaboote = {
-      url = "github:nix-community/lanzaboote/v0.3.0";
+      url = "github:nix-community/lanzaboote/v0.4.0";
 
       # Optional but recommended to limit the size of your system closure.
       inputs.nixpkgs.follows = "nixpkgs";
+      # Optional but recommended to reduce dependencies in flake.lock
+      inputs.pre-commit-hooks-nix.follow = "";
     };
   };
 
