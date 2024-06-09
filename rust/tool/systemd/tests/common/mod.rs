@@ -20,7 +20,6 @@ use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 use lanzaboote_tool::architecture::Architecture;
-use lzbt_systemd::architecture::SystemdArchitectureExt;
 
 /// Returns the host platform system
 /// in the system double format for
@@ -98,7 +97,7 @@ pub fn setup_generation_link_from_toplevel(
 /// Accepts the temporary directory as a parameter so that the invoking function retains control of
 /// it (and when it goes out of scope).
 pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
-    let system = Architecture::from_nixos_system(SYSTEM)?;
+    let architecture = Architecture::from_nixos_system(SYSTEM)?;
 
     // Generate a random toplevel name so that multiple toplevel paths can live alongside each
     // other in the same directory.
@@ -107,7 +106,7 @@ pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     fs::create_dir_all(&fake_store_path)?;
 
     let test_systemd = systemd_location_from_env()?;
-    let systemd_stub_filename = system.systemd_stub_filename();
+    let systemd_stub_filename = systemd_stub_filename(&architecture);
     let test_systemd_stub = format!(
         "{test_systemd}/lib/systemd/boot/efi/{systemd_stub_filename}",
         systemd_stub_filename = systemd_stub_filename.display()
@@ -146,9 +145,9 @@ pub fn lanzaboote_install(
 ) -> Result<Output> {
     // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
     // the comment in setup_toplevel for details.
-    let system = Architecture::from_nixos_system(SYSTEM)?;
+    let architecture = Architecture::from_nixos_system(SYSTEM)?;
     let test_systemd = systemd_location_from_env()?;
-    let systemd_stub_filename = system.systemd_stub_filename();
+    let systemd_stub_filename = systemd_stub_filename(&architecture);
     let test_systemd_stub = format!(
         "{test_systemd}/lib/systemd/boot/efi/{systemd_stub_filename}",
         systemd_stub_filename = systemd_stub_filename.display()
@@ -258,4 +257,8 @@ pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBu
     Ok(esp.path().join(format!(
         "EFI/Linux/nixos-generation-{version}-{stub_input_hash}.efi"
     )))
+}
+
+fn systemd_stub_filename(architecture: &Architecture) -> PathBuf {
+    format!("linux{}.efi.stub", architecture.efi_representation()).into()
 }
