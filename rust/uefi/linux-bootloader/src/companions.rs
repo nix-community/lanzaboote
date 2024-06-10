@@ -96,7 +96,10 @@ pub fn discover_credentials(
 
     let default_global_dropin_dir = cstr16!("\\loader\\credentials");
     if fs.try_exists(default_global_dropin_dir).unwrap() {
-        let metadata = fs.metadata(default_global_dropin_dir).expect("Failed to obtain metadata on `\\loader\\credentials` path (which is supposed to exist)");
+        let metadata = fs.metadata(default_global_dropin_dir).map_err(|_err| {
+            log::warn!("Failed to obtain metadata on `\\loader\\credentials` path (which is supposed to exist)");
+            uefi::Error::new(uefi::Status::VOLUME_CORRUPTED, ())
+        })?;
         if metadata.is_directory() {
             let global_credentials: Vec<PathBuf> =
                 find_files(fs, default_global_dropin_dir.as_ref(), ".cred")?;
