@@ -50,8 +50,10 @@ pub fn get_default_dropin_directory(
     // then opening the root directory and finding the new directory.
     let mut target_directory = loaded_image_file_path
         .to_string(boot_services, DisplayOnly(false), AllowShortcuts(false))
-        // This is the Result-level error
-        .expect("Failed to obtain the string representation of the loaded image file path");
+        .map_err(|_dpp_error| {
+            log::warn!("Failed to obtain string representation of the loaded image file path");
+            uefi::Error::new(uefi::Status::NOT_FOUND, ())
+        })?;
     target_directory.push_str(cstr16!(".extra"));
 
     Ok(fs
