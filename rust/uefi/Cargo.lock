@@ -105,7 +105,6 @@ dependencies = [
  "log",
  "sha2",
  "uefi",
- "uefi-services",
 ]
 
 [[package]]
@@ -276,10 +275,12 @@ dependencies = [
 
 [[package]]
 name = "uefi"
-version = "0.26.0"
-source = "git+https://github.com/rust-osdev/uefi-rs#ea0d2edc8eab43af2211b0300f9ca5b00339fecf"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9c0a56dc9fed2589aad6ddca11c2584968fc21f227b5d7083bb8961d26a69fa"
 dependencies = [
  "bitflags",
+ "cfg-if",
  "log",
  "ptr_meta",
  "ucs2",
@@ -301,23 +302,13 @@ dependencies = [
 
 [[package]]
 name = "uefi-raw"
-version = "0.5.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "864ac69eadd877bfb34e7814be1928122ed0057d9f975169a56ee496aa7bdfd7"
+checksum = "efa8716f52e8cab8bcedfd5052388a0f263b69fe5cc2561548dc6a530678333c"
 dependencies = [
  "bitflags",
  "ptr_meta",
  "uguid",
-]
-
-[[package]]
-name = "uefi-services"
-version = "0.23.0"
-source = "git+https://github.com/rust-osdev/uefi-rs#ea0d2edc8eab43af2211b0300f9ca5b00339fecf"
-dependencies = [
- "cfg-if",
- "log",
- "uefi",
 ]
 
 [[package]]
