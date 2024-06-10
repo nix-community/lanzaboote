@@ -23,7 +23,7 @@ use linux_bootloader::efivars::{export_efi_variables, get_loader_features, EfiLo
 use linux_bootloader::measure::{measure_companion_initrds, measure_image};
 use linux_bootloader::tpm::tpm_available;
 use linux_bootloader::uefi_helpers::booted_image_file;
-use log::info;
+use log::{info, warn};
 use uefi::prelude::*;
 
 /// Lanzaboote stub name
@@ -69,7 +69,10 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             info!("Random seed is available, but lanzaboote does not support it yet.");
         }
     }
-    export_efi_variables(STUB_NAME, &system_table).expect("Failed to export stub EFI variables");
+
+    if export_efi_variables(STUB_NAME, &system_table).is_err() {
+        warn!("Failed to export stub EFI variables, some features related to measured boot will not be available");
+    }
 
     let status;
     // A list of dynamically assembled initrds, e.g. credential initrds or system extension
@@ -81,52 +84,65 @@ fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         // files, nothing can open the LoadedImage protocol here.
         // Everything must use `filesystem`.
         let mut companions = Vec::new();
-        let mut filesystem = uefi::fs::FileSystem::new(
-            system_table
-                .boot_services()
-                .get_image_file_system(system_table.boot_services().image_handle())
-                .expect("Failed to open the simple filesystem for this image; netboot?"),
-        );
-        let default_dropin_directory;
+        let image_fs = system_table
+            .boot_services()
+            .get_image_file_system(system_table.boot_services().image_handle());
 
-        if let Some(loaded_image_path) = pe_in_memory.file_path() {
-            default_dropin_directory = get_default_dropin_directory(
-                system_table.boot_services(),
-                loaded_image_path,
-                &mut filesystem,
-            )
-            .expect("Failed to obtain the default drop-in directory");
-        } else {
-            default_dropin_directory = None;
-        }
+        if let Ok(image_fs) = image_fs {
+            let mut filesystem = uefi::fs::FileSystem::new(image_fs);
+            let default_dropin_directory;
 
-        // TODO: how to do the proper .as_ref()? Should I take AsRef in the call definition… ?
-        companions.append(
-            &mut discover_credentials(
+            if let Some(loaded_image_path) = pe_in_memory.file_path() {
+                let discovered_default_dropin_dir = get_default_dropin_directory(
+                    system_table.boot_services(),
+                    loaded_image_path,
+                    &mut filesystem,
+                );
+
+                if discovered_default_dropin_dir.is_err() {
+                    warn!("Failed to discover the default drop-in directory for companion files");
+                }
+
+                default_dropin_directory = discovered_default_dropin_dir.unwrap_or(None);
+            } else {
+                default_dropin_directory = None;
+            }
+
+            // TODO: how to do the proper .as_ref()? Should I take AsRef in the call definition… ?
+            if let Ok(mut system_credentials) = discover_credentials(
                 &mut filesystem,
                 default_dropin_directory.as_ref().map(|x| x.as_ref()),
-            )
-            .expect("Failed to discover system credentials"),
-        );
-        if let Some(default_dropin_dir) = default_dropin_directory {
-            companions.append(
-                &mut discover_system_extensions(&mut filesystem, &default_dropin_dir)
-                    .expect("Failed to discover system extensions"),
+            ) {
+                companions.append(&mut system_credentials);
+            } else {
+                warn!("Failed to discover any system credential");
+            }
+
+            if let Some(default_dropin_dir) = default_dropin_directory {
+                if let Ok(mut system_extensions) =
+                    discover_system_extensions(&mut filesystem, &default_dropin_dir)
+                {
+                    companions.append(&mut system_extensions);
+                } else {
+                    warn!("Failed to discover any system extension");
+                }
+            }
+
+            if is_tpm_available {
+                // TODO: in the future, devise a threat model where this can fail, see above
+                // measurements to understand the context.
+                let _ = measure_companion_initrds(&system_table, &companions);
+            }
+
+            dynamic_initrds.append(
+                &mut companions
+                    .into_iter()
+                    .map(|initrd| initrd.cpio.into_inner())
+                    .collect(),
             );
+        } else {
+            warn!("Failed to open the simple filesystem for the booted image, this is expected for netbooted systems, skipping companion extension...");
         }
-
-        if is_tpm_available {
-            // TODO: in the future, devise a threat model where this can fail, see above
-            // measurements to understand the context.
-            let _ = measure_companion_initrds(&system_table, &companions);
-        }
-
-        dynamic_initrds.append(
-            &mut companions
-                .into_iter()
-                .map(|initrd| initrd.cpio.into_inner())
-                .collect(),
-        );
     }
 
     #[cfg(feature = "fat")]
