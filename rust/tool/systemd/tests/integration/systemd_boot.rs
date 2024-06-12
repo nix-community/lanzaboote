@@ -6,9 +6,7 @@ use lanzaboote_tool::architecture::Architecture;
 use lzbt_systemd::architecture::SystemdArchitectureExt;
 use tempfile::tempdir;
 
-mod common;
-
-use common::{hash_file, mtime, remove_signature, verify_signature, SYSTEM};
+use crate::common::{self, hash_file, mtime, remove_signature, verify_signature, SYSTEM};
 
 #[test]
 fn keep_systemd_boot_binaries() -> Result<()> {

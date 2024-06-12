@@ -25,7 +25,10 @@ impl OsRelease {
         //
         // Because the ID field here does not have the same meaning as in a real os-release file,
         // it is fine to use a dummy value.
-        map.insert("ID".into(), String::from("lanza"));
+        map.insert(
+            "ID".into(),
+            generation.spec.lanzaboote_extension.sort_key.clone(),
+        );
 
         // systemd-boot will only show VERSION_ID when PRETTY_NAME is not unique. This is
         // confusing to users. Make sure that our PRETTY_NAME is unique, so we get a consistent

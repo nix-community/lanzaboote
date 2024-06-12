@@ -9,6 +9,7 @@
   };
 
   boot = {
+    loader.timeout = 0;
     loader.efi.canTouchEfiVariables = true;
 
     lanzaboote = {
