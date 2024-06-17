@@ -102,7 +102,7 @@ in
     };
 
     sortKey = mkOption {
-      default = "lanzaboote";
+      default = "lanza";
       type = lib.types.str;
       description = ''
         The sort key used for the NixOS bootloader entries. This key determines
