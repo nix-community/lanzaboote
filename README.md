@@ -21,7 +21,7 @@ In case of any issues, have a look at the [troubleshooting document](./docs/TROU
 There is still a bunch of work to do before this work can be
 upstreamed into [nixpkgs](https://github.com/NixOS/nixpkgs). Please
 coordinate in the [Matrix
-room](https://matrix.to/#/#nixos-secure-boot:ukvly.org) or check the
+room](https://matrix.to/#/#secure-boot:nixos.org) or check the
 [issues](https://github.com/nix-community/lanzaboote/issues), if you
 want to take something up.
 
