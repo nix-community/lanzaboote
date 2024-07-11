@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-stable-small";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
@@ -12,6 +13,7 @@
     pre-commit-hooks-nix = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs-stable.follows = "nixpkgs-stable";
       inputs.flake-compat.follows = "flake-compat";
     };
 
@@ -42,7 +44,7 @@
         # Derive the output overlay automatically from all packages that we define.
         inputs.flake-parts.flakeModules.easyOverlay
 
-        # Formatting and quality checks. 
+        # Formatting and quality checks.
       ] ++ (if inputs.pre-commit-hooks-nix ? flakeModule then [ inputs.pre-commit-hooks-nix.flakeModule ] else [ ]);
 
       flake.nixosModules.lanzaboote = moduleWithSystem (
