@@ -1,3 +1,4 @@
+use alloc::vec;
 use alloc::vec::Vec;
 use log::{error, warn};
 use sha2::{Digest, Sha256};
@@ -139,8 +140,21 @@ pub fn boot_linux(
     // i.e. they are system extension images or credentials
     // that are supposedly measured in TPM2.
     // Therefore, it is normal to not verify their hashes against a configuration.
+
+    /// Compute the necessary padding based on the provided length
+    /// It returns None if no padding is necessary.
+    fn compute_pad4(len: usize) -> Vec<u8> {
+        vec![0u8; (4 - (len % 4)) % 4]
+    }
+
+    initrd_data.append(&mut compute_pad4(initrd_data.len()));
     for mut extra_initrd in dynamic_initrds {
+        // Uncomment for maximal debugging pleasure.
+        // let debug_representation = extra_initrd.as_slice().escape_ascii().collect::<Vec<u8>>();
+        // log::warn!("{:?}", String::from_utf8_lossy(&debug_representation));
         initrd_data.append(&mut extra_initrd);
+        // Extra initrds ideally should be aligned, but just in case, let's verify this.
+        initrd_data.append(&mut compute_pad4(initrd_data.len()));
     }
 
     boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
