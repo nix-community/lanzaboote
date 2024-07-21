@@ -15,10 +15,6 @@
       inputs.flake-compat.follows = "flake-compat";
     };
 
-    # We only have this input to pass it to other dependencies and
-    # avoid having multiple versions in our dependencies.
-    flake-utils.url = "github:numtide/flake-utils";
-
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -27,7 +23,6 @@
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
 
     flake-compat = {
