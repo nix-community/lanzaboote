@@ -413,6 +413,7 @@ fn install_signed(key_pair: &KeyPair, from: &Path, to: &Path) -> Result<()> {
 ///     (1) it doesn't exist at the destination or,
 ///     (2) the hash of the file at the destination does not match the hash of the source file.
 fn install(from: &Path, to: &Path) -> Result<()> {
+    dbg!("CI test");
     if !to.exists() || file_hash(from)? != file_hash(to)? {
         force_install(from, to)?;
     }

@@ -196,6 +196,7 @@ mod tests {
     }
 
     fn create_file(path: PathBuf) -> Result<PathBuf> {
+        dbg!();
         fs::File::create(&path)?;
         Ok(path)
     }
