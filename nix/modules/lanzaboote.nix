@@ -126,8 +126,8 @@ in
       enable = true;
       installHook = pkgs.writeShellScript "bootinstall" ''
         ${optionalString cfg.generateKeysIfNotExist ''
-          if [ -f "${cfg.privateKeyFile}" ]; then
-            mkdir ${cfg.pkiBundle}
+          if [ ! -f "${cfg.privateKeyFile}" ]; then
+            mkdir -p ${cfg.pkiBundle}
             ${sbctlWithPki}/bin/sbctl create-keys \
               -d ${cfg.pkiBundle} \
               -e ${cfg.pkiBundle}/keys
