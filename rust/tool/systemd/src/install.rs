@@ -161,7 +161,7 @@ impl Installer {
             // The kernels and initrds are content-addressed.
             // Thus, this cannot overwrite files of old generation with different content.
             self.install_generation(&generation)
-                .context("Failed to install generation.")?;
+                .with_context(|| format!("Failed to install generation {}", generation.version))?;
             for (name, bootspec) in &generation.spec.bootspec.specialisations {
                 let specialised_generation = generation.specialise(name, bootspec);
                 self.install_generation(&specialised_generation)
@@ -252,7 +252,7 @@ impl Installer {
         let stub_target = self
             .esp_paths
             .linux
-            .join(stub_name(generation, &self.key_pair.public_key)?);
+            .join(stub_name(generation, &self.key_pair.public_key).context("Get stub name")?);
         self.gc_roots.extend([&stub_target]);
         install_signed(&self.key_pair, &lanzaboote_image, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
@@ -264,11 +264,11 @@ impl Installer {
     ///
     /// An error should not be considered fatal; the generation should be (re-)installed instead.
     fn register_installed_generation(&mut self, generation: &Generation) -> Result<()> {
-        let stub_target = self
-            .esp_paths
-            .linux
-            .join(stub_name(generation, &self.key_pair.public_key)?);
-        let stub = fs::read(&stub_target)?;
+        let stub_target = self.esp_paths.linux.join(
+            stub_name(generation, &self.key_pair.public_key).context("While getting stub name")?,
+        );
+        let stub = fs::read(&stub_target)
+            .with_context(|| format!("Failed to read the stub: {}", stub_target.display()))?;
         let kernel_path = resolve_efi_path(
             &self.esp_paths.esp,
             pe::read_section_data(&stub, ".linux").context("Missing kernel path.")?,
@@ -369,7 +369,11 @@ fn stub_name(generation: &Generation, public_key: &Path) -> Result<PathBuf> {
         ("toplevel", bootspec.toplevel.0.as_os_str().as_bytes()),
         // If the key is rotated, the signed stubs must be re-generated.
         // So we make their path depend on the public key used for signature.
-        ("public_key", &fs::read(public_key)?),
+        (
+            "public_key",
+            &fs::read(public_key)
+                .with_context(|| format!("Failed read public key '{}'", public_key.display()))?,
+        ),
     ];
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
