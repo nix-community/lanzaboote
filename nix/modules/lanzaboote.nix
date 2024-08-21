@@ -22,7 +22,7 @@ in
 
     enrollKeys = mkEnableOption "Automatic enrollment of the keys using sbctl";
 
-    generateKeysIfNotExist = mkEnableOption "Autogenerates the PKI bundle if it doesn't exist";
+    generateKeysIfNotExist = mkEnableOption "autogeneration of the PKI bundle if it doesn't exist";
 
     configurationLimit = mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
