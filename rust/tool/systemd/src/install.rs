@@ -99,16 +99,22 @@ impl Installer {
 
         if self.broken_gens.is_empty() {
             log::info!("Collecting garbage...");
-            // Only collect garbage in these two directories. This way, no files that do not belong to
+            // Only collect garbage in these directories. This way, no files that do not belong to
             // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
             // directory and deletes ALL files that it doesn't know about. Dual- or multiboot setups
             // that need files in this directory will NOT work.
             self.gc_roots.collect_garbage(&self.esp_paths.nixos)?;
-            // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
+            // The esp/EFI/Linux and loader/entries directories are assumed to be potentially shared with other distros.
             // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
             // deleted).
             self.gc_roots
                 .collect_garbage_with_filter(&self.esp_paths.linux, |p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .map_or(false, |n| n.starts_with("nixos-"))
+                })?;
+            self.gc_roots
+                .collect_garbage_with_filter(&self.esp_paths.entries, |p| {
                     p.file_name()
                         .and_then(|n| n.to_str())
                         .map_or(false, |n| n.starts_with("nixos-"))
@@ -237,25 +243,76 @@ impl Installer {
             .context("Failed to write os-release file.")?;
         let kernel_cmdline =
             assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
-        let lanzaboote_image = pe::lanzaboote_image(
-            &tempdir,
-            &self.lanzaboote_stub,
-            &os_release_path,
-            &kernel_cmdline,
-            &bootspec.kernel,
-            &kernel_target,
-            &initrd_location,
-            &initrd_target,
-            &self.esp_paths.esp,
-        )
-        .context("Failed to assemble lanzaboote image.")?;
-        let stub_target = self
-            .esp_paths
-            .linux
-            .join(stub_name(generation, &self.key_pair.public_key)?);
-        self.gc_roots.extend([&stub_target]);
-        install_signed(&self.key_pair, &lanzaboote_image, &stub_target)
-            .context("Failed to install the Lanzaboote stub.")?;
+
+        if let Some(xen) = &generation.spec.xen_extension {
+            use std::fmt::Write;
+            let xen_image = pe::xen_image(
+                &tempdir,
+                &PathBuf::from(&xen.xen),
+                &xen.xen_params,
+                &kernel_cmdline,
+                &bootspec.kernel,
+                &initrd_location,
+            )
+            .context("Failed to assemble xen image.")?;
+
+            let stub_name = stub_name(generation, &self.key_pair.public_key)?;
+            let stub_target = self.esp_paths.linux.join(&stub_name);
+            self.gc_roots.extend([&stub_target]);
+            install_signed(&self.key_pair, &xen_image, &stub_target)
+                .context("Failed to install the Lanzaboote image.")?;
+
+            // Entry name works as a sort key (?), reusing stub_name to make
+            // it compatible with UKI entries.
+            let entry_path = self
+                .esp_paths
+                .entries
+                .join(format!("{}.conf", stub_name.display()));
+            self.gc_roots.extend([&entry_path]);
+
+            let mut entry = String::new();
+            writeln!(entry, "title {}", os_release.pretty_name())?;
+            writeln!(entry, "version {}", os_release.version_id())?;
+            // stub_target should be utf-8, .display() is ok here.
+            // TODO: but better cleanup this. Use esp_relative_uefi_path
+            // for this calculation.
+            writeln!(
+                entry,
+                "efi {}",
+                stub_target.strip_prefix(&self.esp_paths.esp)?.display()
+            )?;
+            writeln!(
+                entry,
+                "sort-key {}",
+                generation.spec.lanzaboote_extension.sort_key,
+            )?;
+
+            let entry_tmp = tempdir.write_secure_file(entry)?;
+
+            // Entry name is unique (with regards to comment about
+            // specialisations above).
+            install(&entry_tmp, &entry_path)?;
+        } else {
+            let lanzaboote_image = pe::lanzaboote_image(
+                &tempdir,
+                &self.lanzaboote_stub,
+                &os_release_path,
+                &kernel_cmdline,
+                &bootspec.kernel,
+                &kernel_target,
+                &initrd_location,
+                &initrd_target,
+                &self.esp_paths.esp,
+            )
+            .context("Failed to assemble lanzaboote image.")?;
+            let stub_target = self
+                .esp_paths
+                .linux
+                .join(stub_name(generation, &self.key_pair.public_key)?);
+            self.gc_roots.extend([&stub_target]);
+            install_signed(&self.key_pair, &lanzaboote_image, &stub_target)
+                .context("Failed to install the Lanzaboote stub.")?;
+        }
 
         Ok(())
     }
