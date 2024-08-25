@@ -61,6 +61,7 @@ pub struct XenExtension {
     pub xen: String,
     #[serde(rename = "xenParams")]
     pub xen_params: Vec<String>,
+    pub vmlinux: String,
 }
 
 impl TryFrom<bootspec::Specialisation> for XenExtension {
