@@ -245,7 +245,7 @@ impl Installer {
                 &PathBuf::from(&xen.xen),
                 &xen.xen_params,
                 &kernel_cmdline,
-                &PathBuf::from(&xen.vmlinux),
+                &bootspec.kernel,
                 &initrd_location,
             )
             .context("Failed to assemble xen image.")?;
