@@ -10,6 +10,17 @@ use tempfile::tempdir;
 
 use super::LanzabooteSigner;
 
+
+/// A local keypair is a signer that reuses private key material
+/// on the disk.
+///
+/// The security of the private key is the responsibility of the user.
+///
+/// Currently, signature happens via `sbsign` where the input is temporarily
+/// copied in a secure directory and signed over there.
+///
+/// In the future, `sbsign` may be removed to perform signature in-memory
+/// without any temporary directory.
 #[derive(Debug, Clone)]
 pub struct LocalKeyPair {
     pub private_key: PathBuf,
