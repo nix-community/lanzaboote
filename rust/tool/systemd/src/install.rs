@@ -21,10 +21,10 @@ use lanzaboote_tool::gc::Roots;
 use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
-use lanzaboote_tool::signature::LanzabooteSigner;
+use lanzaboote_tool::signature::Signer;
 use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
 
-pub struct Installer<S: LanzabooteSigner> {
+pub struct Installer<S: Signer> {
     broken_gens: BTreeSet<u64>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
@@ -38,7 +38,7 @@ pub struct Installer<S: LanzabooteSigner> {
 }
 
 #[allow(clippy::too_many_arguments)]
-impl<S: LanzabooteSigner> Installer<S> {
+impl<S: Signer> Installer<S> {
     pub fn new(
         lanzaboote_stub: PathBuf,
         arch: Architecture,
@@ -373,7 +373,7 @@ fn resolve_efi_path(esp: &Path, efi_path: &[u8]) -> Result<PathBuf> {
 /// Compute the file name to be used for the stub of a certain generation, signed with the given key.
 ///
 /// The generated name is input-addressed by the toplevel corresponding to the generation and the public part of the signing key.
-fn stub_name<S: LanzabooteSigner>(generation: &Generation, signer: &S) -> Result<PathBuf> {
+fn stub_name<S: Signer>(generation: &Generation, signer: &S) -> Result<PathBuf> {
     let bootspec = &generation.spec.bootspec.bootspec;
     let public_key = signer.get_public_key()?;
     let stub_inputs = [
@@ -407,7 +407,7 @@ fn stub_name<S: LanzabooteSigner>(generation: &Generation, signer: &S) -> Result
 /// This is implemented as an atomic write. The file is first written to the destination with a
 /// `.tmp` suffix and then renamed to its final name. This is atomic, because a rename is an atomic
 /// operation on POSIX platforms.
-fn install_signed(signer: &impl LanzabooteSigner, from: &Path, to: &Path) -> Result<()> {
+fn install_signed(signer: &impl Signer, from: &Path, to: &Path) -> Result<()> {
     log::debug!("Signing and installing {to:?}...");
     let to_tmp = to.with_extension(".tmp");
     ensure_parent_dir(&to_tmp);

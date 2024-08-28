@@ -3,7 +3,6 @@ use std::path::Path;
 
 use crate::pe::StubParameters;
 
-pub trait LanzabooteSigner {
 /// This trait abstracts the concept of a signer.
 ///
 /// On a high-level, the signer only needs to know how to:
@@ -22,6 +21,7 @@ pub trait LanzabooteSigner {
 /// To implement a new signer, provide a minimal implementation of this trait
 /// and pass this implementation to any front-facing tool of Lanzaboote, e.g. `lzbt-systemd`
 /// as all tools does not have to support a new signature scheme.
+pub trait Signer {
     /// Tries to sign a Nix store path at this location.
     /// The implementation can fail if the provided path is not a Nix store path,
     /// or, is not a trusted Nix store path, or is not a PE binary.

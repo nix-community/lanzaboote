@@ -8,8 +8,7 @@ use std::process::Command;
 use anyhow::{Context, Result};
 use tempfile::tempdir;
 
-use super::LanzabooteSigner;
-
+use super::Signer;
 
 /// A local keypair is a signer that reuses private key material
 /// on the disk.
@@ -36,7 +35,7 @@ impl LocalKeyPair {
     }
 }
 
-impl LanzabooteSigner for LocalKeyPair {
+impl Signer for LocalKeyPair {
     fn get_public_key(&self) -> Result<Vec<u8>> {
         Ok(std::fs::read(&self.public_key)?)
     }
