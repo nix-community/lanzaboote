@@ -110,7 +110,6 @@ impl Signer for LocalKeyPair {
             if std::io::stderr().write_all(&output.stderr).is_err() {
                 return Ok(false);
             };
-            // XXX(Raito): do we want to bubble up this type of errors? :/
             log::debug!("sbverify failed with args: `{args:?}`.");
             return Ok(false);
         }
