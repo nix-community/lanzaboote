@@ -1,10 +1,10 @@
-use alloc::{vec, vec::Vec};
-use core::mem::{self, MaybeUninit};
+use alloc::vec::Vec;
 use log::warn;
 use uefi::{
     prelude::BootServices,
     proto::tcg::{v2, EventType, PcrIndex},
     table::boot::ScopedProtocol,
+    ResultExt,
 };
 
 fn open_capable_tpm2(boot_services: &BootServices) -> uefi::Result<ScopedProtocol<v2::Tcg>> {
@@ -50,21 +50,10 @@ pub fn tpm_log_event_ascii(
             .flat_map(|c| c.to_le_bytes())
             .collect::<Vec<_>>();
 
-        let required_size = mem::size_of::<u32>()
-            // EventHeader is private…
-            + mem::size_of::<u32>() + mem::size_of::<u16>() + mem::size_of::<PcrIndex>() + mem::size_of::<EventType>()
-            + description_encoded.len();
-
-        let mut event_buffer = vec![MaybeUninit::<u8>::uninit(); required_size];
-
-        let event = v2::PcrEventInputs::new_in_buffer(
-            event_buffer.as_mut_slice(),
-            pcr_index,
-            EventType::IPL,
-            &description_encoded,
-        )?;
+        let event = v2::PcrEventInputs::new_in_box(pcr_index, EventType::IPL, &description_encoded)
+            .discard_errdata()?;
         // FIXME: what do we want as flags here?
-        tpm2.hash_log_extend_event(Default::default(), buffer, event)?;
+        tpm2.hash_log_extend_event(Default::default(), buffer, &event)?;
     }
 
     Ok(true)

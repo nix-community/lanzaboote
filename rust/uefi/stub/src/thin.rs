@@ -79,11 +79,9 @@ fn check_hash(data: &[u8], expected_hash: Hash, name: &str, secure_boot: bool) -
 
 pub fn boot_linux(
     handle: Handle,
-    mut system_table: SystemTable<Boot>,
+    system_table: SystemTable<Boot>,
     dynamic_initrds: Vec<Vec<u8>>,
 ) -> uefi::Result<()> {
-    uefi::helpers::init(&mut system_table).unwrap();
-
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
