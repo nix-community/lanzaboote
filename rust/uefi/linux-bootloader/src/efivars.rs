@@ -1,4 +1,5 @@
-use alloc::{format, string::ToString, vec, vec::Vec};
+use alloc::{format, string::ToString, vec::Vec};
+use core::mem::size_of;
 use uefi::{
     cstr16, guid,
     prelude::{BootServices, RuntimeServices},
@@ -67,26 +68,34 @@ bitflags! {
 
 /// Get the currently supported EFI features from the loader if they do exist
 /// https://systemd.io/BOOT_LOADER_INTERFACE/
+///
+/// If the variable cannot be read, `EfiLoaderFeatures::default` is returned.
+/// If the variable data is the wrong size, `BAD_BUFFER_SIZE` is returned.
+/// If the variable data contains unknown flags, `INCOMPATIBLE_VERSION` is returned.
 pub fn get_loader_features(runtime_services: &RuntimeServices) -> Result<EfiLoaderFeatures> {
-    if let Ok(size) =
-        runtime_services.get_variable_size(cstr16!("LoaderFeatures"), &BOOT_LOADER_VENDOR_UUID)
-    {
-        let mut buffer = vec![0; size].into_boxed_slice();
-        runtime_services.get_variable(
-            cstr16!("LoaderFeatures"),
-            &BOOT_LOADER_VENDOR_UUID,
-            &mut buffer,
-        )?;
+    let mut buffer = [0u8; size_of::<EfiLoaderFeatures>()];
 
-        return EfiLoaderFeatures::from_bits(u64::from_le_bytes(
-            (*buffer)
-                .try_into()
-                .map_err(|_err| uefi::Status::BAD_BUFFER_SIZE)?,
-        ))
-        .ok_or_else(|| uefi::Status::INCOMPATIBLE_VERSION.into());
+    match runtime_services.get_variable(
+        cstr16!("LoaderFeatures"),
+        &BOOT_LOADER_VENDOR_UUID,
+        &mut buffer,
+    ) {
+        Ok((data, _)) => {
+            if data.len() != buffer.len() {
+                return Err(uefi::Status::BAD_BUFFER_SIZE.into());
+            }
+        }
+        Err(err) => {
+            if err.status() == uefi::Status::BUFFER_TOO_SMALL {
+                return Err(uefi::Status::BAD_BUFFER_SIZE.into());
+            } else {
+                return Ok(EfiLoaderFeatures::default());
+            }
+        }
     }
 
-    Ok(Default::default())
+    EfiLoaderFeatures::from_bits(u64::from_le_bytes(buffer))
+        .ok_or_else(|| uefi::Status::INCOMPATIBLE_VERSION.into())
 }
 
 bitflags! {
