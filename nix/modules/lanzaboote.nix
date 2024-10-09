@@ -137,12 +137,12 @@ in
         ${optionalString cfg.enrollKeys ''
           mkdir -p /tmp/pki
           cp -r ${cfg.pkiBundle}/* /tmp/pki
-          ${sbctlWithPki}/bin/sbctl enroll-keys --yes-this-might-brick-my-machine
+          ${lib.getExe sbctlWithPki} enroll-keys --yes-this-might-brick-my-machine
         ''}
 
         # Use the system from the kernel's hostPlatform because this should
         # always, even in the cross compilation case, be the right system.
-        ${cfg.package}/bin/lzbt install \
+        ${lib.getExe cfg.package} install \
           --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${loaderConfigFile} \
@@ -174,7 +174,7 @@ in
       # Place the fwupd efi files in /run and sign them
       script = ''
         ln -sf ${config.services.fwupd.package.fwupd-efi}/libexec/fwupd/efi/fwupd*.efi /run/fwupd-efi/
-        ${pkgs.sbsigntool}/bin/sbsign --key '${cfg.privateKeyFile}' --cert '${cfg.publicKeyFile}' /run/fwupd-efi/fwupd*.efi
+        ${lib.getExe' pkgs.sbsigntool "sbsign"} --key '${cfg.privateKeyFile}' --cert '${cfg.publicKeyFile}' /run/fwupd-efi/fwupd*.efi
       '';
     };
 
