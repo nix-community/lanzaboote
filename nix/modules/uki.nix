@@ -48,7 +48,7 @@ in
             '';
           };
         in
-        "${installer}/bin/install-uki";
+        "${lib.getExe installer}";
     };
   };
 }

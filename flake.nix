@@ -37,7 +37,7 @@
         # Derive the output overlay automatically from all packages that we define.
         inputs.flake-parts.flakeModules.easyOverlay
 
-        # Formatting and quality checks. 
+        # Formatting and quality checks.
       ] ++ (if inputs.pre-commit-hooks-nix ? flakeModule then [ inputs.pre-commit-hooks-nix.flakeModule ] else [ ]);
 
       flake.nixosModules.lanzaboote = moduleWithSystem (
@@ -174,6 +174,7 @@
           wrappedTool = pkgs.runCommand "lzbt"
             {
               nativeBuildInputs = [ pkgs.makeWrapper ];
+              meta.mainProgram = "lzbt";
             } ''
             mkdir -p $out/bin
 
