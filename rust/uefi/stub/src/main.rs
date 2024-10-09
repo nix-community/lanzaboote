@@ -45,8 +45,8 @@ fn print_logo() {
 }
 
 #[entry]
-fn main(handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    uefi::helpers::init(&mut system_table).unwrap();
+fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
+    uefi::helpers::init().unwrap();
 
     print_logo();
 
