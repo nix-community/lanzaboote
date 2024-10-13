@@ -95,7 +95,7 @@ pub fn boot_linux(
         .expect("Failed to extract configuration from binary. Did you run lzbt?")
     };
 
-    let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
+    let secure_boot_enabled = get_secure_boot_status();
 
     let kernel_data;
     let mut initrd_data;
