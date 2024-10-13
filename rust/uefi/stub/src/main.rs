@@ -63,7 +63,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
         let _ = measure_image(&system_table, &pe_in_memory);
     }
 
-    if let Ok(features) = get_loader_features(system_table.runtime_services()) {
+    if let Ok(features) = get_loader_features() {
         if !features.contains(EfiLoaderFeatures::RandomSeed) {
             // FIXME: process random seed then on the disk.
             info!("Random seed is available, but lanzaboote does not support it yet.");
