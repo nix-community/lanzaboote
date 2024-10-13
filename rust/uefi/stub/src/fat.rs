@@ -57,7 +57,7 @@ pub fn boot_linux(
         .expect("Failed to extract configuration from binary.")
     };
 
-    let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
+    let secure_boot_enabled = get_secure_boot_status();
     let cmdline = get_cmdline(
         &config.cmdline,
         system_table.boot_services(),
