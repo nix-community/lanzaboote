@@ -11,11 +11,8 @@ use uefi::{
         },
         loaded_image::LoadedImage,
     },
-    runtime,
-    table::{
-        runtime::{VariableAttributes, VariableVendor},
-        Boot, SystemTable,
-    },
+    runtime::{self, VariableAttributes, VariableVendor},
+    table::{Boot, SystemTable},
     CStr16, Guid, Handle, Result, Status,
 };
 
@@ -167,7 +164,6 @@ where
 /// Exports systemd-stub style EFI variables
 pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boot>) -> Result<()> {
     let boot_services = system_table.boot_services();
-    let runtime_services = system_table.runtime_services();
 
     let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
 
@@ -257,27 +253,25 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
     // StubInfo
     // FIXME: ideally, no one should be able to overwrite `StubInfo`, but that would require
     // constructing an EFI authenticated variable payload. This seems overcomplicated for now.
-    runtime_services
-        .set_variable(
-            cstr16!("StubInfo"),
-            &BOOT_LOADER_VENDOR_UUID,
-            default_attributes,
-            &stub_info_name
-                .encode_utf16()
-                .flat_map(|c| c.to_le_bytes())
-                .collect::<Vec<u8>>(),
-        )
-        .ok();
+    runtime::set_variable(
+        cstr16!("StubInfo"),
+        &BOOT_LOADER_VENDOR_UUID,
+        default_attributes,
+        &stub_info_name
+            .encode_utf16()
+            .flat_map(|c| c.to_le_bytes())
+            .collect::<Vec<u8>>(),
+    )
+    .ok();
 
     // StubFeatures
-    runtime_services
-        .set_variable(
-            cstr16!("StubFeatures"),
-            &BOOT_LOADER_VENDOR_UUID,
-            default_attributes,
-            &stub_features.bits().to_le_bytes(),
-        )
-        .ok();
+    runtime::set_variable(
+        cstr16!("StubFeatures"),
+        &BOOT_LOADER_VENDOR_UUID,
+        default_attributes,
+        &stub_features.bits().to_le_bytes(),
+    )
+    .ok();
 
     Ok(())
 }
