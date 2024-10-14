@@ -3,7 +3,8 @@ use log::info;
 use uefi::{
     cstr16,
     proto::tcg::PcrIndex,
-    table::{runtime::VariableAttributes, Boot, SystemTable},
+    runtime::{self, VariableAttributes},
+    table::{Boot, SystemTable},
 };
 
 use crate::{
@@ -25,7 +26,6 @@ const TPM_PCR_INDEX_KERNEL_CONFIG: PcrIndex = PcrIndex(12);
 const TPM_PCR_INDEX_SYSEXTS: PcrIndex = PcrIndex(13);
 
 pub fn measure_image(system_table: &SystemTable<Boot>, image: &PeInMemory) -> uefi::Result<u32> {
-    let runtime_services = system_table.runtime_services();
     let boot_services = system_table.boot_services();
 
     // SAFETY: We get a slice that represents our currently running
@@ -69,7 +69,7 @@ pub fn measure_image(system_table: &SystemTable<Boot>, image: &PeInMemory) -> ue
 
         // If we did some measurements, expose a variable encoding the PCR where
         // we have done the measurements.
-        runtime_services.set_variable(
+        runtime::set_variable(
             cstr16!("StubPcrKernelImage"),
             &BOOT_LOADER_VENDOR_UUID,
             VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS,
@@ -89,7 +89,6 @@ pub fn measure_companion_initrds(
     system_table: &SystemTable<Boot>,
     companions: &[CompanionInitrd],
 ) -> uefi::Result<u32> {
-    let runtime_services = system_table.runtime_services();
     let boot_services = system_table.boot_services();
 
     let mut measurements = 0;
@@ -138,7 +137,7 @@ pub fn measure_companion_initrds(
     }
 
     if credentials_measured > 0 {
-        runtime_services.set_variable(
+        runtime::set_variable(
             cstr16!("StubPcrKernelParameters"),
             &BOOT_LOADER_VENDOR_UUID,
             VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS,
@@ -147,7 +146,7 @@ pub fn measure_companion_initrds(
     }
 
     if sysext_measured {
-        runtime_services.set_variable(
+        runtime::set_variable(
             cstr16!("StubPcrInitRDSysExts"),
             &BOOT_LOADER_VENDOR_UUID,
             VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS,
