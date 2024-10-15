@@ -87,10 +87,10 @@ pub fn boot_linux_unchecked(
     let kernel =
         Image::load(system_table.boot_services(), &kernel_data).expect("Failed to load the kernel");
 
-    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)?;
+    let mut initrd_loader = InitrdLoader::new(handle, initrd_data)?;
 
     let status = unsafe { kernel.start(handle, &system_table, kernel_cmdline) };
 
-    initrd_loader.uninstall(system_table.boot_services())?;
+    initrd_loader.uninstall()?;
     status.to_result()
 }

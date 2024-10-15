@@ -9,7 +9,7 @@ use core::{ffi::c_void, pin::Pin, ptr::slice_from_raw_parts_mut};
 
 use alloc::{boxed::Box, vec::Vec};
 use uefi::{
-    prelude::BootServices,
+    boot,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
         unsafe_protocol,
@@ -119,7 +119,7 @@ impl InitrdLoader {
     ///
     /// `handle` is the handle where the protocols are registered
     /// on. `file` is the file that is served to Linux.
-    pub fn new(boot_services: &BootServices, handle: Handle, initrd_data: Vec<u8>) -> Result<Self> {
+    pub fn new(handle: Handle, initrd_data: Vec<u8>) -> Result<Self> {
         let mut proto = Box::pin(LoadFile2Protocol {
             load_file: raw_load_file,
             initrd_data,
@@ -131,7 +131,7 @@ impl InitrdLoader {
         unsafe {
             let dp_proto: *mut u8 = DEVICE_PATH_PROTOCOL.as_mut_ptr();
 
-            boot_services.install_protocol_interface(
+            boot::install_protocol_interface(
                 Some(handle),
                 &DevicePath::GUID,
                 dp_proto as *mut c_void,
@@ -139,7 +139,7 @@ impl InitrdLoader {
 
             let lf_proto: *mut LoadFile2Protocol = proto.as_mut().get_mut();
 
-            boot_services.install_protocol_interface(
+            boot::install_protocol_interface(
                 Some(handle),
                 &LoadFile2Protocol::GUID,
                 lf_proto as *mut c_void,
@@ -153,13 +153,13 @@ impl InitrdLoader {
         })
     }
 
-    pub fn uninstall(&mut self, boot_services: &BootServices) -> Result<()> {
+    pub fn uninstall(&mut self) -> Result<()> {
         // This should only be called once.
         assert!(self.registered);
 
         unsafe {
             let dp_proto: *mut u8 = &mut DEVICE_PATH_PROTOCOL[0];
-            boot_services.uninstall_protocol_interface(
+            boot::uninstall_protocol_interface(
                 self.handle,
                 &DevicePath::GUID,
                 dp_proto as *mut c_void,
@@ -167,7 +167,7 @@ impl InitrdLoader {
 
             let lf_proto: *mut LoadFile2Protocol = self.proto.as_mut().get_mut();
 
-            boot_services.uninstall_protocol_interface(
+            boot::uninstall_protocol_interface(
                 self.handle,
                 &LoadFile2Protocol::GUID,
                 lf_proto as *mut c_void,
