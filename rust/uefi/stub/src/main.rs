@@ -51,7 +51,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
 
     print_logo();
 
-    let is_tpm_available = tpm_available(system_table.boot_services());
+    let is_tpm_available = tpm_available();
     let pe_in_memory = booted_image_file(system_table.boot_services())
         .expect("Failed to extract the in-memory information about our own image");
 
@@ -61,7 +61,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
         // For now, ignore failures during measurements.
         // TODO: in the future, devise a threat model where this can fail
         // and ensure this hard-fail correctly.
-        let _ = measure_image(&system_table, &pe_in_memory);
+        let _ = measure_image(&pe_in_memory);
     }
 
     if let Ok(features) = get_loader_features() {
@@ -132,7 +132,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
             if is_tpm_available {
                 // TODO: in the future, devise a threat model where this can fail, see above
                 // measurements to understand the context.
-                let _ = measure_companion_initrds(&system_table, &companions);
+                let _ = measure_companion_initrds(&companions);
             }
 
             dynamic_initrds.append(

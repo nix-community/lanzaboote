@@ -4,7 +4,6 @@ use uefi::{
     cstr16,
     proto::tcg::PcrIndex,
     runtime::{self, VariableAttributes},
-    table::{Boot, SystemTable},
 };
 
 use crate::{
@@ -25,9 +24,7 @@ const TPM_PCR_INDEX_KERNEL_CONFIG: PcrIndex = PcrIndex(12);
 /// This is where we extend the initrd sysext images into which we pass to the booted kernel
 const TPM_PCR_INDEX_SYSEXTS: PcrIndex = PcrIndex(13);
 
-pub fn measure_image(system_table: &SystemTable<Boot>, image: &PeInMemory) -> uefi::Result<u32> {
-    let boot_services = system_table.boot_services();
-
+pub fn measure_image(image: &PeInMemory) -> uefi::Result<u32> {
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
@@ -46,12 +43,7 @@ pub fn measure_image(system_table: &SystemTable<Boot>, image: &PeInMemory) -> ue
                 // Here, perform the TPM log event in ASCII.
                 if let Some(data) = pe_section_data(pe_binary, &section) {
                     info!("Measuring section `{}`...", section_name);
-                    if tpm_log_event_ascii(
-                        boot_services,
-                        TPM_PCR_INDEX_KERNEL_IMAGE,
-                        data,
-                        section_name,
-                    )? {
+                    if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, data, section_name)? {
                         measurements += 1;
                     }
                 }
@@ -85,12 +77,7 @@ pub fn measure_image(system_table: &SystemTable<Boot>, image: &PeInMemory) -> ue
 ///
 /// Relies on the passed order of `companions` for measurements in the same PCR.
 /// A stable order is expected for measurement stability.
-pub fn measure_companion_initrds(
-    system_table: &SystemTable<Boot>,
-    companions: &[CompanionInitrd],
-) -> uefi::Result<u32> {
-    let boot_services = system_table.boot_services();
-
+pub fn measure_companion_initrds(companions: &[CompanionInitrd]) -> uefi::Result<u32> {
     let mut measurements = 0;
     let mut credentials_measured = 0;
     let mut sysext_measured = false;
@@ -102,7 +89,6 @@ pub fn measure_companion_initrds(
             }
             CompanionInitrdType::Credentials => {
                 if tpm_log_event_ascii(
-                    boot_services,
                     TPM_PCR_INDEX_KERNEL_CONFIG,
                     initrd.cpio.as_ref(),
                     "Credentials initrd",
@@ -113,7 +99,6 @@ pub fn measure_companion_initrds(
             }
             CompanionInitrdType::GlobalCredentials => {
                 if tpm_log_event_ascii(
-                    boot_services,
                     TPM_PCR_INDEX_KERNEL_CONFIG,
                     initrd.cpio.as_ref(),
                     "Global credentials initrd",
@@ -124,7 +109,6 @@ pub fn measure_companion_initrds(
             }
             CompanionInitrdType::SystemExtension => {
                 if tpm_log_event_ascii(
-                    boot_services,
                     TPM_PCR_INDEX_SYSEXTS,
                     initrd.cpio.as_ref(),
                     "System extension initrd",
