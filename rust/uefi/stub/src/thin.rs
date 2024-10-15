@@ -147,5 +147,5 @@ pub fn boot_linux(
         initrd_data.append(&mut compute_pad4(initrd_data.len()));
     }
 
-    boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
+    boot_linux_unchecked(handle, kernel_data, &cmdline, initrd_data)
 }

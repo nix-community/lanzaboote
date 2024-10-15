@@ -79,7 +79,6 @@ pub fn get_secure_boot_status() -> bool {
 /// be loaded using other means.
 pub fn boot_linux_unchecked(
     handle: Handle,
-    system_table: SystemTable<Boot>,
     kernel_data: Vec<u8>,
     kernel_cmdline: &[u8],
     initrd_data: Vec<u8>,
@@ -88,7 +87,7 @@ pub fn boot_linux_unchecked(
 
     let mut initrd_loader = InitrdLoader::new(handle, initrd_data)?;
 
-    let status = unsafe { kernel.start(handle, &system_table, kernel_cmdline) };
+    let status = unsafe { kernel.start(handle, kernel_cmdline) };
 
     initrd_loader.uninstall()?;
     status.to_result()

@@ -39,11 +39,7 @@ impl EmbeddedConfiguration {
     }
 }
 
-pub fn boot_linux(
-    handle: Handle,
-    system_table: SystemTable<Boot>,
-    dynamic_initrds: Vec<Vec<u8>>,
-) -> Status {
+pub fn boot_linux(handle: Handle, dynamic_initrds: Vec<Vec<u8>>) -> Status {
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
@@ -67,5 +63,5 @@ pub fn boot_linux(
         final_initrd.append(&mut extra_initrd);
     }
 
-    boot_linux_unchecked(handle, system_table, config.kernel, &cmdline, final_initrd).status()
+    boot_linux_unchecked(handle, config.kernel, &cmdline, final_initrd).status()
 }
