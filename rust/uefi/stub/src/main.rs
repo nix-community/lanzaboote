@@ -85,9 +85,7 @@ fn main() -> Status {
         // files, nothing can open the LoadedImage protocol here.
         // Everything must use `filesystem`.
         let mut companions = Vec::new();
-        let image_fs = system_table
-            .boot_services()
-            .get_image_file_system(boot::image_handle());
+        let image_fs = uefi::boot::get_image_file_system(boot::image_handle());
 
         if let Ok(image_fs) = image_fs {
             let mut filesystem = uefi::fs::FileSystem::new(image_fs);

@@ -2,7 +2,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use log::{error, warn};
 use sha2::{Digest, Sha256};
-use uefi::{fs::FileSystem, prelude::*, table, CString16, Result};
+use uefi::{fs::FileSystem, prelude::*, CString16, Result};
 
 use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
 use linux_bootloader::pe_section::pe_section;
@@ -93,11 +93,8 @@ pub fn boot_linux(handle: Handle, dynamic_initrds: Vec<Vec<u8>>) -> uefi::Result
     let mut initrd_data;
 
     {
-        let system_table = table::system_table_boot().unwrap();
-        let file_system = system_table
-            .boot_services()
-            .get_image_file_system(handle)
-            .expect("Failed to get file system handle");
+        let file_system =
+            uefi::boot::get_image_file_system(handle).expect("Failed to get file system handle");
         let mut file_system = FileSystem::new(file_system);
 
         kernel_data = file_system

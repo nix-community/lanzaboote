@@ -11,7 +11,7 @@ use uefi::{
         loaded_image::LoadedImage,
     },
     runtime::{self, VariableAttributes, VariableVendor},
-    system, table, CStr16, Guid, Handle, Result, Status,
+    system, CStr16, Guid, Handle, Result, Status,
 };
 
 use bitflags::bitflags;
@@ -196,7 +196,6 @@ pub fn export_efi_variables(stub_info_name: &str) -> Result<()> {
                 )?;
                 dp_protocol
                     .convert_device_path_to_text(
-                        table::system_table_boot().unwrap().boot_services(),
                         dp,
                         uefi::proto::device_path::text::DisplayOnly(false),
                         uefi::proto::device_path::text::AllowShortcuts(false),
