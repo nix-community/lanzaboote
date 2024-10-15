@@ -1,4 +1,5 @@
 use core::ffi::c_void;
+use core::ptr::NonNull;
 
 use alloc::vec::Vec;
 use goblin::pe::PE;
@@ -173,9 +174,7 @@ impl Image {
         system_table: &SystemTable<Boot>,
         load_options: &[u8],
     ) -> Status {
-        let mut loaded_image = system_table
-            .boot_services()
-            .open_protocol_exclusive::<LoadedImage>(handle)
+        let mut loaded_image = boot::open_protocol_exclusive::<LoadedImage>(handle)
             .expect("Failed to open the LoadedImage protocol");
 
         let (our_data, our_size) = loaded_image.info();
@@ -202,10 +201,8 @@ impl Image {
         // If the kernel has exited boot services, it must not return any more, and has full control over the entire machine.
         // If the kernel entry point returned, deallocate its image, and restore our loaded image handle.
         // If it calls Exit(), that call returns directly to systemd-boot. This unfortunately causes a resource leak.
-        system_table
-            .boot_services()
-            .free_pages(self.image.as_ptr() as u64, bytes_to_pages(self.image.len()))
-            .expect("Double free attempted");
+        let image = NonNull::new(self.image.as_ptr().cast_mut()).unwrap();
+        boot::free_pages(image, bytes_to_pages(self.image.len())).expect("Double free attempted");
 
         unsafe {
             loaded_image.set_image(our_data, our_size);
