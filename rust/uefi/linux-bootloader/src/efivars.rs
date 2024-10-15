@@ -166,7 +166,7 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
 
     let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
 
-    let loaded_image = boot_services.open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
+    let loaded_image = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
 
     let default_attributes =
         VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS;
@@ -194,8 +194,8 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
         default_attributes,
         || {
             if let Some(dp) = loaded_image.file_path() {
-                let dp_protocol = boot_services.open_protocol_exclusive::<DevicePathToText>(
-                    boot_services.get_handle_for_protocol::<DevicePathToText>()?,
+                let dp_protocol = boot::open_protocol_exclusive::<DevicePathToText>(
+                    boot::get_handle_for_protocol::<DevicePathToText>()?,
                 )?;
                 dp_protocol
                     .convert_device_path_to_text(
