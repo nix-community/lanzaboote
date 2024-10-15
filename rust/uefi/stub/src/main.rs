@@ -71,7 +71,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
         }
     }
 
-    if export_efi_variables(STUB_NAME, &system_table).is_err() {
+    if export_efi_variables(STUB_NAME).is_err() {
         warn!("Failed to export stub EFI variables, some features related to measured boot will not be available");
     }
 

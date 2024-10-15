@@ -11,9 +11,7 @@ use uefi::{
         loaded_image::LoadedImage,
     },
     runtime::{self, VariableAttributes, VariableVendor},
-    table,
-    table::{Boot, SystemTable},
-    CStr16, Guid, Handle, Result, Status,
+    system, table, CStr16, Guid, Handle, Result, Status,
 };
 
 use bitflags::bitflags;
@@ -162,7 +160,7 @@ where
 }
 
 /// Exports systemd-stub style EFI variables
-pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boot>) -> Result<()> {
+pub fn export_efi_variables(stub_info_name: &str) -> Result<()> {
     let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
 
     let loaded_image = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
@@ -220,9 +218,9 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
         || {
             Ok(format!(
                 "{} {}.{:02}",
-                system_table.firmware_vendor(),
-                system_table.firmware_revision() >> 16,
-                system_table.firmware_revision() & 0xFFFFF
+                system::firmware_vendor(),
+                system::firmware_revision() >> 16,
+                system::firmware_revision() & 0xFFFFF
             )
             .encode_utf16()
             .flat_map(|c| c.to_le_bytes())
@@ -236,7 +234,7 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
         &BOOT_LOADER_VENDOR_UUID,
         default_attributes,
         || {
-            Ok(format!("UEFI {:02}", system_table.uefi_revision())
+            Ok(format!("UEFI {:02}", system::uefi_revision())
                 .encode_utf16()
                 .flat_map(|c| c.to_le_bytes())
                 .collect::<Vec<u8>>())
