@@ -1,8 +1,7 @@
 use alloc::{format, string::ToString, vec::Vec};
 use core::mem::size_of;
 use uefi::{
-    cstr16, guid,
-    prelude::BootServices,
+    boot, cstr16, guid,
     proto::{
         device_path::{
             media::{HardDrive, PartitionSignature},
@@ -12,14 +11,15 @@ use uefi::{
         loaded_image::LoadedImage,
     },
     runtime::{self, VariableAttributes, VariableVendor},
+    table,
     table::{Boot, SystemTable},
     CStr16, Guid, Handle, Result, Status,
 };
 
 use bitflags::bitflags;
 
-fn disk_get_part_uuid(boot_services: &BootServices, disk_handle: Handle) -> Result<Guid> {
-    let dp = boot_services.open_protocol_exclusive::<DevicePath>(disk_handle)?;
+fn disk_get_part_uuid(disk_handle: Handle) -> Result<Guid> {
+    let dp = boot::open_protocol_exclusive::<DevicePath>(disk_handle)?;
 
     for node in dp.node_iter() {
         if node.device_type() != DeviceType::MEDIA
@@ -163,12 +163,9 @@ where
 
 /// Exports systemd-stub style EFI variables
 pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boot>) -> Result<()> {
-    let boot_services = system_table.boot_services();
-
     let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
 
-    let loaded_image =
-        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
+    let loaded_image = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
 
     let default_attributes =
         VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS;
@@ -180,11 +177,7 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
         &BOOT_LOADER_VENDOR_UUID,
         default_attributes,
         || {
-            disk_get_part_uuid(
-                boot_services,
-                loaded_image.device().ok_or(uefi::Status::NOT_FOUND)?,
-            )
-            .map(|guid| {
+            disk_get_part_uuid(loaded_image.device().ok_or(uefi::Status::NOT_FOUND)?).map(|guid| {
                 guid.to_string()
                     .encode_utf16()
                     .flat_map(|c| c.to_le_bytes())
@@ -200,12 +193,12 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
         default_attributes,
         || {
             if let Some(dp) = loaded_image.file_path() {
-                let dp_protocol = boot_services.open_protocol_exclusive::<DevicePathToText>(
-                    boot_services.get_handle_for_protocol::<DevicePathToText>()?,
+                let dp_protocol = boot::open_protocol_exclusive::<DevicePathToText>(
+                    boot::get_handle_for_protocol::<DevicePathToText>()?,
                 )?;
                 dp_protocol
                     .convert_device_path_to_text(
-                        boot_services,
+                        table::system_table_boot().unwrap().boot_services(),
                         dp,
                         uefi::proto::device_path::text::DisplayOnly(false),
                         uefi::proto::device_path::text::AllowShortcuts(false),

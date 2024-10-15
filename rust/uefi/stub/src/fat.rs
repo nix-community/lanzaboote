@@ -49,20 +49,12 @@ pub fn boot_linux(
     // safe, because we don't touch any data in the data sections that
     // might conceivably change while we look at the slice.
     let mut config = unsafe {
-        EmbeddedConfiguration::new(
-            booted_image_file(system_table.boot_services())
-                .unwrap()
-                .as_slice(),
-        )
-        .expect("Failed to extract configuration from binary.")
+        EmbeddedConfiguration::new(booted_image_file().unwrap().as_slice())
+            .expect("Failed to extract configuration from binary.")
     };
 
     let secure_boot_enabled = get_secure_boot_status();
-    let cmdline = get_cmdline(
-        &config.cmdline,
-        system_table.boot_services(),
-        secure_boot_enabled,
-    );
+    let cmdline = get_cmdline(&config.cmdline, secure_boot_enabled);
 
     let mut final_initrd = Vec::new();
     final_initrd.append(&mut config.initrd);

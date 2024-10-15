@@ -24,6 +24,7 @@ use linux_bootloader::measure::{measure_companion_initrds, measure_image};
 use linux_bootloader::tpm::tpm_available;
 use linux_bootloader::uefi_helpers::booted_image_file;
 use log::{info, warn};
+use uefi::boot;
 use uefi::prelude::*;
 
 /// Lanzaboote stub name
@@ -50,8 +51,8 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
 
     print_logo();
 
-    let is_tpm_available = tpm_available(system_table.boot_services());
-    let pe_in_memory = booted_image_file(system_table.boot_services())
+    let is_tpm_available = tpm_available();
+    let pe_in_memory = booted_image_file()
         .expect("Failed to extract the in-memory information about our own image");
 
     if is_tpm_available {
@@ -60,7 +61,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
         // For now, ignore failures during measurements.
         // TODO: in the future, devise a threat model where this can fail
         // and ensure this hard-fail correctly.
-        let _ = measure_image(&system_table, &pe_in_memory);
+        let _ = measure_image(&pe_in_memory);
     }
 
     if let Ok(features) = get_loader_features() {
@@ -86,18 +87,15 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
         let mut companions = Vec::new();
         let image_fs = system_table
             .boot_services()
-            .get_image_file_system(system_table.boot_services().image_handle());
+            .get_image_file_system(boot::image_handle());
 
         if let Ok(image_fs) = image_fs {
             let mut filesystem = uefi::fs::FileSystem::new(image_fs);
             let default_dropin_directory;
 
             if let Some(loaded_image_path) = pe_in_memory.file_path() {
-                let discovered_default_dropin_dir = get_default_dropin_directory(
-                    system_table.boot_services(),
-                    loaded_image_path,
-                    &mut filesystem,
-                );
+                let discovered_default_dropin_dir =
+                    get_default_dropin_directory(loaded_image_path, &mut filesystem);
 
                 if discovered_default_dropin_dir.is_err() {
                     warn!("Failed to discover the default drop-in directory for companion files");
@@ -131,7 +129,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
             if is_tpm_available {
                 // TODO: in the future, devise a threat model where this can fail, see above
                 // measurements to understand the context.
-                let _ = measure_companion_initrds(&system_table, &companions);
+                let _ = measure_companion_initrds(&companions);
             }
 
             dynamic_initrds.append(

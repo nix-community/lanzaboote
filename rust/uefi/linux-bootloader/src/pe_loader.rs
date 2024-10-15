@@ -1,14 +1,12 @@
 use core::ffi::c_void;
+use core::ptr::NonNull;
 
 use alloc::vec::Vec;
 use goblin::pe::PE;
 use uefi::{
-    prelude::BootServices,
+    boot::{self, AllocateType, MemoryType},
     proto::loaded_image::LoadedImage,
-    table::{
-        boot::{AllocateType, MemoryType},
-        Boot, SystemTable,
-    },
+    table::{Boot, SystemTable},
     Handle, Status,
 };
 
@@ -87,7 +85,7 @@ impl Image {
     /// The image must be handed to [`start`] later. If this does not
     /// happen, the memory allocated for the unpacked PE binary will
     /// leak.
-    pub fn load(boot_services: &BootServices, file_data: &[u8]) -> uefi::Result<Image> {
+    pub fn load(file_data: &[u8]) -> uefi::Result<Image> {
         let pe = PE::parse(file_data).map_err(|_| Status::LOAD_ERROR)?;
 
         // Allocate all memory the image will need in virtual memory.
@@ -106,15 +104,15 @@ impl Image {
 
             let length = usize::try_from(section_lengths.into_iter().max().unwrap_or(0)).unwrap();
 
-            let base = boot_services.allocate_pages(
+            let base = boot::allocate_pages(
                 AllocateType::AnyPages,
                 MemoryType::LOADER_CODE,
                 bytes_to_pages(length),
-            )? as *mut u8;
+            )?;
 
             unsafe {
-                core::ptr::write_bytes(base, 0, length);
-                core::slice::from_raw_parts_mut(base, length)
+                core::ptr::write_bytes(base.as_ptr(), 0, length);
+                core::slice::from_raw_parts_mut(base.as_ptr(), length)
             }
         };
 
@@ -176,9 +174,7 @@ impl Image {
         system_table: &SystemTable<Boot>,
         load_options: &[u8],
     ) -> Status {
-        let mut loaded_image = system_table
-            .boot_services()
-            .open_protocol_exclusive::<LoadedImage>(handle)
+        let mut loaded_image = boot::open_protocol_exclusive::<LoadedImage>(handle)
             .expect("Failed to open the LoadedImage protocol");
 
         let (our_data, our_size) = loaded_image.info();
@@ -205,10 +201,8 @@ impl Image {
         // If the kernel has exited boot services, it must not return any more, and has full control over the entire machine.
         // If the kernel entry point returned, deallocate its image, and restore our loaded image handle.
         // If it calls Exit(), that call returns directly to systemd-boot. This unfortunately causes a resource leak.
-        system_table
-            .boot_services()
-            .free_pages(self.image.as_ptr() as u64, bytes_to_pages(self.image.len()))
-            .expect("Double free attempted");
+        let image = NonNull::new(self.image.as_ptr().cast_mut()).unwrap();
+        boot::free_pages(image, bytes_to_pages(self.image.len())).expect("Double free attempted");
 
         unsafe {
             loaded_image.set_image(our_data, our_size);

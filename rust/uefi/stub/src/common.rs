@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 use log::warn;
 use uefi::{
-    guid, prelude::*, proto::loaded_image::LoadedImage, runtime, runtime::VariableVendor, CStr16,
-    CString16, Result,
+    boot, guid, prelude::*, proto::loaded_image::LoadedImage, runtime, runtime::VariableVendor,
+    CStr16, CString16, Result,
 };
 
 use linux_bootloader::linux_loader::InitrdLoader;
@@ -20,17 +20,12 @@ pub fn extract_string(pe_data: &[u8], section: &str) -> Result<CString16> {
 ///
 /// If Secure Boot is active, this is always the embedded one (since the one passed from the bootloader may come from a malicious type 1 entry).
 /// If Secure Boot is not active, the command line passed from the bootloader is used, falling back to the embedded one.
-pub fn get_cmdline(
-    embedded: &CStr16,
-    boot_services: &BootServices,
-    secure_boot_enabled: bool,
-) -> Vec<u8> {
+pub fn get_cmdline(embedded: &CStr16, secure_boot_enabled: bool) -> Vec<u8> {
     if secure_boot_enabled {
         // The command line passed from the bootloader cannot be trusted, so it is not used when Secure Boot is active.
         embedded.as_bytes().to_vec()
     } else {
-        let passed = boot_services
-            .open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())
+        let passed = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())
             .map(|loaded_image| loaded_image.load_options_as_bytes().map(|b| b.to_vec()));
         match passed {
             Ok(Some(passed)) => passed,
@@ -89,13 +84,12 @@ pub fn boot_linux_unchecked(
     kernel_cmdline: &[u8],
     initrd_data: Vec<u8>,
 ) -> uefi::Result<()> {
-    let kernel =
-        Image::load(system_table.boot_services(), &kernel_data).expect("Failed to load the kernel");
+    let kernel = Image::load(&kernel_data).expect("Failed to load the kernel");
 
-    let mut initrd_loader = InitrdLoader::new(system_table.boot_services(), handle, initrd_data)?;
+    let mut initrd_loader = InitrdLoader::new(handle, initrd_data)?;
 
     let status = unsafe { kernel.start(handle, &system_table, kernel_cmdline) };
 
-    initrd_loader.uninstall(system_table.boot_services())?;
+    initrd_loader.uninstall()?;
     status.to_result()
 }
