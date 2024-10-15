@@ -264,7 +264,7 @@ impl<IOError: embedded_io::Error + core::fmt::Debug> Cpio<IOError> {
                 },
                 contents,
             )
-            .unwrap(); // This is infaillible as long as allocation is not failible.
+            .unwrap(); // This is infallible as long as allocation is not failible.
 
         // Concat the element buffer.
         self.buffer.append(cur.get_mut());
@@ -307,7 +307,7 @@ impl<IOError: embedded_io::Error + core::fmt::Debug> Cpio<IOError> {
             rdev_major: 0,
             rdev_minor: 0,
         })
-        .unwrap(); // This is infaillible as long as allocation is not failible.
+        .unwrap(); // This is infallible as long as allocation is not failible.
 
         // Concat the element buffer.
         self.buffer.append(cur.get_mut());
