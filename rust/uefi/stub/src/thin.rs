@@ -115,11 +115,7 @@ pub fn boot_linux(
             .expect("Failed to read initrd file into memory");
     }
 
-    let cmdline = get_cmdline(
-        &config.cmdline,
-        system_table.boot_services(),
-        secure_boot_enabled,
-    );
+    let cmdline = get_cmdline(&config.cmdline, secure_boot_enabled);
 
     check_hash(
         &kernel_data,

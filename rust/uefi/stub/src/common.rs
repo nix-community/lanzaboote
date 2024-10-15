@@ -20,17 +20,12 @@ pub fn extract_string(pe_data: &[u8], section: &str) -> Result<CString16> {
 ///
 /// If Secure Boot is active, this is always the embedded one (since the one passed from the bootloader may come from a malicious type 1 entry).
 /// If Secure Boot is not active, the command line passed from the bootloader is used, falling back to the embedded one.
-pub fn get_cmdline(
-    embedded: &CStr16,
-    boot_services: &BootServices,
-    secure_boot_enabled: bool,
-) -> Vec<u8> {
+pub fn get_cmdline(embedded: &CStr16, secure_boot_enabled: bool) -> Vec<u8> {
     if secure_boot_enabled {
         // The command line passed from the bootloader cannot be trusted, so it is not used when Secure Boot is active.
         embedded.as_bytes().to_vec()
     } else {
-        let passed = boot_services
-            .open_protocol_exclusive::<LoadedImage>(boot::image_handle())
+        let passed = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())
             .map(|loaded_image| loaded_image.load_options_as_bytes().map(|b| b.to_vec()));
         match passed {
             Ok(Some(passed)) => passed,

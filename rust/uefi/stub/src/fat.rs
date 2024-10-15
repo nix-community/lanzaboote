@@ -58,11 +58,7 @@ pub fn boot_linux(
     };
 
     let secure_boot_enabled = get_secure_boot_status();
-    let cmdline = get_cmdline(
-        &config.cmdline,
-        system_table.boot_services(),
-        secure_boot_enabled,
-    );
+    let cmdline = get_cmdline(&config.cmdline, secure_boot_enabled);
 
     let mut final_initrd = Vec::new();
     final_initrd.append(&mut config.initrd);
