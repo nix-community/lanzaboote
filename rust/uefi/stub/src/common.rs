@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 use log::warn;
 use uefi::{
-    guid, prelude::*, proto::loaded_image::LoadedImage, runtime, runtime::VariableVendor, CStr16,
-    CString16, Result,
+    boot, guid, prelude::*, proto::loaded_image::LoadedImage, runtime, runtime::VariableVendor,
+    CStr16, CString16, Result,
 };
 
 use linux_bootloader::linux_loader::InitrdLoader;
@@ -30,7 +30,7 @@ pub fn get_cmdline(
         embedded.as_bytes().to_vec()
     } else {
         let passed = boot_services
-            .open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())
+            .open_protocol_exclusive::<LoadedImage>(boot::image_handle())
             .map(|loaded_image| loaded_image.load_options_as_bytes().map(|b| b.to_vec()));
         match passed {
             Ok(Some(passed)) => passed,

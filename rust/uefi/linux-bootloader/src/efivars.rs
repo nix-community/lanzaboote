@@ -1,7 +1,7 @@
 use alloc::{format, string::ToString, vec::Vec};
 use core::mem::size_of;
 use uefi::{
-    cstr16, guid,
+    boot, cstr16, guid,
     prelude::BootServices,
     proto::{
         device_path::{
@@ -167,8 +167,7 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
 
     let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
 
-    let loaded_image =
-        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
+    let loaded_image = boot_services.open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
 
     let default_attributes =
         VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS;

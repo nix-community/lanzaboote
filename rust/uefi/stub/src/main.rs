@@ -24,6 +24,7 @@ use linux_bootloader::measure::{measure_companion_initrds, measure_image};
 use linux_bootloader::tpm::tpm_available;
 use linux_bootloader::uefi_helpers::booted_image_file;
 use log::{info, warn};
+use uefi::boot;
 use uefi::prelude::*;
 
 /// Lanzaboote stub name
@@ -86,7 +87,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
         let mut companions = Vec::new();
         let image_fs = system_table
             .boot_services()
-            .get_image_file_system(system_table.boot_services().image_handle());
+            .get_image_file_system(boot::image_handle());
 
         if let Ok(image_fs) = image_fs {
             let mut filesystem = uefi::fs::FileSystem::new(image_fs);
