@@ -46,7 +46,7 @@ fn print_logo() {
 }
 
 #[entry]
-fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
+fn main() -> Status {
     uefi::helpers::init().unwrap();
 
     print_logo();
@@ -145,12 +145,12 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
 
     #[cfg(feature = "fat")]
     {
-        status = fat::boot_linux(handle, dynamic_initrds)
+        status = fat::boot_linux(boot::image_handle(), dynamic_initrds)
     }
 
     #[cfg(feature = "thin")]
     {
-        status = thin::boot_linux(handle, dynamic_initrds).status()
+        status = thin::boot_linux(boot::image_handle(), dynamic_initrds).status()
     }
 
     status
