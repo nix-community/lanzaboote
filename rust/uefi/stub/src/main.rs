@@ -94,11 +94,8 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
             let default_dropin_directory;
 
             if let Some(loaded_image_path) = pe_in_memory.file_path() {
-                let discovered_default_dropin_dir = get_default_dropin_directory(
-                    system_table.boot_services(),
-                    loaded_image_path,
-                    &mut filesystem,
-                );
+                let discovered_default_dropin_dir =
+                    get_default_dropin_directory(loaded_image_path, &mut filesystem);
 
                 if discovered_default_dropin_dir.is_err() {
                     warn!("Failed to discover the default drop-in directory for companion files");

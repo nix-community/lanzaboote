@@ -11,6 +11,7 @@ use uefi::{
         loaded_image::LoadedImage,
     },
     runtime::{self, VariableAttributes, VariableVendor},
+    table,
     table::{Boot, SystemTable},
     CStr16, Guid, Handle, Result, Status,
 };
@@ -162,8 +163,6 @@ where
 
 /// Exports systemd-stub style EFI variables
 pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boot>) -> Result<()> {
-    let boot_services = system_table.boot_services();
-
     let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
 
     let loaded_image = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
@@ -199,7 +198,7 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
                 )?;
                 dp_protocol
                     .convert_device_path_to_text(
-                        boot_services,
+                        table::system_table_boot().unwrap().boot_services(),
                         dp,
                         uefi::proto::device_path::text::DisplayOnly(false),
                         uefi::proto::device_path::text::AllowShortcuts(false),
