@@ -150,7 +150,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
 
     #[cfg(feature = "thin")]
     {
-        status = thin::boot_linux(handle, system_table, dynamic_initrds).status()
+        status = thin::boot_linux(handle, dynamic_initrds).status()
     }
 
     status
