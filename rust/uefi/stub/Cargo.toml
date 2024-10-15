@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-uefi = { version = "0.31.0", default-features = false, features = [ "alloc", "global_allocator", "panic_handler", "logger" ] }
+uefi = { version = "0.32.0", default-features = false, features = [ "alloc", "global_allocator", "panic_handler", "logger" ] }
 # Even in debug builds, we don't enable the debug logs, because they generate a lot of spam from goblin.
 log = { version = "0.4.21", default-features = false, features = [ "max_level_info", "release_max_level_warn" ]}
 # Use software implementation because the UEFI target seems to need it.
