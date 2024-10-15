@@ -2,7 +2,6 @@ use core::ffi::c_void;
 
 use uefi::{
     boot,
-    prelude::BootServices,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
         loaded_image::LoadedImage,
@@ -51,8 +50,8 @@ impl PeInMemory {
 }
 
 /// Open the currently executing image as a file.
-pub fn booted_image_file(boot_services: &BootServices) -> Result<PeInMemory> {
-    let loaded_image = boot_services.open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
+pub fn booted_image_file() -> Result<PeInMemory> {
+    let loaded_image = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
     let (image_base, image_size) = loaded_image.info();
 
     Ok(PeInMemory {

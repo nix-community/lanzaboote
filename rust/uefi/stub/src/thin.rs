@@ -87,12 +87,8 @@ pub fn boot_linux(
     // safe, because we don't touch any data in the data sections that
     // might conceivably change while we look at the slice.
     let config = unsafe {
-        EmbeddedConfiguration::new(
-            booted_image_file(system_table.boot_services())
-                .unwrap()
-                .as_slice(),
-        )
-        .expect("Failed to extract configuration from binary. Did you run lzbt?")
+        EmbeddedConfiguration::new(booted_image_file().unwrap().as_slice())
+            .expect("Failed to extract configuration from binary. Did you run lzbt?")
     };
 
     let secure_boot_enabled = get_secure_boot_status();

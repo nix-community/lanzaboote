@@ -52,7 +52,7 @@ fn main(handle: Handle, system_table: SystemTable<Boot>) -> Status {
     print_logo();
 
     let is_tpm_available = tpm_available();
-    let pe_in_memory = booted_image_file(system_table.boot_services())
+    let pe_in_memory = booted_image_file()
         .expect("Failed to extract the in-memory information about our own image");
 
     if is_tpm_available {
