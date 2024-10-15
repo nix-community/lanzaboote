@@ -6,8 +6,7 @@ use goblin::pe::PE;
 use uefi::{
     boot::{self, AllocateType, MemoryType},
     proto::loaded_image::LoadedImage,
-    table::{Boot, SystemTable},
-    Handle, Status,
+    table, Handle, Status,
 };
 
 /// UEFI mandates 4 KiB pages.
@@ -68,7 +67,7 @@ fn make_instruction_cache_coherent(_memory: &[u8]) {
 
 pub struct Image {
     image: &'static mut [u8],
-    entry: extern "efiapi" fn(Handle, SystemTable<Boot>) -> Status,
+    entry: extern "efiapi" fn(Handle, Option<NonNull<c_void>>) -> Status,
 }
 
 /// Converts a length in bytes to the number of required pages.
@@ -168,12 +167,7 @@ impl Image {
     ///   * Only memory it either has allocated, or that belongs to the image, should have been altered.
     ///   * Memory it has not allocated should not have been freed.
     ///   * Boot services must not have been exited.
-    pub unsafe fn start(
-        self,
-        handle: Handle,
-        system_table: &SystemTable<Boot>,
-        load_options: &[u8],
-    ) -> Status {
+    pub unsafe fn start(self, handle: Handle, load_options: &[u8]) -> Status {
         let mut loaded_image = boot::open_protocol_exclusive::<LoadedImage>(handle)
             .expect("Failed to open the LoadedImage protocol");
 
@@ -196,7 +190,8 @@ impl Image {
             );
         }
 
-        let status = (self.entry)(handle, unsafe { system_table.unsafe_clone() });
+        let system_table = table::system_table_raw().map(NonNull::cast);
+        let status = (self.entry)(handle, system_table);
 
         // If the kernel has exited boot services, it must not return any more, and has full control over the entire machine.
         // If the kernel entry point returned, deallocate its image, and restore our loaded image handle.

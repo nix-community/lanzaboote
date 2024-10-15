@@ -2,7 +2,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use log::{error, warn};
 use sha2::{Digest, Sha256};
-use uefi::{fs::FileSystem, prelude::*, CString16, Result};
+use uefi::{fs::FileSystem, prelude::*, table, CString16, Result};
 
 use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
 use linux_bootloader::pe_section::pe_section;
@@ -77,11 +77,7 @@ fn check_hash(data: &[u8], expected_hash: Hash, name: &str, secure_boot: bool) -
     Ok(())
 }
 
-pub fn boot_linux(
-    handle: Handle,
-    system_table: SystemTable<Boot>,
-    dynamic_initrds: Vec<Vec<u8>>,
-) -> uefi::Result<()> {
+pub fn boot_linux(handle: Handle, dynamic_initrds: Vec<Vec<u8>>) -> uefi::Result<()> {
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
@@ -97,6 +93,7 @@ pub fn boot_linux(
     let mut initrd_data;
 
     {
+        let system_table = table::system_table_boot().unwrap();
         let file_system = system_table
             .boot_services()
             .get_image_file_system(handle)
@@ -147,5 +144,5 @@ pub fn boot_linux(
         initrd_data.append(&mut compute_pad4(initrd_data.len()));
     }
 
-    boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
+    boot_linux_unchecked(handle, kernel_data, &cmdline, initrd_data)
 }
