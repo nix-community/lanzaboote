@@ -2,7 +2,6 @@ use alloc::{format, string::ToString, vec::Vec};
 use core::mem::size_of;
 use uefi::{
     boot, cstr16, guid,
-    prelude::BootServices,
     proto::{
         device_path::{
             media::{HardDrive, PartitionSignature},
@@ -18,8 +17,8 @@ use uefi::{
 
 use bitflags::bitflags;
 
-fn disk_get_part_uuid(boot_services: &BootServices, disk_handle: Handle) -> Result<Guid> {
-    let dp = boot_services.open_protocol_exclusive::<DevicePath>(disk_handle)?;
+fn disk_get_part_uuid(disk_handle: Handle) -> Result<Guid> {
+    let dp = boot::open_protocol_exclusive::<DevicePath>(disk_handle)?;
 
     for node in dp.node_iter() {
         if node.device_type() != DeviceType::MEDIA
@@ -179,11 +178,7 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
         &BOOT_LOADER_VENDOR_UUID,
         default_attributes,
         || {
-            disk_get_part_uuid(
-                boot_services,
-                loaded_image.device().ok_or(uefi::Status::NOT_FOUND)?,
-            )
-            .map(|guid| {
+            disk_get_part_uuid(loaded_image.device().ok_or(uefi::Status::NOT_FOUND)?).map(|guid| {
                 guid.to_string()
                     .encode_utf16()
                     .flat_map(|c| c.to_le_bytes())
