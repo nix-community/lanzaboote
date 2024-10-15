@@ -3,12 +3,9 @@ use core::ffi::c_void;
 use alloc::vec::Vec;
 use goblin::pe::PE;
 use uefi::{
-    prelude::BootServices,
+    boot::{self, AllocateType, MemoryType},
     proto::loaded_image::LoadedImage,
-    table::{
-        boot::{AllocateType, MemoryType},
-        Boot, SystemTable,
-    },
+    table::{Boot, SystemTable},
     Handle, Status,
 };
 
@@ -87,7 +84,7 @@ impl Image {
     /// The image must be handed to [`start`] later. If this does not
     /// happen, the memory allocated for the unpacked PE binary will
     /// leak.
-    pub fn load(boot_services: &BootServices, file_data: &[u8]) -> uefi::Result<Image> {
+    pub fn load(file_data: &[u8]) -> uefi::Result<Image> {
         let pe = PE::parse(file_data).map_err(|_| Status::LOAD_ERROR)?;
 
         // Allocate all memory the image will need in virtual memory.
@@ -106,15 +103,15 @@ impl Image {
 
             let length = usize::try_from(section_lengths.into_iter().max().unwrap_or(0)).unwrap();
 
-            let base = boot_services.allocate_pages(
+            let base = boot::allocate_pages(
                 AllocateType::AnyPages,
                 MemoryType::LOADER_CODE,
                 bytes_to_pages(length),
-            )? as *mut u8;
+            )?;
 
             unsafe {
-                core::ptr::write_bytes(base, 0, length);
-                core::slice::from_raw_parts_mut(base, length)
+                core::ptr::write_bytes(base.as_ptr(), 0, length);
+                core::slice::from_raw_parts_mut(base.as_ptr(), length)
             }
         };
 

@@ -84,8 +84,7 @@ pub fn boot_linux_unchecked(
     kernel_cmdline: &[u8],
     initrd_data: Vec<u8>,
 ) -> uefi::Result<()> {
-    let kernel =
-        Image::load(system_table.boot_services(), &kernel_data).expect("Failed to load the kernel");
+    let kernel = Image::load(&kernel_data).expect("Failed to load the kernel");
 
     let mut initrd_loader = InitrdLoader::new(handle, initrd_data)?;
 
