@@ -12,7 +12,7 @@ repository = "https://github.com/nix-community/lanzaboote/"
 rust-version = "1.68"
 
 [dependencies]
-uefi = { version = "0.31.0", default-features = false, features = [ "alloc", "global_allocator" ] }
+uefi = { version = "0.32.0", default-features = false, features = [ "alloc", "global_allocator" ] }
 # Update blocked by #237
 goblin = { version = "=0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
 bitflags = "2.5.0"
