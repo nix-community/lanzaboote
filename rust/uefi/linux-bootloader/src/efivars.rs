@@ -1,8 +1,7 @@
 use alloc::{format, string::ToString, vec::Vec};
 use core::mem::size_of;
 use uefi::{
-    cstr16, guid,
-    prelude::{BootServices, RuntimeServices},
+    boot, cstr16, guid,
     proto::{
         device_path::{
             media::{HardDrive, PartitionSignature},
@@ -11,17 +10,14 @@ use uefi::{
         },
         loaded_image::LoadedImage,
     },
-    table::{
-        runtime::{VariableAttributes, VariableVendor},
-        Boot, SystemTable,
-    },
-    CStr16, Guid, Handle, Result,
+    runtime::{self, VariableAttributes, VariableVendor},
+    system, CStr16, Guid, Handle, Result, Status,
 };
 
 use bitflags::bitflags;
 
-fn disk_get_part_uuid(boot_services: &BootServices, disk_handle: Handle) -> Result<Guid> {
-    let dp = boot_services.open_protocol_exclusive::<DevicePath>(disk_handle)?;
+fn disk_get_part_uuid(disk_handle: Handle) -> Result<Guid> {
+    let dp = boot::open_protocol_exclusive::<DevicePath>(disk_handle)?;
 
     for node in dp.node_iter() {
         if node.device_type() != DeviceType::MEDIA
@@ -72,10 +68,10 @@ bitflags! {
 /// If the variable cannot be read, `EfiLoaderFeatures::default` is returned.
 /// If the variable data is the wrong size, `BAD_BUFFER_SIZE` is returned.
 /// If the variable data contains unknown flags, `INCOMPATIBLE_VERSION` is returned.
-pub fn get_loader_features(runtime_services: &RuntimeServices) -> Result<EfiLoaderFeatures> {
+pub fn get_loader_features() -> Result<EfiLoaderFeatures> {
     let mut buffer = [0u8; size_of::<EfiLoaderFeatures>()];
 
-    match runtime_services.get_variable(
+    match runtime::get_variable(
         cstr16!("LoaderFeatures"),
         &BOOT_LOADER_VENDOR_UUID,
         &mut buffer,
@@ -130,10 +126,23 @@ pub fn cstr16_to_bytes(s: &CStr16) -> &[u8] {
     from_u16(s.to_u16_slice_with_nul())
 }
 
+// TODO: after upgrading to uefi-0.32, this can be replaced with
+// `runtime::variable_exists`.
+fn variable_exists(name: &CStr16, vendor: &VariableVendor) -> Result<bool> {
+    let mut data = [0];
+    match runtime::get_variable(name, vendor, &mut data) {
+        Ok(_) => Ok(true),
+        Err(err) => match err.status() {
+            Status::BUFFER_TOO_SMALL => Ok(true),
+            Status::NOT_FOUND => Ok(false),
+            _ => Err(err.status().into()),
+        },
+    }
+}
+
 /// Ensures that an UEFI variable is set or set it with a fallback value
 /// computed in a lazy way.
 pub fn ensure_efi_variable<F>(
-    runtime_services: &RuntimeServices,
     name: &CStr16,
     vendor: &VariableVendor,
     attributes: VariableAttributes,
@@ -143,22 +152,18 @@ where
     F: FnOnce() -> uefi::Result<Vec<u8>>,
 {
     // If we get a variable size, a variable already exist.
-    if runtime_services.get_variable_size(name, vendor).is_err() {
-        runtime_services.set_variable(name, vendor, attributes, &get_fallback_value()?)?;
+    if variable_exists(name, vendor) != Ok(true) {
+        runtime::set_variable(name, vendor, attributes, &get_fallback_value()?)?;
     }
 
     Ok(())
 }
 
 /// Exports systemd-stub style EFI variables
-pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boot>) -> Result<()> {
-    let boot_services = system_table.boot_services();
-    let runtime_services = system_table.runtime_services();
-
+pub fn export_efi_variables(stub_info_name: &str) -> Result<()> {
     let stub_features: EfiStubFeatures = EfiStubFeatures::ReportBootPartition;
 
-    let loaded_image =
-        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
+    let loaded_image = boot::open_protocol_exclusive::<LoadedImage>(boot::image_handle())?;
 
     let default_attributes =
         VariableAttributes::BOOTSERVICE_ACCESS | VariableAttributes::RUNTIME_ACCESS;
@@ -166,16 +171,11 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
     #[allow(unused_must_use)]
     // LoaderDevicePartUUID
     ensure_efi_variable(
-        runtime_services,
         cstr16!("LoaderDevicePartUUID"),
         &BOOT_LOADER_VENDOR_UUID,
         default_attributes,
         || {
-            disk_get_part_uuid(
-                boot_services,
-                loaded_image.device().ok_or(uefi::Status::NOT_FOUND)?,
-            )
-            .map(|guid| {
+            disk_get_part_uuid(loaded_image.device().ok_or(uefi::Status::NOT_FOUND)?).map(|guid| {
                 guid.to_string()
                     .encode_utf16()
                     .flat_map(|c| c.to_le_bytes())
@@ -186,18 +186,16 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
     .ok();
     // LoaderImageIdentifier
     ensure_efi_variable(
-        runtime_services,
         cstr16!("LoaderImageIdentifier"),
         &BOOT_LOADER_VENDOR_UUID,
         default_attributes,
         || {
             if let Some(dp) = loaded_image.file_path() {
-                let dp_protocol = boot_services.open_protocol_exclusive::<DevicePathToText>(
-                    boot_services.get_handle_for_protocol::<DevicePathToText>()?,
+                let dp_protocol = boot::open_protocol_exclusive::<DevicePathToText>(
+                    boot::get_handle_for_protocol::<DevicePathToText>()?,
                 )?;
                 dp_protocol
                     .convert_device_path_to_text(
-                        boot_services,
                         dp,
                         uefi::proto::device_path::text::DisplayOnly(false),
                         uefi::proto::device_path::text::AllowShortcuts(false),
@@ -213,16 +211,15 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
     .ok();
     // LoaderFirmwareInfo
     ensure_efi_variable(
-        runtime_services,
         cstr16!("LoaderFirmwareInfo"),
         &BOOT_LOADER_VENDOR_UUID,
         default_attributes,
         || {
             Ok(format!(
                 "{} {}.{:02}",
-                system_table.firmware_vendor(),
-                system_table.firmware_revision() >> 16,
-                system_table.firmware_revision() & 0xFFFFF
+                system::firmware_vendor(),
+                system::firmware_revision() >> 16,
+                system::firmware_revision() & 0xFFFFF
             )
             .encode_utf16()
             .flat_map(|c| c.to_le_bytes())
@@ -232,12 +229,11 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
     .ok();
     // LoaderFirmwareType
     ensure_efi_variable(
-        runtime_services,
         cstr16!("LoaderFirmwareType"),
         &BOOT_LOADER_VENDOR_UUID,
         default_attributes,
         || {
-            Ok(format!("UEFI {:02}", system_table.uefi_revision())
+            Ok(format!("UEFI {:02}", system::uefi_revision())
                 .encode_utf16()
                 .flat_map(|c| c.to_le_bytes())
                 .collect::<Vec<u8>>())
@@ -247,27 +243,25 @@ pub fn export_efi_variables(stub_info_name: &str, system_table: &SystemTable<Boo
     // StubInfo
     // FIXME: ideally, no one should be able to overwrite `StubInfo`, but that would require
     // constructing an EFI authenticated variable payload. This seems overcomplicated for now.
-    runtime_services
-        .set_variable(
-            cstr16!("StubInfo"),
-            &BOOT_LOADER_VENDOR_UUID,
-            default_attributes,
-            &stub_info_name
-                .encode_utf16()
-                .flat_map(|c| c.to_le_bytes())
-                .collect::<Vec<u8>>(),
-        )
-        .ok();
+    runtime::set_variable(
+        cstr16!("StubInfo"),
+        &BOOT_LOADER_VENDOR_UUID,
+        default_attributes,
+        &stub_info_name
+            .encode_utf16()
+            .flat_map(|c| c.to_le_bytes())
+            .collect::<Vec<u8>>(),
+    )
+    .ok();
 
     // StubFeatures
-    runtime_services
-        .set_variable(
-            cstr16!("StubFeatures"),
-            &BOOT_LOADER_VENDOR_UUID,
-            default_attributes,
-            &stub_features.bits().to_le_bytes(),
-        )
-        .ok();
+    runtime::set_variable(
+        cstr16!("StubFeatures"),
+        &BOOT_LOADER_VENDOR_UUID,
+        default_attributes,
+        &stub_features.bits().to_le_bytes(),
+    )
+    .ok();
 
     Ok(())
 }

@@ -1,15 +1,14 @@
 use alloc::vec::Vec;
 use log::warn;
 use uefi::{
-    prelude::BootServices,
+    boot::{self, ScopedProtocol},
     proto::tcg::{v2, EventType, PcrIndex},
-    table::boot::ScopedProtocol,
     ResultExt,
 };
 
-fn open_capable_tpm2(boot_services: &BootServices) -> uefi::Result<ScopedProtocol<v2::Tcg>> {
-    let tpm_handle = boot_services.get_handle_for_protocol::<v2::Tcg>()?;
-    let mut tpm_protocol = boot_services.open_protocol_exclusive::<v2::Tcg>(tpm_handle)?;
+fn open_capable_tpm2() -> uefi::Result<ScopedProtocol<v2::Tcg>> {
+    let tpm_handle = boot::get_handle_for_protocol::<v2::Tcg>()?;
+    let mut tpm_protocol = boot::open_protocol_exclusive::<v2::Tcg>(tpm_handle)?;
 
     let capabilities = tpm_protocol.get_capability()?;
 
@@ -29,14 +28,13 @@ fn open_capable_tpm2(boot_services: &BootServices) -> uefi::Result<ScopedProtoco
     Ok(tpm_protocol)
 }
 
-pub fn tpm_available(boot_services: &BootServices) -> bool {
-    open_capable_tpm2(boot_services).is_ok()
+pub fn tpm_available() -> bool {
+    open_capable_tpm2().is_ok()
 }
 
 /// Log an event in the TPM with `buffer` as data.
 /// Returns a boolean whether the measurement has been done or not in case of success.
 pub fn tpm_log_event_ascii(
-    boot_services: &BootServices,
     pcr_index: PcrIndex,
     buffer: &[u8],
     description: &str,
@@ -44,7 +42,7 @@ pub fn tpm_log_event_ascii(
     if pcr_index.0 == u32::MAX {
         return Ok(false);
     }
-    if let Ok(mut tpm2) = open_capable_tpm2(boot_services) {
+    if let Ok(mut tpm2) = open_capable_tpm2() {
         let description_encoded = description
             .encode_utf16()
             .flat_map(|c| c.to_le_bytes())

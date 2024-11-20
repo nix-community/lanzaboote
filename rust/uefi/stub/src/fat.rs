@@ -39,30 +39,18 @@ impl EmbeddedConfiguration {
     }
 }
 
-pub fn boot_linux(
-    handle: Handle,
-    system_table: SystemTable<Boot>,
-    dynamic_initrds: Vec<Vec<u8>>,
-) -> Status {
+pub fn boot_linux(handle: Handle, dynamic_initrds: Vec<Vec<u8>>) -> Status {
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
     // might conceivably change while we look at the slice.
     let mut config = unsafe {
-        EmbeddedConfiguration::new(
-            booted_image_file(system_table.boot_services())
-                .unwrap()
-                .as_slice(),
-        )
-        .expect("Failed to extract configuration from binary.")
+        EmbeddedConfiguration::new(booted_image_file().unwrap().as_slice())
+            .expect("Failed to extract configuration from binary.")
     };
 
-    let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
-    let cmdline = get_cmdline(
-        &config.cmdline,
-        system_table.boot_services(),
-        secure_boot_enabled,
-    );
+    let secure_boot_enabled = get_secure_boot_status();
+    let cmdline = get_cmdline(&config.cmdline, secure_boot_enabled);
 
     let mut final_initrd = Vec::new();
     final_initrd.append(&mut config.initrd);
@@ -75,5 +63,5 @@ pub fn boot_linux(
         final_initrd.append(&mut extra_initrd);
     }
 
-    boot_linux_unchecked(handle, system_table, config.kernel, &cmdline, final_initrd).status()
+    boot_linux_unchecked(handle, config.kernel, &cmdline, final_initrd).status()
 }
