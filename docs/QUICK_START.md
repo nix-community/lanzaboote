@@ -261,6 +261,11 @@ On Framework laptops (13th generation or newer) you can enter the setup mode lik
 1. Select "Administer Secure Boot"
 2. Select "Erase all Secure Boot Settings"
 
+> [!WARNING]
+> **Don't** select "Erase all Secure Boot Settings" in the Framework 13 Core Ultra Series 1 firmware.
+> This firmware is bugged, instead delete all keys from the "PK", "KEK" and "DB" sections manually.
+> See [this](https://community.frame.work/t/cant-enable-secure-boot-setup-mode/57683/5) thread on the Framework forum.
+
 When you are done, press F10 to save and exit.
 
 #### Other systems
