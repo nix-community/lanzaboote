@@ -105,8 +105,15 @@ Secure boot keys created!
 ```
 
 This takes a couple of seconds. When it is done, your Secure Boot keys
-are located in `/etc/secureboot`. `sbctl` sets the permissions of the
+are located in `/var/lib/sbctl`. `sbctl` sets the permissions of the
 secret key so that only root can read it.
+
+> [!NOTE]
+> If you have preexisting keys in `/etc/secureboot` you can migrate these to `/var/lib/sbctl`.
+>
+> ```sh
+> sbctl setup --migrate
+> ```
 
 ### Configuring NixOS (with [`niv`](https://github.com/nmattia/niv))
 
@@ -144,7 +151,7 @@ in
 
   boot.lanzaboote = {
     enable = true;
-    pkiBundle = "/etc/secureboot";
+    pkiBundle = "/var/lib/sbctl";
   };
 }
 ```
@@ -195,7 +202,7 @@ Boot stack.
 
             boot.lanzaboote = {
               enable = true;
-              pkiBundle = "/etc/secureboot";
+              pkiBundle = "/var/lib/sbctl";
             };
           })
         ];
