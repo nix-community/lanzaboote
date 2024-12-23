@@ -105,8 +105,15 @@ Secure boot keys created!
 ```
 
 This takes a couple of seconds. When it is done, your Secure Boot keys
-are located in `/etc/secureboot`. `sbctl` sets the permissions of the
+are located in `/var/lib/sbctl`. `sbctl` sets the permissions of the
 secret key so that only root can read it.
+
+> [!NOTE]
+> If you have preexisting keys in `/etc/secureboot` you can migrate these to `/var/lib/sbctl`.
+>
+> ```sh
+> sbctl setup --migrate
+> ```
 
 ### Configuring NixOS (with [`niv`](https://github.com/nmattia/niv))
 
@@ -144,7 +151,7 @@ in
 
   boot.lanzaboote = {
     enable = true;
-    pkiBundle = "/etc/secureboot";
+    pkiBundle = "/var/lib/sbctl";
   };
 }
 ```
@@ -195,7 +202,7 @@ Boot stack.
 
             boot.lanzaboote = {
               enable = true;
-              pkiBundle = "/etc/secureboot";
+              pkiBundle = "/var/lib/sbctl";
             };
           })
         ];
@@ -260,6 +267,11 @@ On Framework laptops (13th generation or newer) you can enter the setup mode lik
 
 1. Select "Administer Secure Boot"
 2. Select "Erase all Secure Boot Settings"
+
+> [!WARNING]
+> **Don't** select "Erase all Secure Boot Settings" in the Framework 13 Core Ultra Series 1 firmware.
+> This firmware is bugged, instead delete all keys from the "PK", "KEK" and "DB" sections manually.
+> See [this](https://community.frame.work/t/cant-enable-secure-boot-setup-mode/57683/5) thread on the Framework forum.
 
 When you are done, press F10 to save and exit.
 
