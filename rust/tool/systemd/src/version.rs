@@ -1,9 +1,10 @@
 use std::ffi::CStr;
 use std::fs;
 use std::path::Path;
+use std::str;
 use std::str::FromStr;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe;
@@ -32,13 +33,17 @@ impl SystemdVersion {
         let section_data = pe::read_section_data(&file_data, ".osrel")
             .with_context(|| format!("PE section '.osrel' is empty: {path:?}"))?;
 
-        // The `.osrel` section in the systemd-boot binary is a NUL terminated string and thus needs
-        // special handling.
-        let section_data_cstr =
-            CStr::from_bytes_with_nul(section_data).context("Failed to parse C string.")?;
-        let section_data_string = section_data_cstr
-            .to_str()
-            .context("Failed to convert C string to Rust string.")?;
+        // The `.osrel` section in the systemd-boot binary may be NUL-terminated or not
+        // so we need to handle both cases.
+        let section_data_string = match section_data[section_data.len() - 1] {
+            0 => CStr::from_bytes_with_nul(section_data)
+                .context("Failed to parse C string.")?
+                .to_str()
+                .context("Failed to convert C string to Rust string.")?,
+            b'\n' => str::from_utf8(section_data)
+                .context("Failed to convert section data to Rust string.")?,
+            _ => bail!("PE section '.osrel' has unexpected content"),
+        };
 
         let os_release = OsRelease::from_str(section_data_string)
             .with_context(|| format!("Failed to parse os-release from {section_data_string}"))?;
