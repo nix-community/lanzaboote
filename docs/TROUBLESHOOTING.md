@@ -5,7 +5,7 @@
 During the bootloader installation process, Lanzaboote must copy the kernel and initrd to the EFI system partition (ESP).
 It is quite possible that the ESP is not large enough to hold these files for all installed generations, in which case this error occurs.
 
-In this case, you must first delete some generations (e.g. run `nixos-collect-garbage --delete-older-than=7d` to delete all generations more than one week old).
+In this case, you must first delete some generations (e.g. run `nix-collect-garbage --delete-older-than 7d` to delete all generations more than one week old).
 After that, some space on the ESP must be freed manually.
 To achieve this, delete some kernels and initrds in `/boot/EFI/nixos` (they will be recreated in the next step if they are in fact still required).
 Finally, run `nixos-rebuild boot` again to finish the installation process that was interrupted by the error.
