@@ -7,9 +7,7 @@ use linux_bootloader::uefi_helpers::booted_image_file;
 
 /// Extract bytes from a PE section.
 pub fn extract_bytes(pe_data: &[u8], section: &str) -> Result<Vec<u8>> {
-    let bytes: Vec<u8> = pe_section(pe_data, section)
-        .ok_or(Status::INVALID_PARAMETER)?
-        .into();
+    let bytes: Vec<u8> = pe_section(pe_data, section).ok_or(Status::INVALID_PARAMETER)?;
 
     Ok(bytes)
 }
