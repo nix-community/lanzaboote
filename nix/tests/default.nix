@@ -34,5 +34,4 @@ in
 
   # Stub
   systemd-stub = runTest ./stub/systemd-stub.nix;
-  fat-stub = runTest ./stub/fat-stub.nix;
 }

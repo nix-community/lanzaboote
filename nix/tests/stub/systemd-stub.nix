@@ -8,7 +8,6 @@
 
   nodes.machine = { pkgs, ... }: {
     imports = [ ./common.nix ];
-    boot.loader.uki.stub = "${pkgs.systemd}/lib/systemd/boot/efi/linux${pkgs.hostPlatform.efiArch}.efi.stub";
   };
 
   testScript = ''

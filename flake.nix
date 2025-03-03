@@ -50,16 +50,7 @@
         }
       );
 
-      flake.nixosModules.uki = moduleWithSystem (
-        perSystem@{ config }:
-        { lib, ... }: {
-          imports = [
-            ./nix/modules/uki.nix
-          ];
-
-          boot.loader.uki.stub = lib.mkDefault "${perSystem.config.packages.fatStub}/bin/lanzaboote_stub.efi";
-        }
-      );
+      flake.nixosModules.uki = import ./nix/modules/uki.nix;
 
       systems = [
         "x86_64-linux"
@@ -145,14 +136,7 @@
             doCheck = false;
           };
 
-          fatStubCrane = stubCrane.override {
-            extraArgs = {
-              cargoExtraArgs = "--no-default-features --features fat";
-            };
-          };
-
           stub = stubCrane.package;
-          fatStub = fatStubCrane.package;
 
           # TODO: when we will have more backends
           # let's generalize this properly.
@@ -186,7 +170,7 @@
         in
         {
           packages = {
-            inherit stub fatStub;
+            inherit stub;
             tool = wrappedTool;
             lzbt = wrappedTool;
           };
@@ -198,7 +182,6 @@
           checks = {
             toolClippy = toolCrane.clippy;
             stubClippy = stubCrane.clippy;
-            fatStubClippy = fatStubCrane.clippy;
             toolFmt = toolCrane.rustfmt;
             stubFmt = stubCrane.rustfmt;
           } // (import ./nix/tests {

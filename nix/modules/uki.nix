@@ -14,6 +14,7 @@ in
     stub = lib.mkOption {
       type = lib.types.path;
       description = "Path to the UKI stub to use.";
+      default = "${config.systemd.package}/lib/systemd/boot/efi/linux${pkgs.hostPlatform.efiArch}.efi.stub";
     };
   };
 
