@@ -1,4 +1,8 @@
-{ config, pkgs, ... }: {
+{ lib, config, pkgs, ... }:
+let
+  inherit (lib) mkIf;
+in
+{
 
   virtualisation = {
     useBootLoader = true;
@@ -14,7 +18,11 @@
 
     lanzaboote = {
       enable = true;
-      enrollKeys = config.virtualisation.useSecureBoot;
+      safeAutoEnroll = mkIf (config.virtualisation.useSecureBoot) {
+        db = ../../fixtures/uefi-keys/keys/db/db.pem;
+        KEK = ../../fixtures/uefi-keys/keys/KEK/KEK.pem;
+        PK = ../../fixtures/uefi-keys/keys/PK/PK.pem;
+      };
       pkiBundle = ../../fixtures/uefi-keys;
     };
   };
