@@ -93,13 +93,6 @@ on the ESP. The chain of trust is maintained by validating the
 signature on the Linux kernel and embedding a cryptographic hash of
 the initrd into the signed UKI.
 
-The stub is available in a "thin" and a "fat" variant. The "thin" variant is
-the one described above and is tailor made for NixOS. The "fat" variant aims to
-work exactly like the `systemd-stub`---in fact, it's supposed to eventually
-replace it. The "thin" variant is the default, you can build it from the stub
-directory with `cargo build`. The "fat" variant needs to be enabled at build
-time with `cargo build --no-default-features --features fat`.
-
 The stub lives in [`rust/uefi/stub`](rust/uefi/stub).
 
 ### Fwupd
