@@ -50,8 +50,6 @@
         }
       );
 
-      flake.nixosModules.uki = import ./nix/modules/uki.nix;
-
       systems = [
         "x86_64-linux"
 
@@ -187,7 +185,7 @@
           } // (import ./nix/tests {
             inherit pkgs;
             extraBaseModules = {
-              inherit (self.nixosModules) lanzaboote uki;
+              inherit (self.nixosModules) lanzaboote;
             };
           });
           devShells.default = pkgs.mkShell {

@@ -17,7 +17,6 @@ let
     else pkgs.hello;
 in
 {
-  # Lanzaboote
   basic = runTest ./lanzaboote/basic.nix;
   systemd-initrd = runTest ./lanzaboote/systemd-initrd.nix;
   initrd-secrets = runTest ./lanzaboote/initrd-secrets.nix;
@@ -31,7 +30,4 @@ in
 
   systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
   systemd-measured-uki = runTest ./lanzaboote/systemd-measured-uki.nix;
-
-  # Stub
-  systemd-stub = runTest ./stub/systemd-stub.nix;
 }
