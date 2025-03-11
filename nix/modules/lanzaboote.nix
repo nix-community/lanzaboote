@@ -60,6 +60,8 @@ in
       '';
     };
 
+    keepCurrentBootedConfiguration = lib.mkEnableOption "Always keep current booted configuration (with labeled 'SAFE' in boot menu)";
+
     pkiBundle = lib.mkOption {
       type = lib.types.nullOr lib.types.externalPath;
       description = "PKI bundle containing db, PK, KEK";
@@ -157,14 +159,14 @@ in
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${loaderConfigFile} \
           --configuration-limit ${toString configurationLimit} \
-          --allow-unsigned ${lib.boolToString cfg.allowUnsigned}'';
+          --allow-unsigned ${lib.boolToString cfg.allowUnsigned}${lib.optionalString cfg.keepCurrentBootedConfiguration " \\\n  --safe-generation /run/booted-system"}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe cfg.package} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ''${config.systemd.package} \
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --configuration-limit ''${toString configurationLimit} \
-          --allow-unsigned ''${lib.boolToString cfg.allowUnsigned}'';
+          --allow-unsigned ''${lib.boolToString cfg.allowUnsigned}''${lib.optionalString cfg.keepCurrentBootedConfiguration " \\\n --safe-generation /run/booted-system"}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
