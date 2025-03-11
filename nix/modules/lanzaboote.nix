@@ -36,6 +36,8 @@ in
       '';
     };
 
+    keepCurrentBootedConfiguration = mkEnableOption "Always keep current booted configuration (with labeled 'SAFE' in boot menu)";
+
     pkiBundle = mkOption {
       type = types.nullOr types.path;
       description = "PKI bundle containing db, PK, KEK";
@@ -138,7 +140,9 @@ in
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \
-          ${config.boot.loader.efi.efiSysMountPoint} \
+          ${lib.optionalString cfg.keepCurrentBootedConfiguration ''
+            --safe-generation /run/booted-system \
+          ''} ${config.boot.loader.efi.efiSysMountPoint} \
           /nix/var/nix/profiles/system-*-link
       '';
     };
