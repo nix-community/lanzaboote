@@ -36,6 +36,8 @@ in
       '';
     };
 
+    keepCurrentBootedConfiguration = mkEnableOption "Always keep current booted configuration (with labeled 'SAFE' in boot menu)";
+
     pkiBundle = mkOption {
       type = types.nullOr types.path;
       description = "PKI bundle containing db, PK, KEK";
@@ -123,23 +125,25 @@ in
     boot.loader.external = {
       enable = true;
       installHook = pkgs.writeShellScript "bootinstall" ''
-        ${optionalString cfg.enrollKeys ''
-          mkdir -p /tmp/pki
-          cp -r ${cfg.pkiBundle}/* /tmp/pki
-          ${lib.getExe sbctlWithPki} enroll-keys --yes-this-might-brick-my-machine
-        ''}
+          ${optionalString cfg.enrollKeys ''
+            mkdir -p /tmp/pki
+            cp -r ${cfg.pkiBundle}/* /tmp/pki
+            ${lib.getExe sbctlWithPki} enroll-keys --yes-this-might-brick-my-machine
+          ''}
 
-        # Use the system from the kernel's hostPlatform because this should
-        # always, even in the cross compilation case, be the right system.
-        ${lib.getExe cfg.package} install \
-          --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
-          --systemd ${config.systemd.package} \
-          --systemd-boot-loader-config ${loaderConfigFile} \
-          --public-key ${cfg.publicKeyFile} \
-          --private-key ${cfg.privateKeyFile} \
-          --configuration-limit ${toString configurationLimit} \
-          ${config.boot.loader.efi.efiSysMountPoint} \
-          /nix/var/nix/profiles/system-*-link
+          # Use the system from the kernel's hostPlatform because this should
+          # always, even in the cross compilation case, be the right system.
+          ${lib.getExe cfg.package} install \
+            --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
+            --systemd ${config.systemd.package} \
+            --systemd-boot-loader-config ${loaderConfigFile} \
+            --public-key ${cfg.publicKeyFile} \
+            --private-key ${cfg.privateKeyFile} \
+            --configuration-limit ${toString configurationLimit} \
+            ${lib.optionalString cfg.keepCurrentBootedConfiguration ''
+            --safe-generation /run/booted-system \
+        ''} ${config.boot.loader.efi.efiSysMountPoint} \
+            /nix/var/nix/profiles/system-*-link
       '';
     };
 

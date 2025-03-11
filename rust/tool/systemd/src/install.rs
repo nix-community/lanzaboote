@@ -33,6 +33,7 @@ pub struct Installer<S: Signer> {
     signer: S,
     configuration_limit: usize,
     esp_paths: SystemdEspPaths,
+    safe_generation: Option<PathBuf>,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
 }
@@ -46,6 +47,7 @@ impl<S: Signer> Installer<S> {
         systemd_boot_loader_config: PathBuf,
         signer: S,
         configuration_limit: usize,
+        safe_generation: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
@@ -61,6 +63,7 @@ impl<S: Signer> Installer<S> {
             systemd_boot_loader_config,
             signer,
             configuration_limit,
+            safe_generation,
             esp_paths,
             generation_links,
             arch,
@@ -74,6 +77,12 @@ impl<S: Signer> Installer<S> {
             .generation_links
             .iter()
             .map(GenerationLink::from_path)
+            .collect::<Result<Vec<GenerationLink>>>()?;
+
+        let mut all_links = self
+            .safe_generation
+            .iter()
+            .map(|p| GenerationLink::from_path_with_label(p, "SAFE".to_string()))
             .collect::<Result<Vec<GenerationLink>>>()?;
 
         // Sort the links by version, so that the limit actually skips the oldest generations.
@@ -90,9 +99,11 @@ impl<S: Signer> Installer<S> {
                 .rev()
                 .take(self.configuration_limit)
                 .rev()
-                .collect()
+                .collect();
         };
-        self.install_generations_from_links(&links)?;
+        all_links.append(&mut links);
+
+        self.install_generations_from_links(&all_links)?;
 
         self.install_systemd_boot()?;
 

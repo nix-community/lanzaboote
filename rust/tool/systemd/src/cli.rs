@@ -54,6 +54,10 @@ struct InstallCommand {
     #[arg(long, default_value_t = 1)]
     configuration_limit: usize,
 
+    /// A safe generation (usually /run/booted-system) that should always be kept, ignored from --configuration-limit if used
+    #[arg(long)]
+    safe_generation: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -102,6 +106,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.systemd_boot_loader_config,
         local_signer,
         args.configuration_limit,
+        args.safe_generation,
         args.esp,
         args.generations,
     )
