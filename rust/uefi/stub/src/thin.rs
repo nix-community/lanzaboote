@@ -77,34 +77,24 @@ fn check_hash(data: &[u8], expected_hash: Hash, name: &str, secure_boot: bool) -
     Ok(())
 }
 
-pub fn boot_linux(
-    handle: Handle,
-    system_table: SystemTable<Boot>,
-    dynamic_initrds: Vec<Vec<u8>>,
-) -> uefi::Result<()> {
+pub fn boot_linux(handle: Handle, dynamic_initrds: Vec<Vec<u8>>) -> uefi::Result<()> {
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
     // might conceivably change while we look at the slice.
     let config = unsafe {
-        EmbeddedConfiguration::new(
-            booted_image_file(system_table.boot_services())
-                .unwrap()
-                .as_slice(),
-        )
-        .expect("Failed to extract configuration from binary. Did you run lzbt?")
+        EmbeddedConfiguration::new(booted_image_file().unwrap().as_slice())
+            .expect("Failed to extract configuration from binary. Did you run lzbt?")
     };
 
-    let secure_boot_enabled = get_secure_boot_status(system_table.runtime_services());
+    let secure_boot_enabled = get_secure_boot_status();
 
     let kernel_data;
     let mut initrd_data;
 
     {
-        let file_system = system_table
-            .boot_services()
-            .get_image_file_system(handle)
-            .expect("Failed to get file system handle");
+        let file_system =
+            uefi::boot::get_image_file_system(handle).expect("Failed to get file system handle");
         let mut file_system = FileSystem::new(file_system);
 
         kernel_data = file_system
@@ -115,11 +105,7 @@ pub fn boot_linux(
             .expect("Failed to read initrd file into memory");
     }
 
-    let cmdline = get_cmdline(
-        &config.cmdline,
-        system_table.boot_services(),
-        secure_boot_enabled,
-    );
+    let cmdline = get_cmdline(&config.cmdline, secure_boot_enabled);
 
     check_hash(
         &kernel_data,
@@ -155,5 +141,5 @@ pub fn boot_linux(
         initrd_data.append(&mut compute_pad4(initrd_data.len()));
     }
 
-    boot_linux_unchecked(handle, system_table, kernel_data, &cmdline, initrd_data)
+    boot_linux_unchecked(handle, kernel_data, &cmdline, initrd_data)
 }

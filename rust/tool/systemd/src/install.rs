@@ -160,7 +160,7 @@ impl<S: Signer> Installer<S> {
             // The kernels and initrds are content-addressed.
             // Thus, this cannot overwrite files of old generation with different content.
             self.install_generation(&generation)
-                .context("Failed to install generation.")?;
+                .with_context(|| format!("Failed to install generation {}", generation.version))?;
             for (name, bootspec) in &generation.spec.bootspec.specialisations {
                 let specialised_generation = generation.specialise(name, bootspec);
                 self.install_generation(&specialised_generation)
@@ -264,7 +264,7 @@ impl<S: Signer> Installer<S> {
         let stub_target = self
             .esp_paths
             .linux
-            .join(stub_name(generation, &self.signer)?);
+            .join(stub_name(generation, &self.signer).context("Get stub name")?);
         self.gc_roots.extend([&stub_target]);
         install_signed(&self.signer, &lanzaboote_image_path, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
@@ -279,8 +279,9 @@ impl<S: Signer> Installer<S> {
         let stub_target = self
             .esp_paths
             .linux
-            .join(stub_name(generation, &self.signer)?);
-        let stub = fs::read(&stub_target)?;
+            .join(stub_name(generation, &self.signer).context("While getting stub name")?);
+        let stub = fs::read(&stub_target)
+            .with_context(|| format!("Failed to read the stub: {}", stub_target.display()))?;
         let kernel_path = resolve_efi_path(
             &self.esp_paths.esp,
             pe::read_section_data(&stub, ".linux").context("Missing kernel path.")?,

@@ -32,7 +32,7 @@ installed in UEFI mode and
 must be used as a boot loader.
 This means if you wish to install lanzaboote on a new machine,
 you need to follow the install instruction for systemd-boot
-and than switch to lanzaboote after the first boot.
+and then switch to lanzaboote after the first boot.
 
 These prerequisites can be checked via `bootctl status`:
 
@@ -105,15 +105,22 @@ Secure boot keys created!
 ```
 
 This takes a couple of seconds. When it is done, your Secure Boot keys
-are located in `/etc/secureboot`. `sbctl` sets the permissions of the
+are located in `/var/lib/sbctl`. `sbctl` sets the permissions of the
 secret key so that only root can read it.
+
+> [!NOTE]
+> If you have preexisting keys in `/etc/secureboot` you can migrate these to `/var/lib/sbctl`.
+>
+> ```sh
+> sbctl setup --migrate
+> ```
 
 ### Configuring NixOS (with [`niv`](https://github.com/nmattia/niv))
 
 Add `lanzaboote` as a dependency of your niv project and track a stable release tag (https://github.com/nix-community/lanzaboote/releases).
 
 ```console
-$ niv add nix-community/lanzaboote -r v0.4.1 -v 0.4.1
+$ niv add nix-community/lanzaboote -r v0.4.2 -v 0.4.2
 Adding package lanzaboote
   Writing new sources file
 Done: Adding package lanzaboote
@@ -144,7 +151,7 @@ in
 
   boot.lanzaboote = {
     enable = true;
-    pkiBundle = "/etc/secureboot";
+    pkiBundle = "/var/lib/sbctl";
   };
 }
 ```
@@ -162,7 +169,7 @@ Boot stack.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     lanzaboote = {
-      url = "github:nix-community/lanzaboote/v0.4.1";
+      url = "github:nix-community/lanzaboote/v0.4.2";
 
       # Optional but recommended to limit the size of your system closure.
       inputs.nixpkgs.follows = "nixpkgs";
@@ -195,7 +202,7 @@ Boot stack.
 
             boot.lanzaboote = {
               enable = true;
-              pkiBundle = "/etc/secureboot";
+              pkiBundle = "/var/lib/sbctl";
             };
           })
         ];
@@ -260,6 +267,11 @@ On Framework laptops (13th generation or newer) you can enter the setup mode lik
 
 1. Select "Administer Secure Boot"
 2. Select "Erase all Secure Boot Settings"
+
+> [!WARNING]
+> **Don't** select "Erase all Secure Boot Settings" in the Framework 13 Core Ultra Series 1 firmware.
+> This firmware is bugged, instead delete all keys from the "PK", "KEK" and "DB" sections manually.
+> See [this](https://community.frame.work/t/cant-enable-secure-boot-setup-mode/57683/5) thread on the Framework forum.
 
 When you are done, press F10 to save and exit.
 

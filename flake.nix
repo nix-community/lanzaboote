@@ -17,7 +17,6 @@
 
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     rust-overlay = {
@@ -37,7 +36,7 @@
         # Derive the output overlay automatically from all packages that we define.
         inputs.flake-parts.flakeModules.easyOverlay
 
-        # Formatting and quality checks. 
+        # Formatting and quality checks.
       ] ++ (if inputs.pre-commit-hooks-nix ? flakeModule then [ inputs.pre-commit-hooks-nix.flakeModule ] else [ ]);
 
       flake.nixosModules.lanzaboote = moduleWithSystem (
@@ -48,17 +47,6 @@
           ];
 
           boot.lanzaboote.package = perSystem.config.packages.tool;
-        }
-      );
-
-      flake.nixosModules.uki = moduleWithSystem (
-        perSystem@{ config }:
-        { lib, ... }: {
-          imports = [
-            ./nix/modules/uki.nix
-          ];
-
-          boot.loader.uki.stub = lib.mkDefault "${perSystem.config.packages.fatStub}/bin/lanzaboote_stub.efi";
         }
       );
 
@@ -146,14 +134,7 @@
             doCheck = false;
           };
 
-          fatStubCrane = stubCrane.override {
-            extraArgs = {
-              cargoExtraArgs = "--no-default-features --features fat";
-            };
-          };
-
           stub = stubCrane.package;
-          fatStub = fatStubCrane.package;
 
           # TODO: when we will have more backends
           # let's generalize this properly.
@@ -174,6 +155,7 @@
           wrappedTool = pkgs.runCommand "lzbt"
             {
               nativeBuildInputs = [ pkgs.makeWrapper ];
+              meta.mainProgram = "lzbt";
             } ''
             mkdir -p $out/bin
 
@@ -186,7 +168,7 @@
         in
         {
           packages = {
-            inherit stub fatStub;
+            inherit stub;
             tool = wrappedTool;
             lzbt = wrappedTool;
           };
@@ -198,13 +180,12 @@
           checks = {
             toolClippy = toolCrane.clippy;
             stubClippy = stubCrane.clippy;
-            fatStubClippy = fatStubCrane.clippy;
             toolFmt = toolCrane.rustfmt;
             stubFmt = stubCrane.rustfmt;
           } // (import ./nix/tests {
             inherit pkgs;
             extraBaseModules = {
-              inherit (self.nixosModules) lanzaboote uki;
+              inherit (self.nixosModules) lanzaboote;
             };
           });
           devShells.default = pkgs.mkShell {
