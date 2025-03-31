@@ -43,7 +43,7 @@ pub fn measure_image(image: &PeInMemory) -> uefi::Result<u32> {
                 // Here, perform the TPM log event in ASCII.
                 if let Some(data) = pe_section_data(pe_binary, &section) {
                     info!("Measuring section `{}`...", section_name);
-                    if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, data, section_name)? {
+                    if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, &data, section_name)? {
                         measurements += 1;
                     }
                 }

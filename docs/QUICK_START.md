@@ -32,7 +32,7 @@ installed in UEFI mode and
 must be used as a boot loader.
 This means if you wish to install lanzaboote on a new machine,
 you need to follow the install instruction for systemd-boot
-and than switch to lanzaboote after the first boot.
+and then switch to lanzaboote after the first boot.
 
 These prerequisites can be checked via `bootctl status`:
 
