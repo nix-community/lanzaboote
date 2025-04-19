@@ -342,7 +342,7 @@ impl<S: Signer> Installer<S> {
             };
             let systemd_boot_is_signed = &self.signer.verify_path(to)?;
             if !systemd_boot_is_signed {
-                log::warn!("${to:?} is not signed. Replacing it with a signed binary...")
+                log::warn!("{to:?} is not signed. Replacing it with a signed binary...")
             };
 
             if newer_systemd_boot_available || !systemd_boot_is_signed {
