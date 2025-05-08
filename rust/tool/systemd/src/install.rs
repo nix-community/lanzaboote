@@ -110,7 +110,7 @@ impl<S: Signer> Installer<S> {
                 .collect_garbage_with_filter(&self.esp_paths.linux, |p| {
                     p.file_name()
                         .and_then(|n| n.to_str())
-                        .map_or(false, |n| n.starts_with("nixos-"))
+                        .is_some_and(|n| n.starts_with("nixos-"))
                 })?;
         } else {
             // This might produce a ridiculous message if you have a lot of malformed generations.
