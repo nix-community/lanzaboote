@@ -150,7 +150,11 @@ impl Image {
         if pe.entry >= image.len() {
             return Err(Status::LOAD_ERROR.into());
         }
-        let entry = unsafe { core::mem::transmute(&image[pe.entry]) };
+        let entry = unsafe {
+            core::mem::transmute::<&u8, extern "efiapi" fn(Handle, Option<NonNull<c_void>>) -> Status>(
+                &image[pe.entry],
+            )
+        };
 
         Ok(Image { image, entry })
     }

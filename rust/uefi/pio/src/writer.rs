@@ -329,7 +329,7 @@ impl<IOError: embedded_io::Error + core::fmt::Debug> Cpio<IOError> {
             return Ok(());
         }
 
-        let last = components.clone().last().unwrap();
+        let last = components.clone().next_back().unwrap();
         let prefixes = components.take(parts - 1);
 
         for component in prefixes {

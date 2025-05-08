@@ -1,4 +1,4 @@
 [toolchain]
-channel = "1.78.0"
+channel = "1.86.0"
 components = [ "rust-src" ]
 targets = [ "x86_64-unknown-uefi", "aarch64-unknown-uefi" ]
