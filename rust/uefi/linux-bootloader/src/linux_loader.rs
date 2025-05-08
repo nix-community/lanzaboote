@@ -129,6 +129,8 @@ impl InitrdLoader {
         // implements the device path protocol for the specific device
         // path.
         unsafe {
+            // TODO Find a better way to do this that doesn't trigger the warning.
+            #[allow(static_mut_refs)]
             let dp_proto: *mut u8 = DEVICE_PATH_PROTOCOL.as_mut_ptr();
 
             boot::install_protocol_interface(

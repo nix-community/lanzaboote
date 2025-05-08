@@ -5,15 +5,7 @@
 extern crate alloc;
 
 mod common;
-
-#[cfg(feature = "fat")]
-mod fat;
-
-#[cfg(feature = "thin")]
 mod thin;
-
-#[cfg(all(feature = "fat", feature = "thin"))]
-compile_error!("A thin and fat stub cannot be produced at the same time, disable either `thin` or `fat` feature");
 
 use alloc::vec::Vec;
 use linux_bootloader::companions::{
@@ -75,7 +67,6 @@ fn main() -> Status {
         warn!("Failed to export stub EFI variables, some features related to measured boot will not be available");
     }
 
-    let status;
     // A list of dynamically assembled initrds, e.g. credential initrds or system extension
     // initrds.
     let mut dynamic_initrds: Vec<Vec<u8>> = Vec::new();
@@ -141,15 +132,5 @@ fn main() -> Status {
         }
     }
 
-    #[cfg(feature = "fat")]
-    {
-        status = fat::boot_linux(boot::image_handle(), dynamic_initrds)
-    }
-
-    #[cfg(feature = "thin")]
-    {
-        status = thin::boot_linux(boot::image_handle(), dynamic_initrds).status()
-    }
-
-    status
+    thin::boot_linux(boot::image_handle(), dynamic_initrds).status()
 }
