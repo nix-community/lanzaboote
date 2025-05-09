@@ -20,7 +20,7 @@ in
   options.boot.lanzaboote = {
     enable = mkEnableOption "Enable the LANZABOOTE";
 
-    enrollKeys = mkEnableOption "Automatic enrollment of the keys using sbctl";
+    enrollKeys = mkEnableOption "Do not use this option. Only for used for integration tests! Automatic enrollment of the keys using sbctl";
 
     configurationLimit = mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
