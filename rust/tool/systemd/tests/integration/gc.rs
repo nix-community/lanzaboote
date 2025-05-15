@@ -19,8 +19,8 @@ fn keep_only_configured_number_of_generations() -> Result<()> {
                 .expect("Failed to setup generation link")
         })
         .collect();
-    let stub_count = || count_files(&esp_mountpoint.path().join("EFI/Linux")).unwrap();
-    let kernel_and_initrd_count = || count_files(&esp_mountpoint.path().join("EFI/nixos")).unwrap();
+    let stub_count = || count_files(&boot_mountpoint.path().join("EFI/Linux")).unwrap();
+    let kernel_and_initrd_count = || count_files(&boot_mountpoint.path().join("EFI/nixos")).unwrap();
 
     // Install all 3 generations.
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), boot_mountpoint.path(), generation_links.clone())?;
@@ -59,8 +59,8 @@ fn delete_garbage_kernel() -> Result<()> {
                 .expect("Failed to setup generation link")
         })
         .collect();
-    let stub_count = || count_files(&esp_mountpoint.path().join("EFI/Linux")).unwrap();
-    let kernel_and_initrd_count = || count_files(&esp_mountpoint.path().join("EFI/nixos")).unwrap();
+    let stub_count = || count_files(&boot_mountpoint.path().join("EFI/Linux")).unwrap();
+    let kernel_and_initrd_count = || count_files(&boot_mountpoint.path().join("EFI/nixos")).unwrap();
 
     // Install all 3 generations.
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), boot_mountpoint.path(), generation_links.clone())?;
@@ -68,7 +68,7 @@ fn delete_garbage_kernel() -> Result<()> {
 
     // Create a garbage kernel, which should be deleted.
     fs::write(
-        esp_mountpoint.path().join("EFI/nixos/kernel-garbage.efi"),
+        boot_mountpoint.path().join("EFI/nixos/kernel-garbage.efi"),
         "garbage",
     )?;
 
@@ -106,7 +106,7 @@ fn keep_unrelated_files_on_esp() -> Result<()> {
     assert!(output0.status.success());
 
     let unrelated_loader_config = esp_mountpoint.path().join("loader/loader.conf");
-    let unrelated_uki = esp_mountpoint.path().join("EFI/Linux/ubuntu.efi");
+    let unrelated_uki = boot_mountpoint.path().join("EFI/Linux/ubuntu.efi");
     let unrelated_os = esp_mountpoint.path().join("EFI/windows");
     let unrelated_firmware = esp_mountpoint.path().join("dell");
     fs::File::create(&unrelated_loader_config)?;

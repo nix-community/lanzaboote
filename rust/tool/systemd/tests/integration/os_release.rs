@@ -21,7 +21,7 @@ fn generate_expected_os_release() -> Result<()> {
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), boot_mountpoint.path(), vec![generation_link])?;
     assert!(output0.status.success());
 
-    let stub_data = fs::read(common::image_path(&esp_mountpoint, 1, &toplevel)?)?;
+    let stub_data = fs::read(common::image_path(&boot_mountpoint, 1, &toplevel)?)?;
     let os_release_section = pe_section(&stub_data, ".osrel")
         .context("Failed to read .osrelease PE section.")?
         .to_owned();
