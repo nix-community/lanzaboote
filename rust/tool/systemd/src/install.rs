@@ -47,10 +47,11 @@ impl<S: Signer> Installer<S> {
         signer: S,
         configuration_limit: usize,
         esp: PathBuf,
+        boot: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
-        let esp_paths = SystemdEspPaths::new(esp, arch);
+        let esp_paths = SystemdEspPaths::new(esp, boot, arch);
         gc_roots.extend(esp_paths.iter());
 
         Self {

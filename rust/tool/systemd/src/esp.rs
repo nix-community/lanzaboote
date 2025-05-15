@@ -20,25 +20,27 @@ pub struct SystemdEspPaths {
 }
 
 impl EspPaths<10> for SystemdEspPaths {
-    fn new(esp: impl AsRef<Path>, architecture: Architecture) -> Self {
+    fn new(esp: impl AsRef<Path>, boot: impl AsRef<Path>, architecture: Architecture) -> Self {
         let esp = esp.as_ref();
-        let efi = esp.join("EFI");
-        let efi_nixos = efi.join("nixos");
-        let efi_linux = efi.join("Linux");
-        let efi_systemd = efi.join("systemd");
-        let efi_efi_fallback_dir = efi.join("BOOT");
+        let boot = boot.as_ref();
+        let esp_efi = esp.join("EFI");
+        let boot_efi = boot.join("EFI");
+        let boot_efi_nixos = boot_efi.join("nixos");
+        let boot_efi_linux = boot_efi.join("Linux");
+        let esp_efi_systemd = esp_efi.join("systemd");
+        let esp_efi_efi_fallback_dir = esp_efi.join("BOOT");
         let loader = esp.join("loader");
         let systemd_boot_loader_config = loader.join("loader.conf");
 
         Self {
             esp: esp.to_path_buf(),
-            efi,
-            nixos: efi_nixos,
-            linux: efi_linux,
-            efi_fallback_dir: efi_efi_fallback_dir.clone(),
-            efi_fallback: efi_efi_fallback_dir.join(architecture.efi_fallback_filename()),
-            systemd: efi_systemd.clone(),
-            systemd_boot: efi_systemd.join(architecture.systemd_filename()),
+            efi: esp_efi,
+            nixos: boot_efi_nixos,
+            linux: boot_efi_linux,
+            efi_fallback_dir: esp_efi_efi_fallback_dir.clone(),
+            efi_fallback: esp_efi_efi_fallback_dir.join(architecture.efi_fallback_filename()),
+            systemd: esp_efi_systemd.clone(),
+            systemd_boot: esp_efi_systemd.join(architecture.systemd_filename()),
             loader,
             systemd_boot_loader_config,
         }
