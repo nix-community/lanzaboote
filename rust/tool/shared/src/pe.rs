@@ -35,6 +35,7 @@ impl StubParameters {
         kernel_target: &Path,
         initrd_target: &Path,
         esp: &Path,
+        boot: &Path
     ) -> Result<Self> {
         // Resolve maximally those paths
         // We won't verify they are store paths, otherwise the mocking strategy will fail for our
@@ -44,8 +45,8 @@ impl StubParameters {
             lanzaboote_store_path: lanzaboote_stub.to_path_buf(),
             kernel_store_path: kernel_path.to_path_buf(),
             initrd_store_path: initrd_path.to_path_buf(),
-            kernel_path_at_esp: esp_relative_uefi_path(esp, kernel_target)?,
-            initrd_path_at_esp: esp_relative_uefi_path(esp, initrd_target)?,
+            kernel_path_at_esp: esp_relative_uefi_path(boot, kernel_target)?,
+            initrd_path_at_esp: esp_relative_uefi_path(boot, initrd_target)?,
             kernel_cmdline: Vec::new(),
             os_release_contents: Vec::new(),
         })

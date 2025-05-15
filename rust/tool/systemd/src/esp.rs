@@ -9,6 +9,7 @@ use lanzaboote_tool::esp::EspPaths;
 pub struct SystemdEspPaths {
     pub esp: PathBuf,
     pub efi: PathBuf,
+    pub boot: PathBuf,
     pub nixos: PathBuf,
     pub linux: PathBuf,
     pub efi_fallback_dir: PathBuf,
@@ -35,6 +36,7 @@ impl EspPaths<10> for SystemdEspPaths {
         Self {
             esp: esp.to_path_buf(),
             efi: esp_efi,
+            boot: boot.to_path_buf(),
             nixos: boot_efi_nixos,
             linux: boot_efi_linux,
             efi_fallback_dir: esp_efi_efi_fallback_dir.clone(),
