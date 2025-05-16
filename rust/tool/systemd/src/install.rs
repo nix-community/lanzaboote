@@ -254,8 +254,7 @@ impl<S: Signer> Installer<S> {
             &initrd_location,
             &kernel_target,
             &initrd_target,
-            &self.esp_paths.esp,
-            &self.esp_paths.boot
+            &self.esp_paths.boot,
         )?
         .with_cmdline(&kernel_cmdline)
         .with_os_release_contents(os_release_contents.as_bytes());

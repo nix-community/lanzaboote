@@ -18,7 +18,12 @@ fn generate_expected_os_release() -> Result<()> {
         common::setup_generation_link_from_toplevel(&toplevel, profiles.path(), 1)
             .expect("Failed to setup generation link");
 
-    let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), boot_mountpoint.path(), vec![generation_link])?;
+    let output0 = common::lanzaboote_install(
+        0,
+        esp_mountpoint.path(),
+        boot_mountpoint.path(),
+        vec![generation_link],
+    )?;
     assert!(output0.status.success());
 
     let stub_data = fs::read(common::image_path(&boot_mountpoint, 1, &toplevel)?)?;

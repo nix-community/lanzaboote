@@ -34,8 +34,7 @@ impl StubParameters {
         initrd_path: &Path,
         kernel_target: &Path,
         initrd_target: &Path,
-        esp: &Path,
-        boot: &Path
+        boot: &Path,
     ) -> Result<Self> {
         // Resolve maximally those paths
         // We won't verify they are store paths, otherwise the mocking strategy will fail for our

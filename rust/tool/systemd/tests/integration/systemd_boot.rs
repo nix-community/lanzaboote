@@ -20,7 +20,12 @@ fn keep_systemd_boot_binaries() -> Result<()> {
     let systemd_boot_path = systemd_boot_path(&esp);
     let systemd_boot_fallback_path = systemd_boot_fallback_path(&esp);
 
-    let output0 = common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![&generation_link])?;
+    let output0 = common::lanzaboote_install(
+        0,
+        esp.path(),
+        boot_mountpoint.path(),
+        vec![&generation_link],
+    )?;
     assert!(output0.status.success());
 
     // Use the modification time instead of a hash because the hash would be the same even if the
@@ -28,7 +33,8 @@ fn keep_systemd_boot_binaries() -> Result<()> {
     let systemd_boot_mtime0 = mtime(&systemd_boot_path);
     let systemd_boot_fallback_mtime0 = mtime(&systemd_boot_fallback_path);
 
-    let output1 = common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![generation_link])?;
+    let output1 =
+        common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![generation_link])?;
     assert!(output1.status.success());
 
     let systemd_boot_mtime1 = mtime(&systemd_boot_path);
@@ -58,7 +64,12 @@ fn overwrite_malformed_systemd_boot_binaries() -> Result<()> {
     let systemd_boot_path = systemd_boot_path(&esp);
     let systemd_boot_fallback_path = systemd_boot_fallback_path(&esp);
 
-    let output0 = common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![&generation_link])?;
+    let output0 = common::lanzaboote_install(
+        0,
+        esp.path(),
+        boot_mountpoint.path(),
+        vec![&generation_link],
+    )?;
     assert!(output0.status.success());
 
     // Make systemd-boot binaries malformed by truncating them.
@@ -68,7 +79,8 @@ fn overwrite_malformed_systemd_boot_binaries() -> Result<()> {
     let malformed_systemd_boot_hash = hash_file(&systemd_boot_path);
     let malformed_systemd_boot_fallback_hash = hash_file(&systemd_boot_fallback_path);
 
-    let output1 = common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![generation_link])?;
+    let output1 =
+        common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![generation_link])?;
     assert!(output1.status.success());
 
     let systemd_boot_hash = hash_file(&systemd_boot_path);
@@ -98,7 +110,12 @@ fn overwrite_unsigned_systemd_boot_binaries() -> Result<()> {
     let systemd_boot_path = systemd_boot_path(&esp);
     let systemd_boot_fallback_path = systemd_boot_fallback_path(&esp);
 
-    let output0 = common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![&generation_link])?;
+    let output0 = common::lanzaboote_install(
+        0,
+        esp.path(),
+        boot_mountpoint.path(),
+        vec![&generation_link],
+    )?;
     assert!(output0.status.success());
 
     remove_signature(&systemd_boot_path)?;
@@ -106,7 +123,8 @@ fn overwrite_unsigned_systemd_boot_binaries() -> Result<()> {
     assert!(!verify_signature(&systemd_boot_path)?);
     assert!(!verify_signature(&systemd_boot_fallback_path)?);
 
-    let output1 = common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![generation_link])?;
+    let output1 =
+        common::lanzaboote_install(0, esp.path(), boot_mountpoint.path(), vec![generation_link])?;
     assert!(output1.status.success());
 
     assert!(verify_signature(&systemd_boot_path)?);
