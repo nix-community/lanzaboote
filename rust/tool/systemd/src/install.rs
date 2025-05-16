@@ -284,11 +284,11 @@ impl<S: Signer> Installer<S> {
         let stub = fs::read(&stub_target)
             .with_context(|| format!("Failed to read the stub: {}", stub_target.display()))?;
         let kernel_path = resolve_efi_path(
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
             pe::read_section_data(&stub, ".linux").context("Missing kernel path.")?,
         )?;
         let initrd_path = resolve_efi_path(
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
             pe::read_section_data(&stub, ".initrd").context("Missing initrd path.")?,
         )?;
 
