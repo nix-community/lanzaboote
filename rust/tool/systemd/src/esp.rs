@@ -10,6 +10,7 @@ pub struct SystemdEspPaths {
     pub esp: PathBuf,
     pub efi: PathBuf,
     pub boot: PathBuf,
+    pub boot_efi: PathBuf,
     pub nixos: PathBuf,
     pub linux: PathBuf,
     pub efi_fallback_dir: PathBuf,
@@ -20,7 +21,7 @@ pub struct SystemdEspPaths {
     pub systemd_boot_loader_config: PathBuf,
 }
 
-impl EspPaths<10> for SystemdEspPaths {
+impl EspPaths<12> for SystemdEspPaths {
     fn new(esp: impl AsRef<Path>, boot: impl AsRef<Path>, architecture: Architecture) -> Self {
         let esp = esp.as_ref();
         let boot = boot.as_ref();
@@ -37,6 +38,7 @@ impl EspPaths<10> for SystemdEspPaths {
             esp: esp.to_path_buf(),
             efi: esp_efi,
             boot: boot.to_path_buf(),
+            boot_efi,
             nixos: boot_efi_nixos,
             linux: boot_efi_linux,
             efi_fallback_dir: esp_efi_efi_fallback_dir.clone(),
@@ -56,10 +58,12 @@ impl EspPaths<10> for SystemdEspPaths {
         &self.linux
     }
 
-    fn iter(&self) -> std::array::IntoIter<&PathBuf, 10> {
+    fn iter(&self) -> std::array::IntoIter<&PathBuf, 12> {
         [
             &self.esp,
             &self.efi,
+            &self.boot,
+            &self.boot_efi,
             &self.nixos,
             &self.linux,
             &self.efi_fallback_dir,
