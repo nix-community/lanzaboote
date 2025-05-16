@@ -15,6 +15,12 @@ let
   loaderConfigFile = loaderSettingsFormat.generate "loader.conf" cfg.settings;
 
   configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
+
+  bootMountPoint =
+    if config.boot.loader.systemd-boot.xbootldrMountPoint != null then
+      config.boot.loader.systemd-boot.xbootldrMountPoint
+    else
+      config.boot.loader.efi.efiSysMountPoint;
 in
 {
   options.boot.lanzaboote = {
@@ -139,6 +145,7 @@ in
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \
           ${config.boot.loader.efi.efiSysMountPoint} \
+          ${bootMountPoint} \
           /nix/var/nix/profiles/system-*-link
       '';
     };
