@@ -22,6 +22,8 @@ in
 
     enrollKeys = mkEnableOption "Do not use this option. Only for used for integration tests! Automatic enrollment of the keys using sbctl";
 
+    generateKeysIfNotExist = mkEnableOption "autogeneration of the PKI bundle if it doesn't exist";
+
     configurationLimit = mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
       defaultText = "config.boot.loader.systemd-boot.configurationLimit";
@@ -123,6 +125,15 @@ in
     boot.loader.external = {
       enable = true;
       installHook = pkgs.writeShellScript "bootinstall" ''
+        ${optionalString cfg.generateKeysIfNotExist ''
+          if [ ! -f "${cfg.privateKeyFile}" ]; then
+            mkdir -p ${cfg.pkiBundle}
+            ${lib.getExe sbctlWithPki} create-keys \
+              -d ${cfg.pkiBundle} \
+              -e ${cfg.pkiBundle}/keys
+          fi
+        ''}
+
         ${optionalString cfg.enrollKeys ''
           ${lib.getExe' pkgs.coreutils "mkdir"} -p /tmp/pki
           ${lib.getExe' pkgs.coreutils "cp"} -r ${cfg.pkiBundle}/* /tmp/pki
