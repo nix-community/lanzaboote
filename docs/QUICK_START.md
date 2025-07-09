@@ -275,6 +275,12 @@ On Framework laptops (13th generation or newer) you can enter the setup mode lik
 
 When you are done, press F10 to save and exit.
 
+#### Microsoft Surface devices: Disable Secure Boot
+
+On Microsoft Surface devices (tested on Surface Book 3 and Surface Go 3), keep Secure Boot disabled in UEFI settings.
+On Surface Devices, having Secure Boot disabled defaults to "setup mode", and there is no need to re-enable it in this interface.
+After following these instructions, Lanzaboote should enable Secure Boot for you.
+
 #### Other systems
 
 On certain systems (e.g. ASUS desktop motherboards), there is no explicit option to enter Setup Mode.
