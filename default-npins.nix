@@ -1,4 +1,8 @@
-{ sources ? import ./npins
+# required sources
+# nixpkgs
+# crane: https://github.com/ipetkov/crane.git
+# rust-overlay: https://github.com/oxalica/rust-overlay.git
+{ sources
 , pkgs ? import sources.nixpkgs {
     overlays = [ (import sources.rust-overlay) ];
   }
