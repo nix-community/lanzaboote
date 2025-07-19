@@ -56,18 +56,22 @@ impl From<bootspec::BootJson> for LanzabooteExtension {
 // TODO: Should it be moved to bootspec crate itself?
 // Probably after its standardization, bootspec crate is only used in lanzaboote for now, bootspec support is
 // ad-hoc in nixpkgs right now.
+//
+// Aliases are used for org.xenproject.bootspec.v1 compatibility
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct XenExtension {
-    pub xen: String,
-    #[serde(rename = "xenParams")]
-    pub xen_params: Vec<String>,
+    #[serde(alias = "xen")]
+    pub efi_path: String,
+    #[serde(alias = "xenParams")]
+    pub params: Vec<String>,
 }
 
 impl TryFrom<bootspec::Specialisation> for XenExtension {
     type Error = ();
     fn try_from(spec: bootspec::Specialisation) -> Result<Self, ()> {
         spec.extensions
-            .get("org.xenproject.bootspec.v1")
+            .get("org.xenproject.bootspec.v2")
             .and_then(|v| serde_json::from_value::<XenExtension>(v.clone()).ok())
             .ok_or(())
     }
@@ -77,7 +81,7 @@ impl TryFrom<bootspec::BootJson> for XenExtension {
     type Error = ();
     fn try_from(spec: bootspec::BootJson) -> Result<Self, ()> {
         spec.extensions
-            .get("org.xenproject.bootspec.v1")
+            .get("org.xenproject.bootspec.v2")
             .and_then(|v| serde_json::from_value::<XenExtension>(v.clone()).ok())
             .ok_or(())
     }

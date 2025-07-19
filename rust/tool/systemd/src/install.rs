@@ -302,8 +302,8 @@ impl<S: Signer> Installer<S> {
             use std::fmt::Write;
             let xen_image = pe::xen_image(
                 &tempdir,
-                &PathBuf::from(&xen.xen),
-                &xen.xen_params,
+                &PathBuf::from(&xen.efi_path),
+                &xen.params,
                 &kernel_cmdline,
                 &bootspec.kernel,
                 &initrd_location,
