@@ -2,16 +2,18 @@
 # nixpkgs
 # crane: https://github.com/ipetkov/crane.git
 # rust-overlay: https://github.com/oxalica/rust-overlay.git
-{ sources
-, pkgs ? import sources.nixpkgs {
-    overlays = [ (import sources.rust-overlay) ];
+{ sources # set this to null if explicitly passing in sources i.e. without npins
+, nixpkgs ? sources.nixpkgs
+, rust-overlay ? sources.rust-overlay
+, pkgs ? import nixpkgs {
+    overlays = [ (import rust-overlay) ];
   }
-,
+, crane ? sources.crane
 }:
 let
   inherit (pkgs.lib) makeOverridable makeBinPath;
   uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/uefi/rust-toolchain.toml;
-  craneLib = (pkgs.callPackage (sources.crane + "/lib") { }).overrideToolchain uefi-rust-stable;
+  craneLib = (pkgs.callPackage (crane + "/lib") { }).overrideToolchain uefi-rust-stable;
   rustTarget = "${pkgs.stdenv.hostPlatform.qemuArch}-unknown-uefi";
   buildRustApp = makeOverridable (pkgs.callPackage ./buildRustApp.nix {
     inherit craneLib;
@@ -52,8 +54,15 @@ let
         --set LANZABOOTE_STUB ${stub}/bin/lanzaboote_stub.efi
     '';
 in
-{
-  inherit stub;
-  tool = wrappedTool;
-  lzbt = wrappedTool;
-}
+pkgs.lib.fix (self: {
+  packages = {
+    inherit stub;
+    tool = wrappedTool;
+    lzbt = wrappedTool;
+  };
+
+  nixosModules.lanzaboote = { ... }: {
+    imports = [ ./nix/modules/lanzaboote.nix ];
+    boot.lanzaboote.package = self.packages.tool;
+  };
+})
