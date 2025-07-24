@@ -16,9 +16,9 @@ boot.
 
 For Windows dual-booters and BitLocker users, it is highly recommended
 that you export your BitLocker recovery keys and confirm that they are
-correct. Please refer to this [Microsoft support article](https://support.microsoft.com/en-us/windows/finding-your-bitlocker-recovery-key-in-windows-6b71ad27-0b89-ea08-f143-056f5ab347d6) 
+correct. Please refer to this [Microsoft support article](https://support.microsoft.com/en-us/windows/finding-your-bitlocker-recovery-key-in-windows-6b71ad27-0b89-ea08-f143-056f5ab347d6)
 for help. This will be required once you finish this guide to confirm
-with BitLocker that the PCRs changed during the next measurement are 
+with BitLocker that the PCRs changed during the next measurement are
 intended and allows the TPM unlocking of Windows to work as normal.
 
 **We only recommend this to NixOS users that are comfortable using
@@ -30,9 +30,9 @@ To be able to setup Secure Boot on your device, NixOS needs to be
 installed in UEFI mode and
 [`systemd-boot`](https://www.freedesktop.org/wiki/Software/systemd/systemd-boot/)
 must be used as a boot loader.
-This means if you wish to install lanzaboote on a new machine,
+This means if you wish to install Lanzaboote on a new machine,
 you need to follow the install instruction for systemd-boot
-and then switch to lanzaboote after the first boot.
+and then switch to Lanzaboote after the first boot.
 
 These prerequisites can be checked via `bootctl status`:
 
@@ -108,32 +108,45 @@ This takes a couple of seconds. When it is done, your Secure Boot keys
 are located in `/var/lib/sbctl`. `sbctl` sets the permissions of the
 secret key so that only root can read it.
 
-> [!NOTE]
+> [!TIP]
 > If you have preexisting keys in `/etc/secureboot` you can migrate these to `/var/lib/sbctl`.
 >
 > ```sh
 > sbctl setup --migrate
 > ```
 
-### Configuring NixOS (with [`niv`](https://github.com/nmattia/niv))
+### Configuring NixOS (with [`npins`](https://github.com/andir/npins))
 
-Add `lanzaboote` as a dependency of your niv project and track a stable release tag (https://github.com/nix-community/lanzaboote/releases).
+Add `lanzaboote` as a dependency of your npins project and track a
+stable release tag
+(https://github.com/nix-community/lanzaboote/releases).
+
+> [!NOTE]
+> Configuring everything with [`niv`](https://github.com/nmattia/niv)
+> is possible and very similar. Check the `niv` documentation.
 
 ```console
-$ niv add nix-community/lanzaboote -r v0.4.2 -v 0.4.2
-Adding package lanzaboote
-  Writing new sources file
-Done: Adding package lanzaboote
+$ npins add github --at v0.4.2 nix-community lanzaboote
+[INFO ] Adding 'lanzaboote' …
+    repository: https://github.com/nix-community/lanzaboote.git
+    pre_releases: false
+    submodules: false
+    version: v0.4.2
+    revision: f0212638a2ec787a7841882f4477d40ae24f0a5d
+    hash: 0xc1wawnb0297h5khxblmf9pd1fry950xkcm7mwlck19s2906h80
+    frozen: false
 ```
 
-Below is a fragment of a NixOS configuration that enables the SecureBoot stack.
+Below is a fragment of a NixOS configuration that enables the Secure
+Boot stack.
 
+<a name="non-flakes-nix-conf"></a>
 ```nix
 # file: configuration.nix
 { pkgs, lib, ... }:
 let
-    sources = import ./nix/sources.nix;
-    lanzaboote = import sources.lanzaboote;
+    pins = import ./npins;
+    lanzaboote = import pins.lanzaboote;
 in
 {
   imports = [ lanzaboote.nixosModules.lanzaboote ];
@@ -156,6 +169,11 @@ in
 }
 ```
 
+> [!NOTE]
+> By default, the setup above will use a bundled Nixpkgs version. This
+> means you get the same binaries that we test in CI. If you want to
+> override Nixpkgs, follow [these instructions](./OVERRIDING_INPUTS.md).
+
 ### Configuring NixOS (with Flakes)
 
 Below is a fragment of a NixOS configuration that enables the Secure
@@ -169,9 +187,11 @@ Boot stack.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     lanzaboote = {
+      # You can omit the version at the end to get the current development
+      # version instead.
       url = "github:nix-community/lanzaboote/v0.4.2";
 
-      # Optional but recommended to limit the size of your system closure.
+      # Optional to limit the size of your system closure.
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
