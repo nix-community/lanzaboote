@@ -126,7 +126,6 @@ pub fn boot_linux(handle: Handle, dynamic_initrds: Vec<Vec<u8>>) -> uefi::Result
     // Therefore, it is normal to not verify their hashes against a configuration.
 
     /// Compute the necessary padding based on the provided length
-    /// It returns None if no padding is necessary.
     fn compute_pad4(len: usize) -> Vec<u8> {
         vec![0u8; (4 - (len % 4)) % 4]
     }
