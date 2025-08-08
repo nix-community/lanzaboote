@@ -23,11 +23,36 @@ let
   ++ cfg.extraEfiSysMountPoints;
 
   mkInstallCommand = efiSysMountPoint: ''
+    prof_dir="/nix/var/nix/profiles" profiles=""
+
+    # Add all default system profiles, if any
+    if [ "$(${lib.getExe pkgs.findutils} "$prof_dir" -type l -name 'system-*-link' \
+            | ${lib.getExe' pkgs.coreutils "wc"} -l)" -gt 0 ]; then
+      profiles+="$prof_dir/system-*-link "
+    fi
+
+    # Add all extra system profiles, if any
+    if [ -d "$prof_dir/system-profiles" ] &&
+        [ "$(${lib.getExe pkgs.findutils} \
+               "$prof_dir/system-profiles" -type l -name '*-*-link' \
+             | ${lib.getExe' pkgs.coreutils "wc"} -l)" -gt 0 ]; then
+      profiles+="$prof_dir/system-profiles/*-*-link"
+    fi
+
+    # Display a clear error message if no usable profile can be found
+    if [ "$profiles" = "" ]; then
+      ${lib.getExe' pkgs.coreutils "printf"} "%s %s %s\n" \
+        "Failed to find usable system profiles. Please make sure that" \
+        "system profiles are present under $prof_dir/system-*-link and/or" \
+        "$prof_dir/system-profiles/<profile-name>-*-link." 1>&2
+      exit 1
+    fi
+
     ${cfg.installCommand} \
       --public-key ${cfg.publicKeyFile} \
       --private-key ${cfg.privateKeyFile} \
       ${efiSysMountPoint} \
-      /nix/var/nix/profiles/system-*-link
+      $profiles
   '';
 
   format = pkgs.formats.yaml { };
