@@ -37,9 +37,10 @@ pub fn setup_generation_link(
     tmpdir: &Path,
     profiles_directory: &Path,
     version: u64,
+    profile: Option<String>,
 ) -> Result<PathBuf> {
     let toplevel = setup_toplevel(tmpdir).context("Failed to setup toplevel")?;
-    setup_generation_link_from_toplevel(&toplevel, profiles_directory, version)
+    setup_generation_link_from_toplevel(&toplevel, profiles_directory, version, profile)
 }
 
 /// Create a mock generation link.
@@ -50,6 +51,7 @@ pub fn setup_generation_link_from_toplevel(
     toplevel: &Path,
     profiles_directory: &Path,
     version: u64,
+    profile: Option<String>,
 ) -> Result<PathBuf> {
     let bootspec = json!({
         "org.nixos.bootspec.v1": {
@@ -104,8 +106,12 @@ pub fn setup_generation_link_from_toplevel(
         },
     });
 
-    let generation_link_path = profiles_directory.join(format!("system-{}-link", version));
-    fs::create_dir(&generation_link_path)?;
+    let generation_link_path = profiles_directory.join(if let Some(prof) = profile {
+        format!("system-profiles/{}-{}-link", prof, version)
+    } else {
+        format!("system-{}-link", version)
+    });
+    fs::create_dir_all(&generation_link_path)?;
 
     let bootspec_path = generation_link_path.join("boot.json");
     let mut file = fs::File::create(bootspec_path)?;
@@ -264,7 +270,12 @@ pub fn count_files(path: &Path) -> Result<usize> {
     Ok(fs::read_dir(path)?.count())
 }
 
-pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBuf> {
+pub fn image_path(
+    esp: &TempDir,
+    version: u64,
+    profile: Option<String>,
+    toplevel: &Path,
+) -> Result<PathBuf> {
     let stub_inputs = [
         // Generation numbers can be reused if the latest generation was deleted.
         // To detect this, the stub path depends on the actual toplevel used.
@@ -279,9 +290,11 @@ pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBu
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
-    Ok(esp.path().join(format!(
-        "EFI/Linux/nixos-generation-{version}-{stub_input_hash}.efi"
-    )))
+    Ok(esp.path().join(if let Some(prof) = profile {
+        format!("EFI/Linux/nixos-{prof}-generation-{version}-{stub_input_hash}.efi")
+    } else {
+        format!("EFI/Linux/nixos-generation-{version}-{stub_input_hash}.efi")
+    }))
 }
 
 fn systemd_stub_filename(architecture: &Architecture) -> PathBuf {
