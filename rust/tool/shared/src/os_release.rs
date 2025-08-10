@@ -38,8 +38,9 @@ impl OsRelease {
         map.insert(
             "PRETTY_NAME".into(),
             format!(
-                "{} ({})",
+                "{}{} ({})",
                 generation.spec.bootspec.bootspec.label,
+                generation.describe_profile(),
                 generation.describe()
             ),
         );
