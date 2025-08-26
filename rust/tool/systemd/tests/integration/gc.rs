@@ -24,7 +24,7 @@ fn keep_only_configured_number_of_generations() -> Result<()> {
     // Install all 3 generations.
     let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), generation_links.clone())?;
     assert!(output0.status.success());
-    assert_eq!(stub_count(), 3, "Wrong number of stubs after installation");
+    assert_eq!(stub_count(), 6, "Wrong number of stubs after installation");
     assert_eq!(
         kernel_and_initrd_count(),
         2,
@@ -35,7 +35,7 @@ fn keep_only_configured_number_of_generations() -> Result<()> {
     // In addition, the garbage kernel should be deleted as well.
     let output1 = common::lanzaboote_install(2, esp_mountpoint.path(), generation_links)?;
     assert!(output1.status.success());
-    assert_eq!(stub_count(), 2, "Wrong number of stubs after gc.");
+    assert_eq!(stub_count(), 4, "Wrong number of stubs after gc.");
     assert_eq!(
         kernel_and_initrd_count(),
         2,
@@ -75,7 +75,7 @@ fn delete_garbage_kernel() -> Result<()> {
     let output1 = common::lanzaboote_install(2, esp_mountpoint.path(), generation_links)?;
     assert!(output1.status.success());
 
-    assert_eq!(stub_count(), 2, "Wrong number of stubs after gc.");
+    assert_eq!(stub_count(), 4, "Wrong number of stubs after gc.");
     assert_eq!(
         kernel_and_initrd_count(),
         2,

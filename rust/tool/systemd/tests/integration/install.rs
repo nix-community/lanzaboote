@@ -25,7 +25,7 @@ fn do_not_install_duplicates() -> Result<()> {
 
     let output1 = common::lanzaboote_install(0, esp.path(), generation_links)?;
     assert!(output1.status.success());
-    assert_eq!(stub_count(), 2, "Wrong number of stubs after installation");
+    assert_eq!(stub_count(), 4, "Wrong number of stubs after installation");
     assert_eq!(
         kernel_and_initrd_count(),
         2,
