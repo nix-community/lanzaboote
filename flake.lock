@@ -74,18 +74,15 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1754243818,
-        "narHash": "sha256-sEPw2W01UPf0xNGnMGNZIaE1XHkk7O+lLLetYEXVZHk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "c460617dfb709a67d18bb31e15e455390ee4ee1c",
-        "type": "github"
+        "lastModified": 1760338980,
+        "narHash": "sha256-MttbJFPXZ7s4k7ssIsruNyUYwBhhTOqjpaLkFvhsxQ0=",
+        "rev": "662e2ea08d7caacdfacdb92512a13b3f336f6e56",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixos/unstable-small/nixos-25.11pre876962.662e2ea08d7c/nixexprs.tar.xz?rev=662e2ea08d7caacdfacdb92512a13b3f336f6e56"
       },
       "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable-small",
-        "repo": "nixpkgs",
-        "type": "github"
+        "type": "tarball",
+        "url": "https://channels.nixos.org/nixos-unstable-small/nixexprs.tar.xz"
       }
     },
     "pre-commit-hooks-nix": {
