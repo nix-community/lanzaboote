@@ -1,4 +1,4 @@
-{ lib, config, pkgs, ... }:
+{ lib, config, options, pkgs, ... }:
 with lib;
 let
   cfg = config.boot.lanzaboote;
@@ -62,12 +62,12 @@ in
       description = "Lanzaboote tool (lzbt) package";
     };
 
-    settings = mkOption rec {
+    settings = mkOption {
       type = types.submodule {
         freeformType = loaderSettingsFormat.type;
       };
 
-      apply = recursiveUpdate default;
+      apply = recursiveUpdate options.boot.lanzaboote.settings.default;
 
       default = {
         timeout = config.boot.loader.timeout;
