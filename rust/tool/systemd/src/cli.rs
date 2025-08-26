@@ -61,6 +61,10 @@ struct InstallCommand {
     #[arg(long, default_value_t = 1)]
     configuration_limit: usize,
 
+    /// Initial number of boot counting tries, set to zero to disable boot counting
+    #[arg(long, default_value_t = 0)]
+    bootcounting_initial_tries: u32,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -106,6 +110,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.systemd,
         args.systemd_boot_loader_config,
         args.configuration_limit,
+        args.bootcounting_initial_tries,
         args.esp,
         args.generations,
     );
