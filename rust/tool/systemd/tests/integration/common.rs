@@ -73,7 +73,35 @@ pub fn setup_generation_link_from_toplevel(
         },
         "org.nix-community.lanzaboote": {
             "sort_key": "lanzaboote",
-        }
+        },
+        "org.nixos.specialisation.v1": {
+          "rescue": {
+            "org.nixos.bootspec.v1": {
+              "init": format!("init-v{}", version),
+              // Normally, these are in the Nix store.
+              "initrd": toplevel.join("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-6.1.1/initrd"),
+              "kernel": toplevel.join("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-6.1.1/kernel"),
+              "kernelParams": [
+                "amd_iommu=on",
+                "amd_iommu=pt",
+                "iommu=pt",
+                "kvm.ignore_msrs=1",
+                "kvm.report_ignored_msrs=0",
+                "udev.log_priority=3",
+                "systemd.unified_cgroup_hierarchy=1",
+                "loglevel=4"
+              ],
+              "label": "LanzaOS",
+              "toplevel": toplevel,
+              "system": SYSTEM,
+            },
+            "org.nix-community.lanzaboote": {
+                "sort_key": "lanzaboote2",
+            },
+            "org.nixos.specialisation.v1": {
+            },
+          },
+        },
     });
 
     let generation_link_path = profiles_directory.join(format!("system-{}-link", version));
