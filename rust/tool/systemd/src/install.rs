@@ -9,6 +9,7 @@ use std::string::ToString;
 use anyhow::{anyhow, Context, Result};
 use base32ct::{Base32Unpadded, Encoding};
 use nix::unistd::syncfs;
+use regex::Regex;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
@@ -32,6 +33,7 @@ pub struct Installer<S: Signer> {
     systemd_boot_loader_config: PathBuf,
     signer: S,
     configuration_limit: usize,
+    bootcounting_initial_tries: u32,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
@@ -46,6 +48,7 @@ impl<S: Signer> Installer<S> {
         systemd_boot_loader_config: PathBuf,
         signer: S,
         configuration_limit: usize,
+        bootcounting_initial_tries: u32,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
@@ -61,6 +64,7 @@ impl<S: Signer> Installer<S> {
             systemd_boot_loader_config,
             signer,
             configuration_limit,
+            bootcounting_initial_tries,
             esp_paths,
             generation_links,
             arch,
@@ -184,7 +188,7 @@ impl<S: Signer> Installer<S> {
     /// All installed files are added as garbage collector roots.
     fn install_generation(&mut self, generation: &Generation) -> Result<()> {
         // If the generation is already properly installed, don't overwrite it.
-        if self.register_installed_generation(generation).is_ok() {
+        if self.register_installed_generation(generation)?.is_ok() {
             return Ok(());
         }
 
@@ -261,10 +265,10 @@ impl<S: Signer> Installer<S> {
         let lanzaboote_image_path = lanzaboote_image(&tempdir, &parameters)
             .context("Failed to build and sign lanzaboote stub image.")?;
 
-        let stub_target = self
-            .esp_paths
-            .linux
-            .join(stub_name(generation, &self.signer).context("Get stub name")?);
+        let stub_target = self.esp_paths.linux.join(
+            stub_name(generation, &self.signer, self.bootcounting_initial_tries)
+                .context("Get stub name")?,
+        );
         self.gc_roots.extend([&stub_target]);
         install_signed(&self.signer, &lanzaboote_image_path, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
@@ -274,12 +278,45 @@ impl<S: Signer> Installer<S> {
 
     /// Register the files of an already installed generation as garbage collection roots.
     ///
-    /// An error should not be considered fatal; the generation should be (re-)installed instead.
-    fn register_installed_generation(&mut self, generation: &Generation) -> Result<()> {
-        let stub_target = self
-            .esp_paths
-            .linux
-            .join(stub_name(generation, &self.signer).context("While getting stub name")?);
+    /// The inner result indicates whether the generation was properly installed,
+    /// if this function returns Ok(Err(...)) the generation should be (re-)installed.
+    fn register_installed_generation(&mut self, generation: &Generation) -> Result<Result<()>> {
+        let pattern = format!(
+            r"{}(\+\d(-\d)?)?.efi",
+            stub_prefix(generation, &self.signer)?
+        );
+        let regex =
+            Regex::new(&pattern).context("Failed to construct regex to read stubs from ESP")?;
+
+        // An Err returned from this function means that we couldn't properly read
+        // the different files belonging to this generation, so it should be reinstalled
+        let read_generation = self.read_installed_generation(regex);
+        if let Ok((stub_target, kernel_path, initrd_path)) = read_generation {
+            self.gc_roots
+                .extend([&stub_target, &kernel_path, &initrd_path]);
+            Ok(Ok(()))
+        } else {
+            Ok(read_generation.map(|_| ()))
+        }
+    }
+
+    fn read_installed_generation(&mut self, regex: Regex) -> Result<(PathBuf, PathBuf, PathBuf)> {
+        // Read the esp dir and find the entry that corresponds to the generation.
+        // There should only be one such entry.
+        let stub_target = fs::read_dir(&self.esp_paths.linux)?
+            .filter_map(|maybe_entry| {
+                if let Ok(entry) = maybe_entry {
+                    if let Ok(name) = entry.file_name().into_string() {
+                        if regex.is_match(&name) {
+                            return Some(entry.path());
+                        }
+                    }
+                }
+                None
+            })
+            .next()
+            .context("While determining stub name")?;
+
         let stub = fs::read(&stub_target)
             .with_context(|| format!("Failed to read the stub: {}", stub_target.display()))?;
         let kernel_path = resolve_efi_path(
@@ -294,10 +331,8 @@ impl<S: Signer> Installer<S> {
         if !kernel_path.exists() && !initrd_path.exists() {
             anyhow::bail!("Missing kernel or initrd.");
         }
-        self.gc_roots
-            .extend([&stub_target, &kernel_path, &initrd_path]);
 
-        Ok(())
+        Ok((stub_target, kernel_path, initrd_path))
     }
 
     /// Install a content-addressed file to the `EFI/nixos` directory on the ESP.
@@ -374,7 +409,21 @@ fn resolve_efi_path(esp: &Path, efi_path: &[u8]) -> Result<PathBuf> {
 /// Compute the file name to be used for the stub of a certain generation, signed with the given key.
 ///
 /// The generated name is input-addressed by the toplevel corresponding to the generation and the public part of the signing key.
-fn stub_name<S: Signer>(generation: &Generation, signer: &S) -> Result<PathBuf> {
+fn stub_name<S: Signer>(
+    generation: &Generation,
+    signer: &S,
+    bootcounting_tries: u32,
+) -> Result<PathBuf> {
+    stub_prefix(generation, signer).map(|prefix| {
+        PathBuf::from(if bootcounting_tries > 0 {
+            format!("{}+{}.efi", prefix, bootcounting_tries)
+        } else {
+            format!("{}.efi", prefix)
+        })
+    })
+}
+
+fn stub_prefix<S: Signer>(generation: &Generation, signer: &S) -> Result<String> {
     let bootspec = &generation.spec.bootspec.bootspec;
     let public_key = signer.get_public_key()?;
     let stub_inputs = [
@@ -389,15 +438,15 @@ fn stub_name<S: Signer>(generation: &Generation, signer: &S) -> Result<PathBuf> 
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
     if let Some(specialisation_name) = &generation.specialisation_name {
-        Ok(PathBuf::from(format!(
-            "nixos-generation-{}-specialisation-{}-{}.efi",
+        Ok(format!(
+            "nixos-generation-{}-specialisation-{}-{}",
             generation, specialisation_name, stub_input_hash
-        )))
+        ))
     } else {
-        Ok(PathBuf::from(format!(
-            "nixos-generation-{}-{}.efi",
+        Ok(format!(
+            "nixos-generation-{}-{}",
             generation, stub_input_hash
-        )))
+        ))
     }
 }
 
