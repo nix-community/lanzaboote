@@ -1,5 +1,4 @@
-{ lib, config, pkgs, ... }:
-with lib;
+{ lib, config, options, pkgs, ... }:
 let
   cfg = config.boot.lanzaboote;
 
@@ -18,15 +17,15 @@ let
 in
 {
   options.boot.lanzaboote = {
-    enable = mkEnableOption "Enable the LANZABOOTE";
+    enable = lib.mkEnableOption "Enable the LANZABOOTE";
 
-    enrollKeys = mkEnableOption "Do not use this option. Only for used for integration tests! Automatic enrollment of the keys using sbctl";
+    enrollKeys = lib.mkEnableOption "Do not use this option. Only for used for integration tests! Automatic enrollment of the keys using sbctl";
 
-    configurationLimit = mkOption {
+    configurationLimit = lib.mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
       defaultText = "config.boot.loader.systemd-boot.configurationLimit";
       example = 120;
-      type = types.nullOr types.int;
+      type = lib.types.nullOr lib.types.int;
       description = ''
         Maximum number of latest generations in the boot menu.
         Useful to prevent boot partition running out of disk space.
@@ -36,38 +35,38 @@ in
       '';
     };
 
-    pkiBundle = mkOption {
-      type = types.nullOr types.path;
+    pkiBundle = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
       description = "PKI bundle containing db, PK, KEK";
     };
 
-    publicKeyFile = mkOption {
-      type = types.path;
+    publicKeyFile = lib.mkOption {
+      type = lib.types.path;
       default = "${cfg.pkiBundle}/keys/db/db.pem";
       defaultText = "\${cfg.pkiBundle}/keys/db/db.pem";
       description = "Public key to sign your boot files";
     };
 
-    privateKeyFile = mkOption {
-      type = types.path;
+    privateKeyFile = lib.mkOption {
+      type = lib.types.path;
       default = "${cfg.pkiBundle}/keys/db/db.key";
       defaultText = "\${cfg.pkiBundle}/keys/db/db.key";
       description = "Private key to sign your boot files";
     };
 
-    package = mkOption {
-      type = types.package;
+    package = lib.mkOption {
+      type = lib.types.package;
       default = pkgs.lzbt;
       defaultText = "pkgs.lzbt";
       description = "Lanzaboote tool (lzbt) package";
     };
 
-    settings = mkOption rec {
-      type = types.submodule {
+    settings = lib.mkOption {
+      type = lib.types.submodule {
         freeformType = loaderSettingsFormat.type;
       };
 
-      apply = recursiveUpdate default;
+      apply = lib.recursiveUpdate options.boot.lanzaboote.settings.default;
 
       default = {
         timeout = config.boot.loader.timeout;
@@ -85,7 +84,7 @@ in
         }
       '';
 
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           editor = null; # null value removes line from the loader.conf
           beep = true;
@@ -101,7 +100,7 @@ in
       '';
     };
 
-    sortKey = mkOption {
+    sortKey = lib.mkOption {
       default = "lanza";
       type = lib.types.str;
       description = ''
@@ -112,7 +111,7 @@ in
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     boot.bootspec = {
       enable = true;
       extensions."org.nix-community.lanzaboote" = {
@@ -123,7 +122,7 @@ in
     boot.loader.external = {
       enable = true;
       installHook = pkgs.writeShellScript "bootinstall" ''
-        ${optionalString cfg.enrollKeys ''
+        ${lib.optionalString cfg.enrollKeys ''
           ${lib.getExe' pkgs.coreutils "mkdir"} -p /tmp/pki
           ${lib.getExe' pkgs.coreutils "cp"} -r ${cfg.pkiBundle}/* /tmp/pki
           ${lib.getExe sbctlWithPki} enroll-keys --yes-this-might-brick-my-machine
