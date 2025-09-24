@@ -19,8 +19,8 @@
       url = "github:ipetkov/crane";
     };
 
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
+    fenix = {
+      url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -30,7 +30,7 @@
     };
   };
 
-  outputs = inputs@{ self, nixpkgs, crane, rust-overlay, flake-parts, ... }:
+  outputs = inputs@{ self, nixpkgs, crane, flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } ({ moduleWithSystem, ... }: {
       imports = [
         # Derive the output overlay automatically from all packages that we define.
@@ -57,19 +57,17 @@
         "aarch64-linux"
       ];
 
-      perSystem = { config, system, pkgs, ... }:
+      perSystem = { config, system, inputs', ... }:
         let
+          pkgs = inputs.nixpkgs.legacyPackages.${system};
           rustTarget = "${pkgs.stdenv.hostPlatform.qemuArch}-unknown-uefi";
-          pkgs = import nixpkgs {
-            system = system;
-            overlays = [
-              rust-overlay.overlays.default
-            ];
-          };
-
           inherit (pkgs) lib;
 
-          uefi-rust-stable = pkgs.rust-bin.fromRustupToolchainFile ./rust/uefi/rust-toolchain.toml;
+          uefi-rust-stable = inputs'.fenix.packages.fromToolchainFile {
+            dir = ./rust/uefi;
+            sha256 = "5ffe190473b7896d1f39e9d0ddfa04bec72000f25897669bb296814e10ceba42";
+          };
+
           craneLib = (crane.mkLib pkgs).overrideToolchain uefi-rust-stable;
 
           # Build attributes for a Rust application.
