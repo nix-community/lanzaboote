@@ -320,7 +320,8 @@ impl<S: Signer> Installer<S> {
     fn install_refind(&self, generations: &[Generation]) -> Result<()> {
         let refind_binary = self
             .refind
-            .join("bin")
+            .join("share")
+            .join("refind")
             .join(self.arch.refind_filename());
 
         // Install rEFInd binaries
