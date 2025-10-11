@@ -246,6 +246,8 @@ Boot stack.
 
 #### Using rEFInd
 
+> **Note**: See [REFIND_THEMES.md](./REFIND_THEMES.md) for a comprehensive guide on installing rEFInd themes from GitHub!
+
 ```nix
 {
   description = "A SecureBoot-enabled NixOS configurations with rEFInd";
@@ -269,7 +271,7 @@ Boot stack.
         modules = [
           lanzaboote.nixosModules.lanzaboote
 
-          ({ pkgs, lib, ... }: {
+          ({ pkgs, lib, lanzaboote-utils, ... }: {
 
             environment.systemPackages = [
               # For debugging and troubleshooting Secure Boot.
@@ -285,7 +287,34 @@ Boot stack.
               pkiBundle = "/var/lib/sbctl";
 
               # Optional: customize rEFInd
-              # refind.configTemplate = ./refind-custom.conf;
+              refind = {
+                # Custom configuration template
+                # configTemplate = ./refind-custom.conf;
+
+                # Additional configuration (inline)
+                extraConfig = '''
+                  # Custom rEFInd settings
+                  resolution 1920 1080
+                  use_graphics_for linux
+                  hideui label,hints
+                ''';
+
+                # Install theme files manually
+                extraFiles = {
+                  "themes/mytheme/theme.conf" = ./mytheme/theme.conf;
+                  "themes/mytheme/background.png" = ./mytheme/background.png;
+                  "themes/mytheme/icons/os_nixos.png" = ./mytheme/icons/os_nixos.png;
+                };
+
+                # Or use the helper to fetch from GitHub!
+                # See REFIND_THEMES.md for details
+                # extraFiles = lanzaboote-utils.fetchRefindTheme {
+                #   owner = "username";
+                #   repo = "theme-repo";
+                #   rev = "main";
+                #   sha256 = "sha256-...";
+                # };
+              };
             };
           })
         ];

@@ -29,6 +29,8 @@ pub struct Installer<S: Signer> {
     lanzaboote_stub: PathBuf,
     refind: PathBuf,
     refind_config_template: Option<PathBuf>,
+    refind_extra_config: Option<PathBuf>,
+    refind_extra_files: Option<PathBuf>,
     signer: S,
     configuration_limit: usize,
     esp_paths: RefindEspPaths,
@@ -43,6 +45,8 @@ impl<S: Signer> Installer<S> {
         arch: Architecture,
         refind: PathBuf,
         refind_config_template: Option<PathBuf>,
+        refind_extra_config: Option<PathBuf>,
+        refind_extra_files: Option<PathBuf>,
         signer: S,
         configuration_limit: usize,
         esp: PathBuf,
@@ -58,6 +62,8 @@ impl<S: Signer> Installer<S> {
             lanzaboote_stub,
             refind,
             refind_config_template,
+            refind_extra_config,
+            refind_extra_files,
             signer,
             configuration_limit,
             esp_paths,
@@ -341,6 +347,11 @@ impl<S: Signer> Installer<S> {
                 .with_context(|| format!("Failed to install rEFInd binary to: {to:?}"))?;
         }
 
+        // Install extra files if provided
+        if let Some(extra_files_dir) = &self.refind_extra_files {
+            self.install_extra_files(extra_files_dir)?;
+        }
+
         // Generate rEFInd configuration
         let config_content = self.generate_refind_config(generations)?;
 
@@ -351,6 +362,30 @@ impl<S: Signer> Installer<S> {
                     &self.esp_paths.refind_config
                 )
             })?;
+
+        Ok(())
+    }
+
+    /// Install extra files (themes, icons, etc.) to the rEFInd directory.
+    fn install_extra_files(&self, extra_files_dir: &Path) -> Result<()> {
+        log::info!("Installing rEFInd extra files from {:?}...", extra_files_dir);
+
+        // Walk through all files in the extra files directory
+        for entry in walkdir::WalkDir::new(extra_files_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if entry.file_type().is_file() {
+                let relative_path = entry
+                    .path()
+                    .strip_prefix(extra_files_dir)
+                    .context("Failed to get relative path for extra file")?;
+                let target = self.esp_paths.refind.join(relative_path);
+
+                install(entry.path(), &target)
+                    .with_context(|| format!("Failed to install extra file to {target:?}"))?;
+            }
+        }
 
         Ok(())
     }
@@ -373,6 +408,14 @@ impl<S: Signer> Installer<S> {
             let template = fs::read_to_string(template_path)
                 .context("Failed to read rEFInd config template")?;
             config.push_str(&template);
+            config.push_str("\n\n");
+        }
+
+        // If there's extra config, append it
+        if let Some(extra_config_path) = &self.refind_extra_config {
+            let extra_config = fs::read_to_string(extra_config_path)
+                .context("Failed to read rEFInd extra config")?;
+            config.push_str(&extra_config);
             config.push_str("\n\n");
         }
 

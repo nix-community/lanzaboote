@@ -42,6 +42,14 @@ struct InstallCommand {
     #[arg(long)]
     refind_config_template: Option<PathBuf>,
 
+    /// rEFInd extra configuration (optional)
+    #[arg(long)]
+    refind_extra_config: Option<PathBuf>,
+
+    /// rEFInd extra files directory (optional)
+    #[arg(long)]
+    refind_extra_files: Option<PathBuf>,
+
     /// sbsign Public Key
     #[arg(long)]
     public_key: Option<PathBuf>,
@@ -100,6 +108,8 @@ fn install(args: InstallCommand) -> Result<()> {
         Architecture::from_nixos_system(&args.system)?,
         args.refind,
         args.refind_config_template,
+        args.refind_extra_config,
+        args.refind_extra_files,
         local_signer,
         args.configuration_limit,
         args.esp,
