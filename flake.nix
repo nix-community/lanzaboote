@@ -41,12 +41,19 @@
 
       flake.nixosModules.lanzaboote = moduleWithSystem (
         perSystem@{ config }:
-        { ... }: {
+        { lib, ... }: {
           imports = [
             ./nix/modules/lanzaboote.nix
           ];
 
-          boot.lanzaboote.package = perSystem.config.packages.tool;
+          # Provide both packages in pkgs overlay, but don't override the default
+          # The module will select the right one based on cfg.bootloader
+          nixpkgs.overlays = lib.mkBefore [
+            (final: prev: {
+              lzbt = perSystem.config.packages.tool;
+              lzbt-refind = perSystem.config.packages.tool-refind;
+            })
+          ];
         }
       );
 
@@ -136,11 +143,11 @@
 
           stub = stubCrane.package;
 
-          # TODO: when we will have more backends
-          # let's generalize this properly.
+          # systemd-boot backend
           toolCrane = buildRustApp {
             pname = "lzbt-systemd";
             src = ./rust/tool;
+            packages = [ "lzbt-systemd" ];
             extraArgs = {
               TEST_SYSTEMD = pkgs.systemd;
               nativeCheckInputs = with pkgs; [
@@ -165,16 +172,47 @@
               --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
               --set LANZABOOTE_STUB ${stub}/bin/lanzaboote_stub.efi
           '';
+
+          # rEFInd backend
+          refindToolCrane = buildRustApp {
+            pname = "lzbt-refind";
+            src = ./rust/tool;
+            packages = [ "lzbt-refind" ];
+            extraArgs = {
+              nativeCheckInputs = with pkgs; [
+                binutils-unwrapped
+                sbsigntool
+              ];
+            };
+          };
+
+          refindTool = refindToolCrane.package;
+
+          wrappedRefindTool = pkgs.runCommand "lzbt-refind"
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ];
+              meta.mainProgram = "lzbt-refind";
+            } ''
+            mkdir -p $out/bin
+
+            # Clean PATH to only contain what we need to do objcopy. Also
+            # tell lanzatool where to find our UEFI binaries.
+            makeWrapper ${refindTool}/bin/lzbt-refind $out/bin/lzbt-refind \
+              --set PATH ${lib.makeBinPath [ pkgs.binutils-unwrapped pkgs.sbsigntool ]} \
+              --set LANZABOOTE_STUB ${stub}/bin/lanzaboote_stub.efi
+          '';
         in
         {
           packages = {
             inherit stub;
             tool = wrappedTool;
             lzbt = wrappedTool;
+            tool-refind = wrappedRefindTool;
+            lzbt-refind = wrappedRefindTool;
           };
 
           overlayAttrs = {
-            inherit (config.packages) tool;
+            inherit (config.packages) tool tool-refind;
           };
 
           checks = {
@@ -182,6 +220,8 @@
             stubClippy = stubCrane.clippy;
             toolFmt = toolCrane.rustfmt;
             stubFmt = stubCrane.rustfmt;
+            refindToolClippy = refindToolCrane.clippy;
+            refindToolFmt = refindToolCrane.rustfmt;
           } // (import ./nix/tests {
             inherit pkgs;
             extraBaseModules = {

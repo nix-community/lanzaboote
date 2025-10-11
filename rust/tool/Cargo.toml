@@ -4,11 +4,13 @@ resolver = "2"
 members = [
     "shared",
     "systemd",
+    "refind",
 ]
 
 default-members = [
     "shared",
-    "systemd"
+    "systemd",
+    "refind"
 ]
 
 [workspace.package]

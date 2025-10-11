@@ -128,6 +128,8 @@ Done: Adding package lanzaboote
 
 Below is a fragment of a NixOS configuration that enables the SecureBoot stack.
 
+#### Using systemd-boot (default)
+
 ```nix
 # file: configuration.nix
 { pkgs, lib, ... }:
@@ -156,10 +158,40 @@ in
 }
 ```
 
+#### Using rEFInd
+
+```nix
+# file: configuration.nix
+{ pkgs, lib, ... }:
+let
+    sources = import ./nix/sources.nix;
+    lanzaboote = import sources.lanzaboote;
+in
+{
+  imports = [ lanzaboote.nixosModules.lanzaboote ];
+
+  environment.systemPackages = [
+    # For debugging and troubleshooting Secure Boot.
+    pkgs.sbctl
+    pkgs.refind
+  ];
+
+  boot.loader.systemd-boot.enable = lib.mkForce false;
+
+  boot.lanzaboote = {
+    enable = true;
+    bootloader = "refind";
+    pkiBundle = "/var/lib/sbctl";
+  };
+}
+```
+
 ### Configuring NixOS (with Flakes)
 
 Below is a fragment of a NixOS configuration that enables the Secure
 Boot stack.
+
+#### Using systemd-boot (default)
 
 ```nix
 {
@@ -203,6 +235,57 @@ Boot stack.
             boot.lanzaboote = {
               enable = true;
               pkiBundle = "/var/lib/sbctl";
+            };
+          })
+        ];
+      };
+    };
+  };
+}
+```
+
+#### Using rEFInd
+
+```nix
+{
+  description = "A SecureBoot-enabled NixOS configurations with rEFInd";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v0.4.2";
+
+      # Optional but recommended to limit the size of your system closure.
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, lanzaboote, ...}: {
+    nixosConfigurations = {
+      yourHost = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+
+        modules = [
+          lanzaboote.nixosModules.lanzaboote
+
+          ({ pkgs, lib, ... }: {
+
+            environment.systemPackages = [
+              # For debugging and troubleshooting Secure Boot.
+              pkgs.sbctl
+              pkgs.refind
+            ];
+
+            boot.loader.systemd-boot.enable = lib.mkForce false;
+
+            boot.lanzaboote = {
+              enable = true;
+              bootloader = "refind";
+              pkiBundle = "/var/lib/sbctl";
+
+              # Optional: customize rEFInd
+              # refind.configTemplate = ./refind-custom.conf;
             };
           })
         ];

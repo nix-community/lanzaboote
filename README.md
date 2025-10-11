@@ -70,9 +70,8 @@ sign all configurations that should be bootable.
 
 We have multiple backends for `lzbt`:
 
-- `lzbt-systemd` lives in [`rust/tool/systemd`](rust/tool/systemd)
-
-In the future, `lzbt` may support more backends.
+- `lzbt-systemd` lives in [`rust/tool/systemd`](rust/tool/systemd) - Uses systemd-boot as the bootloader
+- `lzbt-refind` lives in [`rust/tool/refind`](rust/tool/refind) - Uses rEFInd as the bootloader
 
 Shared code lives in [`rust/tool/shared`](rust/tool/shared).
 

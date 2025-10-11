@@ -21,6 +21,17 @@ in
 
     enrollKeys = lib.mkEnableOption "Do not use this option. Only for used for integration tests! Automatic enrollment of the keys using sbctl";
 
+    bootloader = lib.mkOption {
+      type = lib.types.enum [ "systemd-boot" "refind" ];
+      default = "systemd-boot";
+      description = ''
+        Which bootloader to use with Lanzaboote.
+
+        - systemd-boot: Simple UEFI boot manager (default)
+        - refind: Graphical UEFI boot manager with advanced features
+      '';
+    };
+
     configurationLimit = lib.mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
       defaultText = "config.boot.loader.systemd-boot.configurationLimit";
@@ -56,8 +67,8 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.lzbt;
-      defaultText = "pkgs.lzbt";
+      default = if cfg.bootloader == "refind" then pkgs.lzbt-refind else pkgs.lzbt;
+      defaultText = "pkgs.lzbt or pkgs.lzbt-refind depending on bootloader choice";
       description = "Lanzaboote tool (lzbt) package";
     };
 
@@ -109,6 +120,24 @@ in
         https://uapi-group.org/specifications/specs/boot_loader_specification/#sorting
       '';
     };
+
+    refind = {
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = pkgs.refind;
+        defaultText = "pkgs.refind";
+        description = "rEFInd package to use";
+      };
+
+      configTemplate = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Optional custom rEFInd configuration template.
+          This will be appended to the auto-generated configuration.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -132,8 +161,14 @@ in
         # always, even in the cross compilation case, be the right system.
         ${lib.getExe cfg.package} install \
           --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
-          --systemd ${config.systemd.package} \
-          --systemd-boot-loader-config ${loaderConfigFile} \
+          ${lib.optionalString (cfg.bootloader == "systemd-boot") ''
+            --systemd ${config.systemd.package} \
+            --systemd-boot-loader-config ${loaderConfigFile} \
+          ''} \
+          ${lib.optionalString (cfg.bootloader == "refind") ''
+            --refind ${cfg.refind.package} \
+            ${lib.optionalString (cfg.refind.configTemplate != null) "--refind-config-template ${cfg.refind.configTemplate}"} \
+          ''} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit} \
