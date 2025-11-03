@@ -12,7 +12,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.4.2"
+version = "0.4.3"
 
 [profile.release]
 opt-level = "s"
