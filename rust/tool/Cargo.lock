@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "lanzaboote_tool"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "bootspec",
@@ -492,7 +492,7 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
 name = "lzbt-systemd"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
