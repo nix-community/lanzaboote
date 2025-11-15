@@ -3,11 +3,18 @@
 {
   name = "lanzaboote-systemd-measured-uki";
 
-  nodes.machine = { config, lib, pkgs, ... }: {
-    imports = [ ./common/lanzaboote.nix ];
+  nodes.machine =
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
 
-    virtualisation.tpm.enable = true;
-  };
+      virtualisation.tpm.enable = true;
+    };
 
   testScript = ''
     machine.start()
@@ -20,4 +27,3 @@
       assert "Failed to parse EFI variable" not in measure_out, "systemd-measure failed to parse EFI variable - encoding issue?"
   '';
 }
-

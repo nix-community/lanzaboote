@@ -1,20 +1,20 @@
 { pkgs, extraBaseModules }:
 
 let
-  runTest = module: pkgs.testers.runNixOSTest {
-    imports = [ module ];
-    globalTimeout = 5 * 60;
-    extraBaseModules = {
-      imports = builtins.attrValues extraBaseModules;
+  runTest =
+    module:
+    pkgs.testers.runNixOSTest {
+      imports = [ module ];
+      globalTimeout = 5 * 60;
+      extraBaseModules = {
+        imports = builtins.attrValues extraBaseModules;
+      };
     };
-  };
 
   # Run the test only on the specified systems. Otherwise build hello to work
   # around flake behaviour.
-  runTestOn = systems: module:
-    if builtins.elem pkgs.system systems
-    then runTest module
-    else pkgs.hello;
+  runTestOn =
+    systems: module: if builtins.elem pkgs.system systems then runTest module else pkgs.hello;
 in
 {
   basic = runTest ./lanzaboote/basic.nix;

@@ -13,11 +13,13 @@
 
   name = "lanzaboote-synthesis";
 
-  nodes.machine = { lib, ... }: {
-    imports = [ ./common/lanzaboote.nix ];
+  nodes.machine =
+    { lib, ... }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
 
-    boot.bootspec.enable = lib.mkForce false;
-  };
+      boot.bootspec.enable = lib.mkForce false;
+    };
 
   testScript = ''
     machine.start()

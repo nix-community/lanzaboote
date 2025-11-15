@@ -13,19 +13,23 @@
 
   nodes = {
 
-    brokenInitrd = { lib, ... }: {
-      imports = [ ./common/lanzaboote.nix ];
-      virtualisation.useSecureBoot = lib.mkForce false;
-    };
+    brokenInitrd =
+      { lib, ... }:
+      {
+        imports = [ ./common/lanzaboote.nix ];
+        virtualisation.useSecureBoot = lib.mkForce false;
+      };
 
     brokenInitrdSecureBoot = {
       imports = [ ./common/lanzaboote.nix ];
     };
 
-    brokenKernel = { lib, ... }: {
-      imports = [ ./common/lanzaboote.nix ];
-      virtualisation.useSecureBoot = lib.mkForce false;
-    };
+    brokenKernel =
+      { lib, ... }:
+      {
+        imports = [ ./common/lanzaboote.nix ];
+        virtualisation.useSecureBoot = lib.mkForce false;
+      };
 
     brokenKernelSecureBoot = {
       imports = [ ./common/lanzaboote.nix ];

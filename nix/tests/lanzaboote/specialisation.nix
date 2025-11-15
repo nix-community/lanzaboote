@@ -1,15 +1,17 @@
 {
   name = "lanzaboote-specialisation";
 
-  nodes.machine = { pkgs, ... }: {
-    imports = [ ./common/lanzaboote.nix ];
+  nodes.machine =
+    { pkgs, ... }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
 
-    specialisation.variant.configuration = {
-      environment.systemPackages = [
-        pkgs.efibootmgr
-      ];
+      specialisation.variant.configuration = {
+        environment.systemPackages = [
+          pkgs.efibootmgr
+        ];
+      };
     };
-  };
 
   testScript = ''
     machine.start()

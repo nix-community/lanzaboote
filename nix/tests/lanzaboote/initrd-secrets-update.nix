@@ -23,24 +23,26 @@ in
 {
   name = "lanzaboote-initrd-secrets-update";
 
-  nodes.machine = { lib, ... }: {
-    imports = [ ./common/lanzaboote.nix ];
+  nodes.machine =
+    { lib, ... }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
 
-    boot.initrd = {
-      secrets = {
-        "/test" = lib.mkDefault (toString originalSecret);
+      boot.initrd = {
+        secrets = {
+          "/test" = lib.mkDefault (toString originalSecret);
+        };
+        postMountCommands = ''
+          cp /test /mnt-root/secret-from-initramfs
+        '';
       };
-      postMountCommands = ''
-        cp /test /mnt-root/secret-from-initramfs
-      '';
-    };
 
-    specialisation.variant.configuration = {
-      boot.initrd.secrets = {
-        "/test" = toString newSecret;
+      specialisation.variant.configuration = {
+        boot.initrd.secrets = {
+          "/test" = toString newSecret;
+        };
       };
     };
-  };
 
   testScript = ''
     machine.start()

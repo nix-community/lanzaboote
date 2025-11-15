@@ -10,9 +10,11 @@ in
 {
   name = "lanzaboote-export-efivars";
 
-  nodes.machine = { pkgs, ... }: {
-    imports = [ ./common/lanzaboote.nix ];
-  };
+  nodes.machine =
+    { pkgs, ... }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
+    };
 
   testScript = (import ./common/efivariables-helper.nix) + ''
     import struct

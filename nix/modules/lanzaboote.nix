@@ -1,4 +1,10 @@
-{ lib, config, options, pkgs, ... }:
+{
+  lib,
+  config,
+  options,
+  pkgs,
+  ...
+}:
 let
   cfg = config.boot.lanzaboote;
 
@@ -7,8 +13,7 @@ let
   };
 
   loaderSettingsFormat = pkgs.formats.keyValue {
-    mkKeyValue = k: v: if v == null then "" else
-    lib.generators.mkKeyValueDefault { } " " k v;
+    mkKeyValue = k: v: if v == null then "" else lib.generators.mkKeyValueDefault { } " " k v;
   };
 
   loaderConfigFile = loaderSettingsFormat.generate "loader.conf" cfg.settings;

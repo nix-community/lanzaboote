@@ -1,11 +1,13 @@
 {
   name = "lanzaboote-systemd-initrd";
 
-  nodes.machine = { ... }: {
-    imports = [ ./common/lanzaboote.nix ];
+  nodes.machine =
+    { ... }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
 
-    boot.initrd.systemd.enable = true;
-  };
+      boot.initrd.systemd.enable = true;
+    };
 
   testScript = ''
     machine.start()

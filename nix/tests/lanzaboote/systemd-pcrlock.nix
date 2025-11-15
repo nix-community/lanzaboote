@@ -3,32 +3,34 @@
 {
   name = "lanzaboote-systemd-pcrlock";
 
-  nodes.machine = { config, pkgs, ... }: {
-    imports = [ ./common/lanzaboote.nix ];
+  nodes.machine =
+    { config, pkgs, ... }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
 
-    virtualisation.tpm.enable = true;
+      virtualisation.tpm.enable = true;
 
-    boot.initrd.systemd.storePaths = [
-      "${config.systemd.package}/lib/systemd/systemd-pcrextend"
-      "${pkgs.tpm2-tss}/lib"
-    ];
+      boot.initrd.systemd.storePaths = [
+        "${config.systemd.package}/lib/systemd/systemd-pcrextend"
+        "${pkgs.tpm2-tss}/lib"
+      ];
 
-    boot.initrd.systemd.additionalUpstreamUnits = [
-      "systemd-pcrphase-initrd.service"
-    ];
+      boot.initrd.systemd.additionalUpstreamUnits = [
+        "systemd-pcrphase-initrd.service"
+      ];
 
-    systemd.additionalUpstreamSystemUnits = [
-      "systemd-pcrphase.service"
-      "systemd-pcrphase-sysinit.service"
-    ];
+      systemd.additionalUpstreamSystemUnits = [
+        "systemd-pcrphase.service"
+        "systemd-pcrphase-sysinit.service"
+      ];
 
-    environment.etc = {
-      systemd-pcrlock-builtin = {
-        target = "pcrlock.d";
-        source = "${config.systemd.package}/lib/pcrlock.d";
+      environment.etc = {
+        systemd-pcrlock-builtin = {
+          target = "pcrlock.d";
+          source = "${config.systemd.package}/lib/pcrlock.d";
+        };
       };
     };
-  };
 
   testScript = (import ./common/efivariables-helper.nix) + ''
     import json
@@ -49,4 +51,3 @@
           assert f"String: {section}" in ipl_entries, f"Failed to find IPL measurement for section `{section}`"
   '';
 }
-
