@@ -18,6 +18,14 @@ use crate::{
 /// This is where any stub payloads are extended, e.g. kernel ELF image, embedded initrd
 /// and so on.
 /// Compared to PCR4, this contains only the unified sections rather than the whole PE image as-is.
+///
+/// Per the [UKI specification](https://uapi-group.org/specifications/specs/unified_kernel_image/#uki-tpm-pcr-measurements):
+/// "For each section two measurements shall be made into PCR 11 with the event code EV_IPL:
+///
+/// 1. The section name in ASCII (including one trailing NUL byte)
+/// 2. The (binary) section contents"
+///
+/// Measurements are made in canonical order, interleaved: section name, section data, next section name, etc.
 const TPM_PCR_INDEX_KERNEL_IMAGE: PcrIndex = PcrIndex(11);
 /// This is where lanzastub extends the kernel command line and any passed credentials into
 const TPM_PCR_INDEX_KERNEL_CONFIG: PcrIndex = PcrIndex(12);
@@ -33,20 +41,40 @@ pub fn measure_image(image: &PeInMemory) -> uefi::Result<u32> {
     let pe_binary = unsafe { image.as_slice() };
     let pe = goblin::pe::PE::parse(pe_binary).map_err(|_err| uefi::Status::LOAD_ERROR)?;
 
-    let mut measurements = 0;
-    for section in pe.sections {
+    // Build a list of (unified_section, pe_section) pairs and sort by canonical order.
+    // Per UKI spec: "shall measure the sections listed above, starting from the .linux section,
+    // in the order as listed (which should be considered the canonical order)."
+    let mut sections_to_measure = Vec::new();
+    for section in &pe.sections {
         let section_name = section.name().map_err(|_err| uefi::Status::UNSUPPORTED)?;
         if let Ok(unified_section) = UnifiedSection::try_from(section_name) {
-            // UNSTABLE: && in the previous if is an unstable feature
-            // https://github.com/rust-lang/rust/issues/53667
             if unified_section.should_be_measured() {
-                // Here, perform the TPM log event in ASCII.
-                if let Some(data) = pe_section_data(pe_binary, &section) {
-                    info!("Measuring section `{}`...", section_name);
-                    if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, &data, section_name)? {
-                        measurements += 1;
-                    }
-                }
+                sections_to_measure.push((unified_section, section));
+            }
+        }
+    }
+    sections_to_measure.sort_by_key(|(unified_section, _)| *unified_section);
+
+    let mut measurements = 0;
+    for (unified_section, section) in sections_to_measure {
+        if let Some(data) = pe_section_data(pe_binary, section) {
+            let section_name = unified_section.name();
+            info!("Measuring section `{}`...", section_name);
+
+            // Per UKI spec: "For each section two measurements shall be made into PCR 11"
+            // 1. "The section name in ASCII (including one trailing NUL byte)"
+            let section_name_ascii = alloc::format!("{}\0", section_name);
+            if tpm_log_event_ascii(
+                TPM_PCR_INDEX_KERNEL_IMAGE,
+                section_name_ascii.as_bytes(),
+                section_name,
+            )? {
+                measurements += 1;
+            }
+
+            // 2. "The (binary) section contents"
+            if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, &data, section_name)? {
+                measurements += 1;
             }
         }
     }
