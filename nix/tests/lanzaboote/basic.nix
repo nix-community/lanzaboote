@@ -11,13 +11,17 @@ in
     boot.lanzaboote = { inherit sortKey; };
   };
 
-  testScript = ''
-    machine.start()
-    assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
-    assert "sort-key: ${sortKey}" in machine.succeed("bootctl status")
+  testScript =
+    { nodes, ... }:
+    (import ./common/image-helper.nix { inherit (nodes) machine; })
+    + ''
+      bootctl_status = machine.succeed("bootctl status")
+      print(bootctl_status)
+      t.assertIn("Secure Boot: enabled (user)", bootctl_status)
+      t.assertIn("sort-key: ${sortKey}", bootctl_status)
 
-    # We want systemd to recognize our PE binaries as true UKIs. systemd has
-    # become more picky in the past, so make sure.
-    assert "Kernel Type: uki" in machine.succeed("bootctl kernel-inspect /boot/EFI/Linux/nixos-generation-1-*.efi")
-  '';
+      # We want systemd to recognize our PE binaries as true UKIs. systemd has
+      # become more picky in the past, so make sure.
+      t.assertIn("Kernel Type: uki", machine.succeed("bootctl kernel-inspect /boot/EFI/Linux/nixos-generation-1-*.efi"))
+    '';
 }
