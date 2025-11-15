@@ -100,6 +100,22 @@ in
       '';
     };
 
+    extraInstallCommands = lib.mkOption {
+      default = "";
+      example = ''
+        default_cfg=$(cat /boot/loader/loader.conf | grep default | awk '{print $2}')
+        init_value=$(cat /boot/loader/entries/$default_cfg | grep init= | awk '{print $2}')
+        sed -i "s|@INIT@|$init_value|g" /boot/custom/config_with_placeholder.conf
+      '';
+      type = lib.types.lines;
+      description = ''
+        Additional shell commands inserted in the bootloader installer
+        script after generating menu entries. It can be used to expand
+        on extra boot entries that cannot incorporate certain pieces of
+        information (such as the resulting `init=` kernel parameter).
+      '';
+    };
+
     sortKey = lib.mkOption {
       default = "lanza";
       type = lib.types.str;
@@ -121,7 +137,7 @@ in
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
       enable = true;
-      installHook = pkgs.writeShellScript "bootinstall" ''
+      installHook = pkgs.writeShellScript "bootinstall" (''
         ${lib.optionalString cfg.enrollKeys ''
           ${lib.getExe' pkgs.coreutils "mkdir"} -p /tmp/pki
           ${lib.getExe' pkgs.coreutils "cp"} -r ${cfg.pkiBundle}/* /tmp/pki
@@ -139,7 +155,7 @@ in
           --configuration-limit ${toString configurationLimit} \
           ${config.boot.loader.efi.efiSysMountPoint} \
           /nix/var/nix/profiles/system-*-link
-      '';
+      '' + cfg.extraInstallCommands);
     };
 
     systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
