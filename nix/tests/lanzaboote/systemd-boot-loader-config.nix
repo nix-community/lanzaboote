@@ -9,14 +9,17 @@
     boot.loader.systemd-boot.consoleMode = "auto";
   };
 
-  testScript = ''
-    machine.start()
+  testScript =
+    { nodes, ... }:
+    (import ./common/image-helper.nix { inherit (nodes) machine; })
+    + ''
+      machine.start()
 
-    actual_loader_config = machine.succeed("cat /boot/loader/loader.conf").split("\n")
-    expected_loader_config = ["timeout 0", "console-mode auto"]
+      actual_loader_config = machine.succeed("cat /boot/loader/loader.conf").split("\n")
+      expected_loader_config = ["timeout 0", "console-mode auto"]
 
-    assert all(cfg in actual_loader_config for cfg in expected_loader_config), \
-      f"Expected: {expected_loader_config} is not included in actual config: '{actual_loader_config}'"
-  '';
+      assert all(cfg in actual_loader_config for cfg in expected_loader_config), \
+        f"Expected: {expected_loader_config} is not included in actual config: '{actual_loader_config}'"
+    '';
 
 }

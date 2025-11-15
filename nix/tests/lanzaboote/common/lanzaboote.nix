@@ -1,13 +1,5 @@
-{ config, pkgs, ... }:
 {
-
-  virtualisation = {
-    useBootLoader = true;
-    useEFIBoot = true;
-    useSecureBoot = true;
-
-    efi.OVMF = pkgs.OVMFFull.fd;
-  };
+  imports = [ ./image.nix ];
 
   boot = {
     loader.timeout = 0;
@@ -15,9 +7,7 @@
 
     lanzaboote = {
       enable = true;
-      enrollKeys = config.virtualisation.useSecureBoot;
       pkiBundle = ../../fixtures/uefi-keys;
     };
   };
-
 }
