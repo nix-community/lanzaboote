@@ -118,9 +118,9 @@ dependencies = [
 
 [[package]]
 name = "bootspec"
-version = "1.0.1"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5249951fe968ba5009e0839fceb7f3cfedc85fbf5e983fd30ad36bbcbe94e257"
+checksum = "75726e2aa2b4c5a9d5c4cf3cb7f24658b6ec861616088f3ef3fb72edc0599286"
 dependencies = [
  "serde",
  "serde_json",

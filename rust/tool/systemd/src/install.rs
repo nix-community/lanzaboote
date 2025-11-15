@@ -161,9 +161,9 @@ impl<S: Signer> Installer<S> {
             // Thus, this cannot overwrite files of old generation with different content.
             self.install_generation(&generation)
                 .with_context(|| format!("Failed to install generation {}", generation.version))?;
-            for (name, bootspec) in &generation.spec.bootspec.specialisations {
-                let specialised_generation = generation.specialise(name, bootspec);
-                self.install_generation(&specialised_generation)
+
+            for specialisation in generation.specialisations.values() {
+                self.install_generation(specialisation)
                     .context("Failed to install specialisation.")?;
             }
         }
