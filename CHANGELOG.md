@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (unreleased)
+
+### Removed
+
+- Removed the internal option `boot.lanzaboote.enrollKeys` that was only
+  intended for testing without replacement.
+
+## 0.4.3
 
 ### Added
 
