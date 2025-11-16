@@ -6,22 +6,22 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.82"
-base32ct = { version = "0.2.0", features = ["alloc"] }
+anyhow = "1.0.100"
+base32ct = { version = "0.3.0", features = ["alloc"] }
 stderrlog = "0.6.0"
-log = { version = "0.4.21", features = ["std"] }
-clap = { version = "4.5.4", features = ["derive"] }
+log = { version = "0.4.28", features = ["std"] }
+clap = { version = "4.5.51", features = ["derive"] }
 lanzaboote_tool = { path = "../shared" }
-indoc = "2.0.5"
-serde_json = "1.0.115"
-sha2 = "0.10.8"
-tempfile = "3.10.1"
-nix = { version = "0.29.0", default-features = false, features = [ "fs" ] }
+indoc = "2.0.7"
+serde_json = "1.0.145"
+sha2 = "0.10.9"
+tempfile = "3.23.0"
+nix = { version = "0.30.1", default-features = false, features = [ "fs" ] }
 
 [dev-dependencies]
-assert_cmd = "2.0.14"
-expect-test = "1.5.0"
-filetime = "0.2.23"
-rand = "0.8.5"
-goblin = "0.7.1"
+assert_cmd = "2.1.1"
+expect-test = "1.5.1"
+filetime = "0.2.26"
+rand = "0.9.2"
+goblin = "0.10.3"
 walkdir = "2.5.0"

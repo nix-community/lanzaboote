@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use anyhow::{Context, Result};
-use assert_cmd::Command;
+use assert_cmd::{Command, cargo_bin};
 use base32ct::{Base32Unpadded, Encoding};
-use rand::distributions::Alphanumeric;
-use rand::{Rng, thread_rng};
+use rand::distr::Alphanumeric;
+use rand::{Rng, rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
@@ -127,7 +127,7 @@ pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
 }
 
 fn random_string(length: usize) -> String {
-    thread_rng()
+    rng()
         .sample_iter(&Alphanumeric)
         .take(length)
         .map(char::from)
@@ -154,7 +154,7 @@ pub fn lanzaboote_install(
     let test_loader_config = r"timeout 0\nconsole-mode 1\n";
     fs::write(test_loader_config_path.path(), test_loader_config)?;
 
-    let mut cmd = Command::cargo_bin("lzbt-systemd")?;
+    let mut cmd = Command::new(cargo_bin!("lzbt-systemd"));
     let output = cmd
         .env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("-vv")
