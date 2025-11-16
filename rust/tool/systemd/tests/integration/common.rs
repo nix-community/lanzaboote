@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use assert_cmd::Command;
 use base32ct::{Base32Unpadded, Encoding};
 use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;

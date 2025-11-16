@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 use log::warn;
 use uefi::{
-    boot, guid, prelude::*, proto::loaded_image::LoadedImage, runtime, runtime::VariableVendor,
-    CStr16, CString16, Result,
+    CStr16, CString16, Result, boot, guid, prelude::*, proto::loaded_image::LoadedImage, runtime,
+    runtime::VariableVendor,
 };
 
 use linux_bootloader::linux_loader::InitrdLoader;

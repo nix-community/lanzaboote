@@ -9,7 +9,7 @@ use goblin::pe::PE;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
-use crate::utils::{file_hash, tmpname, SecureTempDirExt};
+use crate::utils::{SecureTempDirExt, file_hash, tmpname};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StubParameters {

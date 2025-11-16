@@ -1,6 +1,6 @@
 use std::{
     convert::Infallible,
-    io::{stdout, Cursor, Write},
+    io::{Cursor, Write, stdout},
 };
 
 use cpio::NewcReader;

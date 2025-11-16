@@ -32,7 +32,7 @@ struct Entry {
 
 const STATIC_HEADER_LEN: usize = 6 // c_magic[6]
     + (8 * 13); // c_ino, c_mode, c_uid, c_gid, c_nlink, c_mtime, c_filesize, c_devmajor,
-                // c_devminor, c_rdevmajor, c_rdevminor, c_namesize, c_check, all of them being &[u8; 8].
+// c_devminor, c_rdevmajor, c_rdevminor, c_namesize, c_check, all of them being &[u8; 8].
 
 /// Compute the necessary padding based on the provided length
 /// It returns None if no padding is necessary.

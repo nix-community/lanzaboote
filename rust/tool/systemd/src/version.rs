@@ -4,7 +4,7 @@ use std::path::Path;
 use std::str;
 use std::str::FromStr;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe;

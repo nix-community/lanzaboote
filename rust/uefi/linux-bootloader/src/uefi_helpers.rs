@@ -1,12 +1,11 @@
 use core::ffi::c_void;
 
 use uefi::{
-    boot,
+    Result, boot,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
         loaded_image::LoadedImage,
     },
-    Result,
 };
 
 #[derive(Debug, Clone, Copy)]
