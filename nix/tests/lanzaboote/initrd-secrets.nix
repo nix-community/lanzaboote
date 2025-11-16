@@ -1,4 +1,4 @@
-# Test that a secret is appended to the initrd during installation. Smilar to
+# Test that a secret is appended to the initrd during installation. Similar to
 # the initrd-secrets test in Nixpkgs:
 # https://github.com/NixOS/nixpkgs/blob/master/nixos/tests/initrd-secrets.nix
 

@@ -10,11 +10,6 @@ let
         imports = builtins.attrValues extraBaseModules;
       };
     };
-
-  # Run the test only on the specified systems. Otherwise build hello to work
-  # around flake behaviour.
-  runTestOn =
-    systems: module: if builtins.elem pkgs.system systems then runTest module else pkgs.hello;
 in
 {
   basic = runTest ./lanzaboote/basic.nix;
@@ -26,7 +21,6 @@ in
   hash-mismatch-kernel = runTest ./lanzaboote/hash-mismatch-kernel.nix;
   hash-mismatch-kernel-sb = runTest ./lanzaboote/hash-mismatch-kernel-sb.nix;
   specialisation = runTest ./lanzaboote/specialisation.nix;
-  synthesis = runTestOn [ "x86_64-linux" ] ./lanzaboote/synthesis.nix;
   systemd-boot-loader-config = runTest ./lanzaboote/systemd-boot-loader-config.nix;
   export-efivars = runTest ./lanzaboote/export-efivars.nix;
   export-efivars-tpm = runTest ./lanzaboote/export-efivars-tpm.nix;

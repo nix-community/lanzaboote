@@ -233,7 +233,7 @@
             });
             devShells.default = pkgs.mkShell {
               shellHook = ''
-                ${config.pre-commit.installationScript}
+                ${config.pre-commit.settings.shellHook}
               '';
 
               packages = [
