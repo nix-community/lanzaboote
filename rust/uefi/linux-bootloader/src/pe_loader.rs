@@ -4,9 +4,10 @@ use core::ptr::NonNull;
 use alloc::vec::Vec;
 use goblin::pe::PE;
 use uefi::{
+    Handle, Status,
     boot::{self, AllocateType, MemoryType},
     proto::loaded_image::LoadedImage,
-    table, Handle, Status,
+    table,
 };
 
 /// UEFI mandates 4 KiB pages.
@@ -201,7 +202,10 @@ impl Image {
         // If the kernel entry point returned, deallocate its image, and restore our loaded image handle.
         // If it calls Exit(), that call returns directly to systemd-boot. This unfortunately causes a resource leak.
         let image = NonNull::new(self.image.as_ptr().cast_mut()).unwrap();
-        boot::free_pages(image, bytes_to_pages(self.image.len())).expect("Double free attempted");
+        unsafe {
+            boot::free_pages(image, bytes_to_pages(self.image.len()))
+                .expect("Double free attempted");
+        }
 
         unsafe {
             loaded_image.set_image(our_data, our_size);
