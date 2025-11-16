@@ -94,7 +94,7 @@ trait WriteBytesExt: Write {
             header_size += pad.len();
         }
         assert!(
-            header_size % 4 == 0,
+            header_size.is_multiple_of(4),
             "CPIO header is not aligned on a 4-bytes boundary!"
         );
         Ok(header_size)
@@ -112,7 +112,7 @@ trait WriteBytesExt: Write {
             total_size += pad.len();
         }
         assert!(
-            total_size % 4 == 0,
+            header_size.is_multiple_of(4),
             "CPIO file data is not aligned on a 4-bytes boundary!"
         );
         Ok(total_size)
