@@ -1,9 +1,9 @@
 use alloc::vec::Vec;
 use log::warn;
 use uefi::{
-    boot::{self, ScopedProtocol},
-    proto::tcg::{v2, EventType, PcrIndex},
     ResultExt,
+    boot::{self, ScopedProtocol},
+    proto::tcg::{EventType, PcrIndex, v2},
 };
 
 fn open_capable_tpm2() -> uefi::Result<ScopedProtocol<v2::Tcg>> {

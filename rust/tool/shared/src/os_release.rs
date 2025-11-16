@@ -189,7 +189,9 @@ impl FromStr for OsRelease {
                     }
                 }
                 CommentEscape => {
-                    log::debug!("The line which doesn't begin with \";\" or \"#\", but follows a comment line trailing with escape is now treated as a non comment line since v254.");
+                    log::debug!(
+                        "The line which doesn't begin with \";\" or \"#\", but follows a comment line trailing with escape is now treated as a non comment line since v254."
+                    );
                     if NEWLINE.contains(c) {
                         state = PreKey;
                     } else {
