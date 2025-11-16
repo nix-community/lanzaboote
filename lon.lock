@@ -1,0 +1,45 @@
+{
+  "version": "1",
+  "sources": {
+    "crane": {
+      "type": "GitHub",
+      "fetchType": "tarball",
+      "owner": "ipetkov",
+      "repo": "crane",
+      "branch": "master",
+      "revision": "0cea393fffb39575c46b7a0318386467272182fe",
+      "url": "https://github.com/ipetkov/crane/archive/0cea393fffb39575c46b7a0318386467272182fe.tar.gz",
+      "hash": "sha256-8zrIPl6J+wLm9MH5ksHcW7BUHo7jSNOu0/hA0ohOOaM="
+    },
+    "nixpkgs": {
+      "type": "GitHub",
+      "fetchType": "tarball",
+      "owner": "nixos",
+      "repo": "nixpkgs",
+      "branch": "nixos-unstable",
+      "revision": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "url": "https://github.com/nixos/nixpkgs/archive/c5ae371f1a6a7fd27823bc500d9390b38c05fa55.tar.gz",
+      "hash": "sha256-4PqRErxfe+2toFJFgcRKZ0UI9NSIOJa+7RXVtBhy4KE="
+    },
+    "pre-commit": {
+      "type": "GitHub",
+      "fetchType": "tarball",
+      "owner": "cachix",
+      "repo": "git-hooks.nix",
+      "branch": "master",
+      "revision": "7275fa67fbbb75891c16d9dee7d88e58aea2d761",
+      "url": "https://github.com/cachix/git-hooks.nix/archive/7275fa67fbbb75891c16d9dee7d88e58aea2d761.tar.gz",
+      "hash": "sha256-YG19IyrTdnVn0l3DvcUYm85u3PaqBt6tI6VvolcuHnA="
+    },
+    "rust-overlay": {
+      "type": "GitHub",
+      "fetchType": "tarball",
+      "owner": "oxalica",
+      "repo": "rust-overlay",
+      "branch": "master",
+      "revision": "c3cea2a0ec0d5debbef4aa2a0cfe59bd0fb0aeeb",
+      "url": "https://github.com/oxalica/rust-overlay/archive/c3cea2a0ec0d5debbef4aa2a0cfe59bd0fb0aeeb.tar.gz",
+      "hash": "sha256-KMEJ9S7bZLvDIfVu2XdEJTZVYAc/arjFt5KnhGqwCOg="
+    }
+  }
+}
