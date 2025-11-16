@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use bootspec::BootJson;
 use bootspec::BootSpec;
+use bootspec::Specialisation;
 use bootspec::SpecialisationName;
 use serde::Deserialize;
 use time::Date;
@@ -80,11 +81,11 @@ impl Generation {
         })
     }
 
-    pub fn specialise(&self, name: &SpecialisationName, bootspec: &BootSpec) -> Self {
+    pub fn specialise(&self, name: &SpecialisationName, specialisation: &Specialisation) -> Self {
         Self {
             specialisation_name: Some(name.clone()),
             spec: ExtendedBootJson {
-                bootspec: bootspec.clone(),
+                bootspec: specialisation.generation.clone(),
                 lanzaboote_extension: self.spec.lanzaboote_extension.clone(),
             },
             ..self.clone()

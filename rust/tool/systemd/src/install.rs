@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::os::fd::AsRawFd;
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::string::ToString;
@@ -174,7 +173,7 @@ impl<S: Signer> Installer<S> {
         // chance of a consistent boot directory in case the system
         // crashes.
         let boot = File::open(&self.esp_paths.esp).context("Failed to open ESP root directory.")?;
-        syncfs(boot.as_raw_fd()).context("Failed to sync ESP filesystem.")?;
+        syncfs(boot).context("Failed to sync ESP filesystem.")?;
 
         Ok(())
     }

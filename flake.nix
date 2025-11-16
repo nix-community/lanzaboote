@@ -241,6 +241,7 @@
                 pkgs.statix
                 pkgs.cargo-release
                 pkgs.cargo-machete
+                pkgs.cargo-edit
 
                 # Convenience for test fixtures in nix/tests.
                 pkgs.openssl
