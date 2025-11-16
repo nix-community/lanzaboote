@@ -56,11 +56,11 @@ fn main() -> Status {
         let _ = measure_image(&pe_in_memory);
     }
 
-    if let Ok(features) = get_loader_features() {
-        if !features.contains(EfiLoaderFeatures::RandomSeed) {
-            // FIXME: process random seed then on the disk.
-            info!("Random seed is available, but lanzaboote does not support it yet.");
-        }
+    if let Ok(features) = get_loader_features()
+        && !features.contains(EfiLoaderFeatures::RandomSeed)
+    {
+        // FIXME: process random seed then on the disk.
+        info!("Random seed is available, but lanzaboote does not support it yet.");
     }
 
     if export_efi_variables(STUB_NAME).is_err() {
