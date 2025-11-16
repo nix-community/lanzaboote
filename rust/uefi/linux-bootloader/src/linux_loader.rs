@@ -9,12 +9,11 @@ use core::{ffi::c_void, pin::Pin, ptr::slice_from_raw_parts_mut};
 
 use alloc::{boxed::Box, vec::Vec};
 use uefi::{
-    boot,
+    Handle, Identify, Result, ResultExt, Status, boot,
     proto::{
         device_path::{DevicePath, FfiDevicePath},
         unsafe_protocol,
     },
-    Handle, Identify, Result, ResultExt, Status,
 };
 
 /// The Linux kernel's initrd loading device path.
@@ -94,13 +93,15 @@ unsafe extern "efiapi" fn raw_load_file(
     buffer_size: *mut usize,
     buffer: *mut c_void,
 ) -> Status {
-    this.load_file(
-        file_path.as_ref(),
-        boot_policy,
-        buffer_size.as_mut(),
-        buffer.cast(),
-    )
-    .status()
+    unsafe {
+        this.load_file(
+            file_path.as_ref(),
+            boot_policy,
+            buffer_size.as_mut(),
+            buffer.cast(),
+        )
+        .status()
+    }
 }
 
 /// A RAII wrapper to install and uninstall the Linux initrd loading

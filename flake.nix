@@ -128,7 +128,7 @@
                         loop {}
                     }
 
-                    #[cfg_attr(any(target_os = "none", target_os = "uefi"), export_name = "efi_main")]
+                    #[cfg_attr(any(target_os = "none", target_os = "uefi"), unsafe(export_name = "efi_main"))]
                     fn main() {}
                   '';
 

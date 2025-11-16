@@ -1,7 +1,7 @@
 [package]
 name = "lanzaboote_stub"
 version.workspace = true
-edition = "2021"
+edition.workspace = true
 publish = false
 
 [dependencies]
