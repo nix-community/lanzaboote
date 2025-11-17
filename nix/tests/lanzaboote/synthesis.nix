@@ -13,15 +13,20 @@
 
   name = "lanzaboote-synthesis";
 
-  nodes.machine = { lib, ... }: {
-    imports = [ ./common/lanzaboote.nix ];
+  nodes.machine =
+    { lib, ... }:
+    {
+      imports = [ ./common/lanzaboote.nix ];
 
-    boot.bootspec.enable = lib.mkForce false;
-  };
+      boot.bootspec.enable = lib.mkForce false;
+    };
 
-  testScript = ''
-    machine.start()
-    assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
-  '';
+  testScript =
+    { nodes, ... }:
+    (import ./common/image-helper.nix { inherit (nodes) machine; })
+    + ''
+      machine.start()
+      assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
+    '';
 
 }

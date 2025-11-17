@@ -1,14 +1,15 @@
-{ lib, config, options, pkgs, ... }:
+{
+  lib,
+  config,
+  options,
+  pkgs,
+  ...
+}:
 let
   cfg = config.boot.lanzaboote;
 
-  sbctlWithPki = pkgs.sbctl.override {
-    databasePath = "/tmp/pki";
-  };
-
   loaderSettingsFormat = pkgs.formats.keyValue {
-    mkKeyValue = k: v: if v == null then "" else
-    lib.generators.mkKeyValueDefault { } " " k v;
+    mkKeyValue = k: v: if v == null then "" else lib.generators.mkKeyValueDefault { } " " k v;
   };
 
   loaderConfigFile = loaderSettingsFormat.generate "loader.conf" cfg.settings;
@@ -16,10 +17,14 @@ let
   configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
 in
 {
+  imports = [
+    (lib.mkRemovedOptionModule [ "boot" "lanzaboote" "enrollKeys" ] ''
+      Removed this internal option intended for testig only without replacement.
+    '')
+  ];
+
   options.boot.lanzaboote = {
     enable = lib.mkEnableOption "Enable the LANZABOOTE";
-
-    enrollKeys = lib.mkEnableOption "Do not use this option. Only for used for integration tests! Automatic enrollment of the keys using sbctl";
 
     configurationLimit = lib.mkOption {
       default = config.boot.loader.systemd-boot.configurationLimit;
@@ -109,6 +114,26 @@ in
         https://uapi-group.org/specifications/specs/boot_loader_specification/#sorting
       '';
     };
+
+    installCommand = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      description = ''
+        The partial command to execute lzbt install. This can be used to build
+        images by adding the directory to install to and the path to the
+        toplevel.
+      '';
+      default = ''
+        # Use the system from the kernel's hostPlatform because this should
+        # always, even in the cross compilation case, be the right system.
+        ${lib.getExe cfg.package} install \
+          --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
+          --systemd ${config.systemd.package} \
+          --systemd-boot-loader-config ${loaderConfigFile} \
+          --public-key ${cfg.publicKeyFile} \
+          --private-key ${cfg.privateKeyFile} \
+          --configuration-limit ${toString configurationLimit}'';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -122,21 +147,7 @@ in
     boot.loader.external = {
       enable = true;
       installHook = pkgs.writeShellScript "bootinstall" ''
-        ${lib.optionalString cfg.enrollKeys ''
-          ${lib.getExe' pkgs.coreutils "mkdir"} -p /tmp/pki
-          ${lib.getExe' pkgs.coreutils "cp"} -r ${cfg.pkiBundle}/* /tmp/pki
-          ${lib.getExe sbctlWithPki} enroll-keys --yes-this-might-brick-my-machine
-        ''}
-
-        # Use the system from the kernel's hostPlatform because this should
-        # always, even in the cross compilation case, be the right system.
-        ${lib.getExe cfg.package} install \
-          --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
-          --systemd ${config.systemd.package} \
-          --systemd-boot-loader-config ${loaderConfigFile} \
-          --public-key ${cfg.publicKeyFile} \
-          --private-key ${cfg.privateKeyFile} \
-          --configuration-limit ${toString configurationLimit} \
+        ${cfg.installCommand} \
           ${config.boot.loader.efi.efiSysMountPoint} \
           /nix/var/nix/profiles/system-*-link
       '';
