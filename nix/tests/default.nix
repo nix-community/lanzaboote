@@ -24,6 +24,7 @@ in
   systemd-boot-loader-config = runTest ./lanzaboote/systemd-boot-loader-config.nix;
   export-efivars = runTest ./lanzaboote/export-efivars.nix;
   export-efivars-tpm = runTest ./lanzaboote/export-efivars-tpm.nix;
+  extra-efi-partitions = runTest ./lanzaboote/extra-efi-partitions.nix;
 
   systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
   systemd-measured-uki = runTest ./lanzaboote/systemd-measured-uki.nix;
