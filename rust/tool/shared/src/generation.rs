@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
@@ -6,7 +7,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use bootspec::BootJson;
 use bootspec::BootSpec;
-use bootspec::Specialisation;
 use bootspec::SpecialisationName;
 use serde::Deserialize;
 use time::Date;
@@ -34,6 +34,24 @@ impl Default for LanzabooteExtension {
     }
 }
 
+impl From<bootspec::Specialisation> for LanzabooteExtension {
+    fn from(spec: bootspec::Specialisation) -> Self {
+        spec.extensions
+            .get("org.nix-community.lanzaboote")
+            .and_then(|v| serde_json::from_value::<LanzabooteExtension>(v.clone()).ok())
+            .unwrap_or_default()
+    }
+}
+
+impl From<bootspec::BootJson> for LanzabooteExtension {
+    fn from(spec: bootspec::BootJson) -> Self {
+        spec.extensions
+            .get("org.nix-community.lanzaboote")
+            .and_then(|v| serde_json::from_value::<LanzabooteExtension>(v.clone()).ok())
+            .unwrap_or_default()
+    }
+}
+
 /// A system configuration.
 ///
 /// Can be built from a GenerationLink.
@@ -52,6 +70,8 @@ pub struct Generation {
     pub specialisation_name: Option<SpecialisationName>,
     /// Top-level extended boot specification
     pub spec: ExtendedBootJson,
+    /// The set of specialisations of this generation
+    pub specialisations: HashMap<SpecialisationName, Generation>,
 }
 
 impl Generation {
@@ -63,33 +83,59 @@ impl Generation {
             .or_else(|_err| BootJson::synthesize_latest(&link.path)
                     .context("Failed to read a bootspec (missing bootspec?) and failed to synthesize a valid replacement bootspec."))?;
 
-        let bootspec: BootSpec = boot_json.generation.try_into()?;
-        let lanzaboote_extension = boot_json
-            .extensions
-            .get("org.nix-community.lanzaboote")
-            .and_then(|v| serde_json::from_value::<LanzabooteExtension>(v.clone()).ok())
-            .unwrap_or_default();
+        Self::parse_boot_json(link, None, boot_json)
+    }
+
+    fn parse_specialisation(
+        link: &GenerationLink,
+        specialisation_name: SpecialisationName,
+        specialisation: bootspec::Specialisation,
+    ) -> Result<Self> {
+        Ok(Self {
+            version: link.version,
+            build_time: link.build_time,
+            specialisation_name: Some(specialisation_name),
+            spec: ExtendedBootJson {
+                bootspec: specialisation.clone().generation,
+                lanzaboote_extension: specialisation.clone().into(),
+            },
+            specialisations: Self::parse_specialisations(
+                link,
+                specialisation.generation.specialisations,
+            )?,
+        })
+    }
+
+    fn parse_specialisations(
+        link: &GenerationLink,
+        specialisations: bootspec::Specialisations,
+    ) -> Result<HashMap<SpecialisationName, Generation>> {
+        specialisations
+            .into_iter()
+            .map(|(name, json)| {
+                Self::parse_specialisation(link, name.clone(), json)
+                    .map(|generation| (name, generation))
+            })
+            .collect::<Result<HashMap<SpecialisationName, Generation>>>()
+    }
+
+    fn parse_boot_json(
+        link: &GenerationLink,
+        specialisation_name: Option<SpecialisationName>,
+        boot_json: BootJson,
+    ) -> Result<Self> {
+        let bootspec: BootSpec = boot_json.clone().generation.try_into()?;
 
         Ok(Self {
             version: link.version,
             build_time: link.build_time,
-            specialisation_name: None,
+            specialisation_name,
             spec: ExtendedBootJson {
-                bootspec,
-                lanzaboote_extension,
+                bootspec: bootspec.clone(),
+                lanzaboote_extension: boot_json.into(),
             },
+            specialisations: Self::parse_specialisations(link, bootspec.specialisations)?,
         })
-    }
-
-    pub fn specialise(&self, name: &SpecialisationName, specialisation: &Specialisation) -> Self {
-        Self {
-            specialisation_name: Some(name.clone()),
-            spec: ExtendedBootJson {
-                bootspec: specialisation.generation.clone(),
-                lanzaboote_extension: self.spec.lanzaboote_extension.clone(),
-            },
-            ..self.clone()
-        }
     }
 
     /// A helper for describe functions below.
