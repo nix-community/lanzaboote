@@ -1,17 +1,17 @@
 use alloc::{format, string::ToString, vec::Vec};
 use core::mem::size_of;
 use uefi::{
-    boot, cstr16, guid,
+    CStr16, Guid, Handle, Result, Status, boot, cstr16, guid,
     proto::{
         device_path::{
+            DevicePath, DeviceSubType, DeviceType,
             media::{HardDrive, PartitionSignature},
             text::DevicePathToText,
-            DevicePath, DeviceSubType, DeviceType,
         },
         loaded_image::LoadedImage,
     },
     runtime::{self, VariableAttributes, VariableVendor},
-    system, CStr16, Guid, Handle, Result, Status,
+    system,
 };
 
 use bitflags::bitflags;

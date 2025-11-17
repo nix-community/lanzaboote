@@ -1,12 +1,11 @@
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::os::fd::AsRawFd;
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::string::ToString;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use base32ct::{Base32Unpadded, Encoding};
 use nix::unistd::syncfs;
 use sha2::{Digest, Sha256};
@@ -22,7 +21,7 @@ use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
 use lanzaboote_tool::signature::Signer;
-use lanzaboote_tool::utils::{file_hash, SecureTempDirExt};
+use lanzaboote_tool::utils::{SecureTempDirExt, file_hash};
 
 pub struct Installer<S: Signer> {
     broken_gens: BTreeSet<u64>,
@@ -153,7 +152,9 @@ impl<S: Signer> Installer<S> {
 
         if generations.is_empty() {
             // We can't continue, because we would remove all boot entries, if we did.
-            return Err(anyhow!("No bootable generations found! Aborting to avoid unbootable system. Please check for Lanzaboote updates!"));
+            return Err(anyhow!(
+                "No bootable generations found! Aborting to avoid unbootable system. Please check for Lanzaboote updates!"
+            ));
         }
 
         for generation in generations {
@@ -172,7 +173,7 @@ impl<S: Signer> Installer<S> {
         // chance of a consistent boot directory in case the system
         // crashes.
         let boot = File::open(&self.esp_paths.esp).context("Failed to open ESP root directory.")?;
-        syncfs(boot.as_raw_fd()).context("Failed to sync ESP filesystem.")?;
+        syncfs(boot).context("Failed to sync ESP filesystem.")?;
 
         Ok(())
     }

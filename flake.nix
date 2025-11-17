@@ -128,7 +128,7 @@
                         loop {}
                     }
 
-                    #[cfg_attr(any(target_os = "none", target_os = "uefi"), export_name = "efi_main")]
+                    #[cfg_attr(any(target_os = "none", target_os = "uefi"), unsafe(export_name = "efi_main"))]
                     fn main() {}
                   '';
 
@@ -233,7 +233,7 @@
             });
             devShells.default = pkgs.mkShell {
               shellHook = ''
-                ${config.pre-commit.installationScript}
+                ${config.pre-commit.settings.shellHook}
               '';
 
               packages = [
@@ -241,6 +241,7 @@
                 pkgs.statix
                 pkgs.cargo-release
                 pkgs.cargo-machete
+                pkgs.cargo-edit
 
                 # Convenience for test fixtures in nix/tests.
                 pkgs.openssl

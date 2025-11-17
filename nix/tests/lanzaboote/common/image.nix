@@ -87,7 +87,7 @@ in
       };
       "nix-store" = {
         storePaths = [ config.system.build.toplevel ];
-        stripNixStorePrefix = true;
+        nixStorePrefix = "/";
         repartConfig = {
           Type = "linux-generic";
           Format = config.fileSystems."/nix/store".fsType;

@@ -1,13 +1,12 @@
-use crate::cpio::{pack_cpio, Cpio};
+use crate::cpio::{Cpio, pack_cpio};
 use alloc::{string::ToString, vec::Vec};
 use uefi::{
-    cstr16,
+    CString16, cstr16,
     fs::{Path, PathBuf},
     proto::device_path::{
-        text::{AllowShortcuts, DisplayOnly},
         DevicePath,
+        text::{AllowShortcuts, DisplayOnly},
     },
-    CString16,
 };
 
 /// Locate files with ASCII filenames and matching the suffix passed as a parameter.
