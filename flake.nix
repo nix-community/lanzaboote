@@ -213,6 +213,29 @@
               inherit stub;
               tool = wrappedTool;
               lzbt = wrappedTool;
+              docs =
+                let
+                  eval = lib.evalModules {
+                    modules = [
+                      (
+                        { lib, ... }:
+                        {
+                          config._module.args.pkgs = pkgs;
+                          imports = [
+                            lib.types.noCheckForDocsModule
+                            # Needed for the assertions from the repart module.
+                            "${pkgs.path}/nixos/modules/misc/assertions.nix"
+                            self.nixosModules.lanzaboote
+                          ];
+                        }
+                      )
+                    ];
+                  };
+                  optionsDoc = pkgs.nixosOptionsDoc {
+                    inherit (eval) options;
+                  };
+                in
+                optionsDoc.optionsCommonMark;
             };
 
             overlayAttrs = {

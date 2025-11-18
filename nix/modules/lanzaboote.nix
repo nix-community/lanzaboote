@@ -133,6 +133,14 @@ in
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit}'';
+      defaultText = lib.literalExpression ''
+        ''${lib.getExe cfg.package} install \
+          --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
+          --systemd ''${config.systemd.package} \
+          --systemd-boot-loader-config ''${loaderConfigFile} \
+          --public-key ''${cfg.publicKeyFile} \
+          --private-key ''${cfg.privateKeyFile} \
+          --configuration-limit ''${toString configurationLimit}'';
     };
   };
 
