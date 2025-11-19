@@ -156,6 +156,12 @@ in
 }
 ```
 
+If you're using Lanzaboote from main, you need to call it via
+
+```nix
+lanzaboote = import sources.lanzaboote { inherit pkgs; };
+```
+
 ### Configuring NixOS (with Flakes)
 
 Below is a fragment of a NixOS configuration that enables the Secure
