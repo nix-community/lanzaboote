@@ -7,23 +7,15 @@
 
 This repository contains tooling for [UEFI Secure
 Boot](https://en.wikipedia.org/wiki/UEFI#Secure_Boot) on
-[NixOS](https://nixos.org/). The goal is to make Secure Boot available
-from [nixpkgs](https://github.com/NixOS/nixpkgs) for any platform that
-supports UEFI.
+[NixOS](https://nixos.org/).
 
-## ⚡ Quickstart ⚡
+## Getting Started
 
-If you want to try this out, head over [here](./docs/QUICK_START.md) for instructions.
-In case of any issues, have a look at the [troubleshooting document](./docs/TROUBLESHOOTING.md).
+To start using Lanzaboote head to our [docs](https://nix-community.github.io/lanzaboote)!
 
 ## 🪛 Get Involved 🪛
 
-There is still a bunch of work to do before this work can be
-upstreamed into [nixpkgs](https://github.com/NixOS/nixpkgs). Please
-coordinate in the [Matrix
-room](https://matrix.to/#/#secure-boot:nixos.org) or check the
-[issues](https://github.com/nix-community/lanzaboote/issues), if you
-want to take something up.
+Read the [contributing guide](./CONTRIBUTING.md) to learn how to get involved.
 
 ## Overview
 
@@ -53,7 +45,7 @@ Boot effective:
 
 These steps will not be covered here.
 
-### `lzbt-*`, the Lanzaboote tool
+### `lzbt`, the Lanzaboote tool
 
 At the moment, boot loaders, kernels and initrds on NixOS are signed
 on the current system. These then need to be prepared as [Unified
@@ -67,14 +59,6 @@ relevant files, creates a UKI using the stub (see below) and
 installs the UKI along with other required files to the
 ESP. `lzbt` is also aware of multiple NixOS generations and will
 sign all configurations that should be bootable.
-
-We have multiple backends for `lzbt`:
-
-- `lzbt-systemd` lives in [`rust/tool/systemd`](rust/tool/systemd)
-
-In the future, `lzbt` may support more backends.
-
-Shared code lives in [`rust/tool/shared`](rust/tool/shared).
 
 ### Stub
 
@@ -93,8 +77,6 @@ on the ESP. The chain of trust is maintained by validating the
 signature on the Linux kernel and embedding a cryptographic hash of
 the initrd into the signed UKI.
 
-The stub lives in [`rust/uefi/stub`](rust/uefi/stub).
-
 ### Fwupd
 
 When both Lanzaboote and `services.fwupd` are enabled, for
@@ -103,7 +85,7 @@ binary is placed in `/run` that fwupd will use.
 
 ## State of Upstreaming to Nixpkgs
 
-SecureBoot is available by adding this project to your configuration.
+Secure Boot is available by adding this project to your configuration.
 
 It relies on [bootspec](https://github.com/NixOS/rfcs/pull/125)
 which is enabled by default since NixOS 23.05.

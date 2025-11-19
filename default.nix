@@ -24,6 +24,7 @@ rec {
   );
 
   docs = lib.recurseIntoAttrs {
+    html = pkgs.callPackage ./nix/html-docs.nix { };
     options = import ./nix/option-docs.nix {
       inherit pkgs nixosModules;
     };
@@ -47,7 +48,10 @@ rec {
     };
 
     docs = lib.recurseIntoAttrs {
-      options = docs.options;
+      inherit (docs)
+        html
+        options
+        ;
     };
 
     pre-commit = import ./nix/pre-commit.nix { inherit pkgs; };
