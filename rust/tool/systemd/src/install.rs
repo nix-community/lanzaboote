@@ -46,10 +46,11 @@ impl<S: Signer> Installer<S> {
         signer: S,
         configuration_limit: usize,
         esp: PathBuf,
+        boot: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
         let mut gc_roots = Roots::new();
-        let esp_paths = SystemdEspPaths::new(esp, arch);
+        let esp_paths = SystemdEspPaths::new(esp, boot, arch);
         gc_roots.extend(esp_paths.iter());
 
         Self {
@@ -254,7 +255,7 @@ impl<S: Signer> Installer<S> {
             &initrd_location,
             &kernel_target,
             &initrd_target,
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
         )?
         .with_cmdline(&kernel_cmdline)
         .with_os_release_contents(os_release_contents.as_bytes());
@@ -284,11 +285,11 @@ impl<S: Signer> Installer<S> {
         let stub = fs::read(&stub_target)
             .with_context(|| format!("Failed to read the stub: {}", stub_target.display()))?;
         let kernel_path = resolve_efi_path(
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
             pe::read_section_data(&stub, ".linux").context("Missing kernel path.")?,
         )?;
         let initrd_path = resolve_efi_path(
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
             pe::read_section_data(&stub, ".initrd").context("Missing initrd path.")?,
         )?;
 
