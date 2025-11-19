@@ -15,6 +15,17 @@ let
   loaderConfigFile = loaderSettingsFormat.generate "loader.conf" cfg.settings;
 
   configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
+
+  efiSysMountPoints = [
+    config.boot.loader.efi.efiSysMountPoint
+  ]
+  ++ cfg.extraEfiSysMountPoints;
+
+  mkInstallCommand = efiSysMountPoint: ''
+    ${cfg.installCommand} \
+      ${efiSysMountPoint} \
+      /nix/var/nix/profiles/system-*-link
+  '';
 in
 {
   imports = [
@@ -142,6 +153,14 @@ in
           --private-key ''${cfg.privateKeyFile} \
           --configuration-limit ''${toString configurationLimit}'';
     };
+
+    extraEfiSysMountPoints = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      description = ''
+        List of EFI system partition mount points to install the bootloader to (additionally to boot.loader.efi.efiSysMountPoint).
+      '';
+      default = [ ];
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -154,11 +173,9 @@ in
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
       enable = true;
-      installHook = pkgs.writeShellScript "bootinstall" ''
-        ${cfg.installCommand} \
-          ${config.boot.loader.efi.efiSysMountPoint} \
-          /nix/var/nix/profiles/system-*-link
-      '';
+      installHook = pkgs.writeShellScript "bootinstall" (
+        lib.concatStringsSep "\n" (map mkInstallCommand efiSysMountPoints)
+      );
     };
 
     systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
