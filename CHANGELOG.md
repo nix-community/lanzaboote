@@ -25,6 +25,8 @@
 
 - Changed the non-flakes Nix interface of Lanzaboote. Now needs to be called
   with an argument: `lanzaboote = import sources.lanzaboote { };`.
+- `boot.lanzaboote.pkiBundle` now uses the type `externalPath` and thus cannot
+  point to Nix Store paths anymore.
 
 ### Removed
 
