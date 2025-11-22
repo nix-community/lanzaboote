@@ -9,6 +9,8 @@ let
   espLabel = "esp";
   nixStorePartitionLabel = "nix-store";
 
+  cfg = config.boot.lanzaboote;
+
   authVariables =
     let
       format = pkgs.formats.yaml { };
@@ -25,14 +27,31 @@ let
         --config ${sbctlConfig} --export auth
     '';
 
-  espFiles = pkgs.runCommand "esp-files" { } ''
-    mkdir -p $out
-    ln -s ${config.system.build.toplevel} system-1-link
-
-    ${config.boot.lanzaboote.installCommand} \
+  espFiles = pkgs.runCommand "esp-files" { } (
+    ''
+      mkdir -p $out
+      ln -s ${config.system.build.toplevel} system-1-link
+      ${cfg.installCommand} \
+    ''
+    + (
+      if config.lanzabooteTest.keyFixture then
+        # Use the key fixtures directly because we cannot set them via the module
+        # as the options cannot point to store paths.
+        ''
+          --public-key ${../../fixtures/uefi-keys}/keys/db/db.pem \
+          --private-key ${../../fixtures/uefi-keys}/keys/db/db.key \
+        ''
+      else
+        ''
+          --public-key ${cfg.publicKeyFile} \
+          --private-key ${cfg.privateKeyFile} \
+        ''
+    )
+    + ''
       $out \
       system-1-link
-  '';
+    ''
+  );
 in
 {
   imports = [ "${modulesPath}/image/repart.nix" ];
@@ -72,7 +91,7 @@ in
         contents = {
           "/".source = espFiles;
         }
-        // lib.optionalAttrs config.virtualisation.useSecureBoot {
+        // lib.optionalAttrs config.lanzabooteTest.keyFixture {
           "/loader/keys/auto/PK.auth".source = "${authVariables}/PK.auth";
           "/loader/keys/auto/KEK.auth".source = "${authVariables}/KEK.auth";
           "/loader/keys/auto/db.auth".source = "${authVariables}/db.auth";

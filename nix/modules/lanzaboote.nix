@@ -23,6 +23,8 @@ let
 
   mkInstallCommand = efiSysMountPoint: ''
     ${cfg.installCommand} \
+      --public-key ${cfg.publicKeyFile} \
+      --private-key ${cfg.privateKeyFile} \
       ${efiSysMountPoint} \
       /nix/var/nix/profiles/system-*-link
   '';
@@ -52,7 +54,7 @@ in
     };
 
     pkiBundle = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
+      type = lib.types.nullOr lib.types.externalPath;
       description = "PKI bundle containing db, PK, KEK";
     };
 
@@ -141,16 +143,12 @@ in
           --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${loaderConfigFile} \
-          --public-key ${cfg.publicKeyFile} \
-          --private-key ${cfg.privateKeyFile} \
           --configuration-limit ${toString configurationLimit}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe cfg.package} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ''${config.systemd.package} \
           --systemd-boot-loader-config ''${loaderConfigFile} \
-          --public-key ''${cfg.publicKeyFile} \
-          --private-key ''${cfg.privateKeyFile} \
           --configuration-limit ''${toString configurationLimit}'';
     };
 
