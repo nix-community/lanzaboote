@@ -86,6 +86,7 @@
           stubClippy = checks.stub.clippy;
           stubRustfmt = checks.stub.rustfmt;
 
+          docsHtml = checks.docs.html;
           docsOptions = checks.docs.options;
 
           inherit (checks) pre-commit;

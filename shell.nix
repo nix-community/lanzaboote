@@ -24,6 +24,7 @@ pkgs.mkShell {
   inputsFrom = [
     self.packages.lzbt
     self.packages.stub
+    self.docs.html
   ];
 
   shellHook = ''
