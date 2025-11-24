@@ -5,8 +5,6 @@ in
 pkgs.mkShell {
   packages = [
     pkgs.lon
-    pkgs.clippy
-    pkgs.rustfmt
     pkgs.cargo-release
     pkgs.cargo-machete
     pkgs.cargo-edit
