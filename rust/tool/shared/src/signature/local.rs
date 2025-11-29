@@ -37,7 +37,12 @@ impl LocalKeyPair {
 
 impl Signer for LocalKeyPair {
     fn get_public_key(&self) -> Result<Vec<u8>> {
-        Ok(std::fs::read(&self.public_key)?)
+        std::fs::read(&self.public_key).with_context(|| {
+            format!(
+                "Failed to read public key from {}",
+                self.public_key.display()
+            )
+        })
     }
 
     fn sign_and_copy(&self, from: &Path, to: &Path) -> Result<()> {

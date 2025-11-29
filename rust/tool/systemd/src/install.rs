@@ -23,6 +23,57 @@ use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
 use lanzaboote_tool::signature::Signer;
 use lanzaboote_tool::utils::{SecureTempDirExt, file_hash};
 
+pub struct InstallerBuilder {
+    lanzaboote_stub: PathBuf,
+    arch: Architecture,
+    systemd: PathBuf,
+    systemd_boot_loader_config: PathBuf,
+    configuration_limit: usize,
+    esp: PathBuf,
+    generation_links: Vec<PathBuf>,
+}
+
+impl InstallerBuilder {
+    pub fn new(
+        lanzaboote_stub: impl AsRef<Path>,
+        arch: Architecture,
+        systemd: PathBuf,
+        systemd_boot_loader_config: PathBuf,
+        configuration_limit: usize,
+        esp: PathBuf,
+        generation_links: Vec<PathBuf>,
+    ) -> Self {
+        Self {
+            lanzaboote_stub: lanzaboote_stub.as_ref().to_path_buf(),
+            arch,
+            systemd,
+            systemd_boot_loader_config,
+            configuration_limit,
+            esp,
+            generation_links,
+        }
+    }
+
+    pub fn build<S: Signer>(self, signer: S) -> Installer<S> {
+        let mut gc_roots = Roots::new();
+        let esp_paths = SystemdEspPaths::new(self.esp, self.arch);
+        gc_roots.extend(esp_paths.iter());
+
+        Installer {
+            broken_gens: BTreeSet::new(),
+            gc_roots,
+            lanzaboote_stub: self.lanzaboote_stub,
+            systemd: self.systemd,
+            systemd_boot_loader_config: self.systemd_boot_loader_config,
+            signer,
+            configuration_limit: self.configuration_limit,
+            esp_paths,
+            generation_links: self.generation_links,
+            arch: self.arch,
+        }
+    }
+}
+
 pub struct Installer<S: Signer> {
     broken_gens: BTreeSet<u64>,
     gc_roots: Roots,
@@ -36,36 +87,7 @@ pub struct Installer<S: Signer> {
     arch: Architecture,
 }
 
-#[allow(clippy::too_many_arguments)]
 impl<S: Signer> Installer<S> {
-    pub fn new(
-        lanzaboote_stub: PathBuf,
-        arch: Architecture,
-        systemd: PathBuf,
-        systemd_boot_loader_config: PathBuf,
-        signer: S,
-        configuration_limit: usize,
-        esp: PathBuf,
-        generation_links: Vec<PathBuf>,
-    ) -> Self {
-        let mut gc_roots = Roots::new();
-        let esp_paths = SystemdEspPaths::new(esp, arch);
-        gc_roots.extend(esp_paths.iter());
-
-        Self {
-            broken_gens: BTreeSet::new(),
-            gc_roots,
-            lanzaboote_stub,
-            systemd,
-            systemd_boot_loader_config,
-            signer,
-            configuration_limit,
-            esp_paths,
-            generation_links,
-            arch,
-        }
-    }
-
     pub fn install(&mut self) -> Result<()> {
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 

@@ -10,6 +10,8 @@ in
     keyFixture = lib.mkEnableOption "pkiBundle fixture baked into the image" // {
       default = config.virtualisation.useSecureBoot;
     };
+
+    persistentRoot = lib.mkEnableOption "a persistent root filesystem";
   };
 
   config = {
