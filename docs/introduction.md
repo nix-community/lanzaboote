@@ -47,5 +47,5 @@ you are all set to continue.
 ## Getting Started
 
 To setup Secure Boot on your machine, first [prepare your
-system](./how-to-guides/prepare-your-system.md) and then [enable Secure
-Boot](./how-to-guides/enable-secure-boot.md).
+system](./getting-started/prepare-your-system.md) and then [enable Secure
+Boot](./getting-started/enable-secure-boot.md).
