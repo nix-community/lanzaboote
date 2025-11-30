@@ -20,11 +20,25 @@
 
   However, this is optional. You can also just provide an empty attrset `{ }`
   and rely on the versions of the dependencies we have pinned.
+- Added the option `boot.lanzaboote.autoGenerateKeys.enable` which allows you
+  to automatically generate Secure Boot keys in a systemd service if they do
+  not exist yet. Please read the
+  [docs](https://nix-community.github.io/lanzaboote/) for more info.
+- Added the options `boot.lanzaboote.autoEnrollKeys.*` which allow you to
+  automatically enroll your Secure Boot keys into the firmware. A systemd
+  service prepares everything and `systemd-boot` finally enrolls the keys on
+  the next boot. Please read the
+  [docs](https://nix-community.github.io/lanzaboote/) for more info.
+- Added the option `boot.lanzaboote.allowUnsigned` which enables installing
+  unsigned artifacts to the ESP. This is useful for automatic provisioning of
+  systems with Secure Boot.
 
 ### Changed
 
 - Changed the non-flakes Nix interface of Lanzaboote. Now needs to be called
   with an argument: `lanzaboote = import sources.lanzaboote { };`.
+- `boot.lanzaboote.pkiBundle` now uses the type `externalPath` and thus cannot
+  point to Nix Store paths anymore.
 
 ### Removed
 
