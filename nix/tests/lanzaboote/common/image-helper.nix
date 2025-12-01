@@ -22,6 +22,6 @@
   os.environ['NIX_DISK_IMAGE'] = tmp_disk_image.name
 
   # Enroll keys via systemd-boot by rebooting
-  machine.start(allow_reboot=True)
-  machine.connected = False
+  ${machine.networking.hostName}.start(allow_reboot=True)
+  ${machine.networking.hostName}.connected = False
 ''
