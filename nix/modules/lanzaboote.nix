@@ -126,6 +126,18 @@ in
       '';
     };
 
+    bootCounting = {
+      initialTries = lib.mkOption {
+        type = lib.types.ints.u32;
+        default = 0;
+        description = ''
+          The number of boot counting tries to set for new boot entries.
+          Setting this to zero, disables boot counting.
+          See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/
+        '';
+      };
+    };
+
     installCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -143,7 +155,8 @@ in
           --systemd-boot-loader-config ${loaderConfigFile} \
           --public-key ${cfg.publicKeyFile} \
           --private-key ${cfg.privateKeyFile} \
-          --configuration-limit ${toString configurationLimit}'';
+          --configuration-limit ${toString configurationLimit} \
+          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe cfg.package} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
@@ -151,7 +164,8 @@ in
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --public-key ''${cfg.publicKeyFile} \
           --private-key ''${cfg.privateKeyFile} \
-          --configuration-limit ''${toString configurationLimit}'';
+          --configuration-limit ''${toString configurationLimit} \
+          --bootcounting-initial-tries ''${toString cfg.bootCounting.initialTries}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
