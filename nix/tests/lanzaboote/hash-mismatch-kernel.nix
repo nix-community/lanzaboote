@@ -14,6 +14,7 @@
     {
       imports = [ ./common/lanzaboote.nix ];
       virtualisation.useSecureBoot = lib.mkForce false;
+      boot.lanzaboote.allowUnsigned = true;
     };
 
   testScript =

@@ -8,6 +8,9 @@
 let
   espLabel = "esp";
   nixStorePartitionLabel = "nix-store";
+  rootPartitionLabel = "root";
+
+  cfg = config.boot.lanzaboote;
 
   authVariables =
     let
@@ -25,13 +28,48 @@ let
         --config ${sbctlConfig} --export auth
     '';
 
-  espFiles = pkgs.runCommand "esp-files" { } ''
-    mkdir -p $out
-    ln -s ${config.system.build.toplevel} system-1-link
-
-    ${config.boot.lanzaboote.installCommand} \
+  espFiles = pkgs.runCommand "esp-files" { } (
+    ''
+      mkdir -p $out
+      ln -s ${config.system.build.toplevel} system-1-link
+      ${cfg.installCommand} \
+    ''
+    + (
+      if config.lanzabooteTest.keyFixture then
+        # Use the key fixtures directly because we cannot set them via the module
+        # as the options cannot point to store paths.
+        ''
+          --public-key ${../../fixtures/uefi-keys}/keys/db/db.pem \
+          --private-key ${../../fixtures/uefi-keys}/keys/db/db.key \
+        ''
+      else
+        ''
+          --public-key ${cfg.publicKeyFile} \
+          --private-key ${cfg.privateKeyFile} \
+        ''
+    )
+    + ''
       $out \
       system-1-link
+    ''
+  );
+
+  closureInfo = pkgs.closureInfo {
+    rootPaths = [ config.system.build.toplevel ];
+  };
+
+  # Build the nix state at /nix/var/nix for the image
+  #
+  # This does two things:
+  # (1) Setup the initial profile
+  # (2) Create an initial Nix DB so that the nix tools work
+  nixState = pkgs.runCommand "nix-state" { nativeBuildInputs = [ pkgs.buildPackages.nix ]; } ''
+    mkdir -p $out/profiles
+    ln -s ${config.system.build.toplevel} $out/profiles/system-1-link
+    ln -s /nix/var/nix/profiles/system-1-link $out/profiles/system
+
+    export NIX_STATE_DIR=$out
+    nix-store --load-db < ${closureInfo}/registration
   '';
 in
 {
@@ -43,10 +81,17 @@ in
       fsType = "vfat";
       options = [ "umask=077" ];
     };
-    "/" = {
-      fsType = "tmpfs";
-      options = [ "mode=755" ];
-    };
+    "/" =
+      if config.lanzabooteTest.persistentRoot then
+        {
+          device = "/dev/disk/by-partlabel/${rootPartitionLabel}";
+          fsType = "ext4";
+        }
+      else
+        {
+          fsType = "tmpfs";
+          options = [ "mode=755" ];
+        };
     "/nix/store" = {
       device = "/dev/disk/by-partlabel/${nixStorePartitionLabel}";
       fsType = "erofs";
@@ -72,7 +117,7 @@ in
         contents = {
           "/".source = espFiles;
         }
-        // lib.optionalAttrs config.virtualisation.useSecureBoot {
+        // lib.optionalAttrs config.lanzabooteTest.keyFixture {
           "/loader/keys/auto/PK.auth".source = "${authVariables}/PK.auth";
           "/loader/keys/auto/KEK.auth".source = "${authVariables}/KEK.auth";
           "/loader/keys/auto/db.auth".source = "${authVariables}/db.auth";
@@ -93,6 +138,19 @@ in
           Format = config.fileSystems."/nix/store".fsType;
           Label = nixStorePartitionLabel;
           Minimize = "best";
+        };
+      };
+    }
+    // lib.optionalAttrs config.lanzabooteTest.persistentRoot {
+      "root" = {
+        contents = {
+          "/nix/var/nix".source = nixState;
+        };
+        repartConfig = {
+          Type = "root";
+          Format = config.fileSystems."/".fsType;
+          Label = rootPartitionLabel;
+          SizeMinBytes = "1M";
         };
       };
     };
