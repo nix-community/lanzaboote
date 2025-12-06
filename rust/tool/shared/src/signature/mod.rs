@@ -1,7 +1,13 @@
+mod empty;
+mod local;
+
 use anyhow::Result;
 use std::path::Path;
 
 use crate::pe::StubParameters;
+
+pub use empty::EmptyKeyPair;
+pub use local::LocalKeyPair;
 
 /// This trait abstracts the concept of a signer.
 ///
@@ -54,5 +60,3 @@ pub trait Signer {
         self.verify(&std::fs::read(from).expect("Failed to read the path to verify"))
     }
 }
-
-pub mod local;

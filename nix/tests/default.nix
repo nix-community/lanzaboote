@@ -25,6 +25,7 @@ in
   export-efivars = runTest ./lanzaboote/export-efivars.nix;
   export-efivars-tpm = runTest ./lanzaboote/export-efivars-tpm.nix;
   extra-efi-partitions = runTest ./lanzaboote/extra-efi-partitions.nix;
+  auto-generate-enroll = runTest ./lanzaboote/auto-generate-enroll.nix;
 
   systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
   systemd-measured-uki = runTest ./lanzaboote/systemd-measured-uki.nix;
