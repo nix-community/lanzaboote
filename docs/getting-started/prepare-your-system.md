@@ -35,9 +35,9 @@ secret key so that only root can read it.
 Add `lanzaboote` as a dependency via `lon` tracking a stable release tag (https://github.com/nix-community/lanzaboote/releases).
 
 ```console
-$ lon add github nix-community/lanzaboote -r v0.4.3 --frozen
+$ lon add github nix-community/lanzaboote -r v1.0.0 --frozen
 Adding lanzaboote...
-Locked revision: v0.4.3
+Locked revision: v1.0.0
 Locked hash: sha256-If6vQ+KvtKs3ARBO9G3l+4wFSCYtRBrwX1z+I+B61wQ=
 ```
 
@@ -89,7 +89,7 @@ Add this fragment to your `flake.nix`:
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     lanzaboote = {
-      url = "github:nix-community/lanzaboote/v0.4.3";
+      url = "github:nix-community/lanzaboote/v1.0.0";
 
       # Optional but recommended to limit the size of your system closure.
       inputs.nixpkgs.follows = "nixpkgs";

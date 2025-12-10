@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 1.0.0
 
 ### Added
 
@@ -32,6 +32,9 @@
 - Added the option `boot.lanzaboote.allowUnsigned` which enables installing
   unsigned artifacts to the ESP. This is useful for automatic provisioning of
   systems with Secure Boot.
+- Added support for multiple ESPs. You can configure additional ESPs that you
+  want Lanzaboote to install boot artifacts to via
+  `boot.lanzaboote.extraEfiSysMountPoints = [ "/boot2" ];`:
 
 ### Changed
 
