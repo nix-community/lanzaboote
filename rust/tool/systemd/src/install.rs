@@ -31,6 +31,7 @@ pub struct InstallerBuilder {
     configuration_limit: usize,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
+    safe_generation: Option<PathBuf>,
 }
 
 impl InstallerBuilder {
@@ -42,6 +43,7 @@ impl InstallerBuilder {
         configuration_limit: usize,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
+        safe_generation: Option<PathBuf>,
     ) -> Self {
         Self {
             lanzaboote_stub: lanzaboote_stub.as_ref().to_path_buf(),
@@ -51,6 +53,7 @@ impl InstallerBuilder {
             configuration_limit,
             esp,
             generation_links,
+            safe_generation,
         }
     }
 
@@ -69,6 +72,7 @@ impl InstallerBuilder {
             configuration_limit: self.configuration_limit,
             esp_paths,
             generation_links: self.generation_links,
+            safe_generation : self.safe_generation,
             arch: self.arch,
         }
     }
@@ -84,6 +88,7 @@ pub struct Installer<S: Signer> {
     configuration_limit: usize,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
+    safe_generation: Option<PathBuf>,
     arch: Architecture,
 }
 
@@ -95,6 +100,12 @@ impl<S: Signer> Installer<S> {
             .generation_links
             .iter()
             .map(GenerationLink::from_path)
+            .collect::<Result<Vec<GenerationLink>>>()?;
+
+        let mut all_links = self
+            .safe_generation
+            .iter()
+            .map(|p| GenerationLink::from_path_with_label(p, "SAFE".to_string()))
             .collect::<Result<Vec<GenerationLink>>>()?;
 
         // Sort the links by version, so that the limit actually skips the oldest generations.
@@ -111,9 +122,11 @@ impl<S: Signer> Installer<S> {
                 .rev()
                 .take(self.configuration_limit)
                 .rev()
-                .collect()
+                .collect();
         };
-        self.install_generations_from_links(&links)?;
+        all_links.append(&mut links);
+
+        self.install_generations_from_links(&all_links)?;
 
         self.install_systemd_boot()?;
 
