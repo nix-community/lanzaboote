@@ -68,14 +68,14 @@ in
     publicKeyFile = lib.mkOption {
       type = lib.types.path;
       default = "${cfg.pkiBundle}/keys/db/db.pem";
-      defaultText = "\${cfg.pkiBundle}/keys/db/db.pem";
+      defaultText = "\${config.boot.lanzaboote.pkiBundle}/keys/db/db.pem";
       description = "Public key to sign your boot files";
     };
 
     privateKeyFile = lib.mkOption {
       type = lib.types.path;
       default = "${cfg.pkiBundle}/keys/db/db.key";
-      defaultText = "\${cfg.pkiBundle}/keys/db/db.key";
+      defaultText = "\${config.boot.lanzaboote.pkiBundle}/keys/db/db.key";
       description = "Private key to sign your boot files";
     };
 
@@ -110,7 +110,7 @@ in
           editor = config.boot.loader.systemd-boot.editor;
           default = "nixos-*";
         }
-        // lib.optionalAttrs cfg.autoEnrollKeys.enable {
+        // lib.optionalAttrs config.boot.lanzaboote.autoEnrollKeys.enable {
           secure-boot-enroll = "force";
         };
       '';
@@ -159,12 +159,12 @@ in
           --configuration-limit ${toString configurationLimit} \
           --allow-unsigned ${lib.boolToString cfg.allowUnsigned}'';
       defaultText = lib.literalExpression ''
-        ''${lib.getExe cfg.package} install \
+        ''${lib.getExe config.boot.lanzaboote.package} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ''${config.systemd.package} \
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --configuration-limit ''${toString configurationLimit} \
-          --allow-unsigned ''${lib.boolToString cfg.allowUnsigned}'';
+          --allow-unsigned ''${lib.boolToString config.boot.lanzaboote.allowUnsigned}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
@@ -182,7 +182,7 @@ in
         This is useful for installing Lanzaboote where the key is generated during the first boot.
       '';
       default = cfg.autoGenerateKeys.enable;
-      defaultText = "cfg.autoGenerateKeys.enable";
+      defaultText = "config.boot.lanzaboote.autoGenerateKeys.enable";
     };
 
     autoGenerateKeys = {
