@@ -263,7 +263,11 @@ in
       wantedBy = [ "multi-user.target" ];
 
       unitConfig = {
-        ConditionPathExists = "!${cfg.pkiBundle}";
+        # Check to make sure keys directory is not present. Needs to check for
+        # a subdirectory of pkiBundle as typically in impermanence-based configs
+        # pkiBundle will be persisted, so it will always exist and is not
+        # a true determination of whether keys have been generated previously.
+        ConditionPathExists = "!${cfg.pkiBundle}/keys";
       };
 
       serviceConfig = {
