@@ -294,6 +294,8 @@ in
         Type = "oneshot";
         # SuccessAction doesn't trigger if the service is RemainAfterExit
         RemainAfterExit = lib.mkIf (!cfg.autoEnrollKeys.autoReboot) true;
+        RuntimeDirectory = "prepare-sb-auto-enroll";
+        WorkingDirectory = "/run/prepare-sb-auto-enroll";
       };
 
       script =
