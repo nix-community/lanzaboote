@@ -48,7 +48,9 @@ Add this fragment to your `configuration.nix`:
 { pkgs, lib, ... }:
 let
   sources = import ./lon.nix;
-  lanzaboote = import sources.lanzaboote;
+  lanzaboote = import sources.lanzaboote {
+    inherit pkgs;
+  };
 in
 {
   imports = [ lanzaboote.nixosModules.lanzaboote ];
