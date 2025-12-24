@@ -141,6 +141,18 @@ in
       '';
     };
 
+    bootCounting = {
+      initialTries = lib.mkOption {
+        type = lib.types.ints.u32;
+        default = 0;
+        description = ''
+          The number of boot counting tries to set for new boot entries.
+          Setting this to zero, disables boot counting.
+          See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/
+        '';
+      };
+    };
+
     installCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -157,14 +169,16 @@ in
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${loaderConfigFile} \
           --configuration-limit ${toString configurationLimit} \
-          --allow-unsigned ${lib.boolToString cfg.allowUnsigned}'';
+          --allow-unsigned ${lib.boolToString cfg.allowUnsigned} \
+          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe config.boot.lanzaboote.package} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ''${config.systemd.package} \
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --configuration-limit ''${toString configurationLimit} \
-          --allow-unsigned ''${lib.boolToString config.boot.lanzaboote.allowUnsigned}'';
+          --allow-unsigned ''${lib.boolToString config.boot.lanzaboote.allowUnsigned} \
+          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
