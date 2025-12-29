@@ -62,9 +62,10 @@ your keys to activate Secure Boot. We include Microsoft keys here to
 avoid boot issues.
 
 ```console
-$ sudo sbctl enroll-keys --microsoft
+$ sudo sbctl enroll-keys --microsoft  --firmware-builtin
 Enrolling keys to EFI variables...
-With vendor keys from microsoft...✓
+With vendor keys from microsoft...
+With vendor certificates built into the firmware...✓
 Enrolled keys to the EFI variables!
 ```
 
