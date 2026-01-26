@@ -19,6 +19,7 @@ use time::Date;
 pub struct ExtendedBootJson {
     pub bootspec: BootSpec,
     pub lanzaboote_extension: LanzabooteExtension,
+    pub xen_extension: Option<XenExtension>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,6 +50,40 @@ impl From<bootspec::BootJson> for LanzabooteExtension {
             .get("org.nix-community.lanzaboote")
             .and_then(|v| serde_json::from_value::<LanzabooteExtension>(v.clone()).ok())
             .unwrap_or_default()
+    }
+}
+
+// TODO: Should it be moved to bootspec crate itself?
+// Probably after its standardization, bootspec crate is only used in lanzaboote for now, bootspec support is
+// ad-hoc in nixpkgs right now.
+//
+// Aliases are used for org.xenproject.bootspec.v1 compatibility
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XenExtension {
+    #[serde(alias = "xen")]
+    pub efi_path: String,
+    #[serde(alias = "xenParams")]
+    pub params: Vec<String>,
+}
+
+impl TryFrom<bootspec::Specialisation> for XenExtension {
+    type Error = ();
+    fn try_from(spec: bootspec::Specialisation) -> Result<Self, ()> {
+        spec.extensions
+            .get("org.xenproject.bootspec.v2")
+            .and_then(|v| serde_json::from_value::<XenExtension>(v.clone()).ok())
+            .ok_or(())
+    }
+}
+
+impl TryFrom<bootspec::BootJson> for XenExtension {
+    type Error = ();
+    fn try_from(spec: bootspec::BootJson) -> Result<Self, ()> {
+        spec.extensions
+            .get("org.xenproject.bootspec.v2")
+            .and_then(|v| serde_json::from_value::<XenExtension>(v.clone()).ok())
+            .ok_or(())
     }
 }
 
@@ -98,6 +133,7 @@ impl Generation {
             spec: ExtendedBootJson {
                 bootspec: specialisation.clone().generation,
                 lanzaboote_extension: specialisation.clone().into(),
+                xen_extension: specialisation.clone().try_into().ok(),
             },
             specialisations: Self::parse_specialisations(
                 link,
@@ -132,7 +168,8 @@ impl Generation {
             specialisation_name,
             spec: ExtendedBootJson {
                 bootspec: bootspec.clone(),
-                lanzaboote_extension: boot_json.into(),
+                lanzaboote_extension: boot_json.clone().into(),
+                xen_extension: boot_json.try_into().ok(),
             },
             specialisations: Self::parse_specialisations(link, bootspec.specialisations)?,
         })
