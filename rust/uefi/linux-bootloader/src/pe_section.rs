@@ -7,6 +7,7 @@
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 use core::cmp::min;
 use goblin::pe::section_table::SectionTable;
+use uefi::{CString16, Status};
 
 /// Extracts the data of a section in a loaded PE file
 /// based on the section table.
@@ -40,4 +41,11 @@ pub fn pe_section<'a>(pe_data: &'a [u8], section_name: &str) -> Option<Vec<u8>> 
 /// Extracts the data of a section of a loaded PE image and returns it as a string.
 pub fn pe_section_as_string<'a>(pe_data: &'a [u8], section_name: &str) -> Option<String> {
     pe_section(pe_data, section_name).and_then(|data| String::from_utf8(data).ok())
+}
+
+/// Extract a string, stored as UTF-8, from a PE section.
+pub fn extract_string(pe_data: &[u8], section: &str) -> uefi::Result<CString16> {
+    let string = pe_section_as_string(pe_data, section).ok_or(Status::INVALID_PARAMETER)?;
+
+    Ok(CString16::try_from(string.as_str()).map_err(|_| Status::INVALID_PARAMETER)?)
 }

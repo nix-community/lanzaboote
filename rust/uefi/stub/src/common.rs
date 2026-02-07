@@ -1,20 +1,12 @@
 use alloc::vec::Vec;
 use log::warn;
 use uefi::{
-    CStr16, CString16, Result, boot, guid, prelude::*, proto::loaded_image::LoadedImage, runtime,
+    CStr16, boot, guid, prelude::*, proto::loaded_image::LoadedImage, runtime,
     runtime::VariableVendor,
 };
 
 use linux_bootloader::linux_loader::InitrdLoader;
 use linux_bootloader::pe_loader::Image;
-use linux_bootloader::pe_section::pe_section_as_string;
-
-/// Extract a string, stored as UTF-8, from a PE section.
-pub fn extract_string(pe_data: &[u8], section: &str) -> Result<CString16> {
-    let string = pe_section_as_string(pe_data, section).ok_or(Status::INVALID_PARAMETER)?;
-
-    Ok(CString16::try_from(string.as_str()).map_err(|_| Status::INVALID_PARAMETER)?)
-}
 
 /// Obtain the kernel command line that should be used for booting.
 ///

@@ -3,8 +3,8 @@ use log::{error, warn};
 use sha2::{Digest, Sha256};
 use uefi::{CString16, Result, fs::FileSystem, prelude::*};
 
-use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
-use linux_bootloader::pe_section::pe_section;
+use crate::common::{boot_linux_unchecked, get_cmdline, get_secure_boot_status};
+use linux_bootloader::pe_section::{extract_string, pe_section};
 use linux_bootloader::uefi_helpers::booted_image_file;
 
 type Hash = sha2::digest::Output<Sha256>;

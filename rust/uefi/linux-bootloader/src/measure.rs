@@ -1,11 +1,4 @@
-use alloc::{string::ToString, vec::Vec};
-use log::info;
-use uefi::{
-    cstr16,
-    proto::tcg::PcrIndex,
-    runtime::{self, VariableAttributes},
-};
-
+use crate::pe_section::extract_string;
 use crate::{
     companions::{CompanionInitrd, CompanionInitrdType},
     efivars::BOOT_LOADER_VENDOR_UUID,
@@ -13,6 +6,14 @@ use crate::{
     tpm::tpm_log_event_ascii,
     uefi_helpers::PeInMemory,
     unified_sections::UnifiedSection,
+};
+use alloc::{string::ToString, vec::Vec};
+use log::info;
+use uefi::fs::{Error, FileSystem};
+use uefi::{
+    cstr16,
+    proto::tcg::PcrIndex,
+    runtime::{self, VariableAttributes},
 };
 
 /// This is where any stub payloads are extended, e.g. kernel ELF image, embedded initrd
@@ -57,8 +58,26 @@ pub fn measure_image(image: &PeInMemory) -> uefi::Result<u32> {
 
     let mut measurements = 0;
     for (unified_section, section) in sections_to_measure {
-        if let Some(data) = pe_section_data(pe_binary, section) {
-            let section_name = unified_section.name();
+        let section_name = unified_section.name();
+
+        let data = match unified_section {
+            // Load kernel and initrd from file system to match systemd-stub's measuring
+            UnifiedSection::Linux | UnifiedSection::Initrd => {
+                let path = extract_string(pe_binary, section_name)?;
+                let file_system = uefi::boot::get_image_file_system(uefi::boot::image_handle())?;
+                let mut file_system = FileSystem::new(file_system);
+                let data = file_system.read(&*path).map_err(|err| match err {
+                    Error::Io(err) => err.uefi_error,
+                    Error::Path(_) | Error::Utf8Encoding(_) => {
+                        uefi::Status::INVALID_PARAMETER.into()
+                    }
+                })?;
+                Some(data)
+            }
+            _ => pe_section_data(pe_binary, section),
+        };
+
+        if let Some(data) = data {
             info!("Measuring section `{}`...", section_name);
 
             // Per UKI spec: "For each section two measurements shall be made into PCR 11"
