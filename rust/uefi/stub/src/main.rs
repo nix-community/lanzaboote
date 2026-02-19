@@ -7,6 +7,7 @@ extern crate alloc;
 mod common;
 mod thin;
 
+use crate::thin::UkiComponents;
 use alloc::vec::Vec;
 use linux_bootloader::companions::{
     discover_credentials, discover_system_extensions, get_default_dropin_directory,
@@ -47,13 +48,20 @@ fn main() -> Status {
     let pe_in_memory = booted_image_file()
         .expect("Failed to extract the in-memory information about our own image");
 
+    let components = UkiComponents::load_from_pe(&pe_in_memory)
+        .expect("Failed to extract configuration from binary and load kernel/initrd from disk. Did you run lzbt?");
+
     if is_tpm_available {
         info!("TPM available, will proceed to measurements.");
         // Iterate over unified sections and measure them
         // For now, ignore failures during measurements.
         // TODO: in the future, devise a threat model where this can fail
         // and ensure this hard-fail correctly.
-        let _ = measure_image(&pe_in_memory);
+        let _ = measure_image(
+            &pe_in_memory,
+            &components.kernel_data,
+            &components.initrd_data,
+        );
     }
 
     if let Ok(features) = get_loader_features()
@@ -136,5 +144,5 @@ fn main() -> Status {
         }
     }
 
-    thin::boot_linux(boot::image_handle(), dynamic_initrds).status()
+    thin::boot_linux(boot::image_handle(), components, dynamic_initrds).status()
 }
