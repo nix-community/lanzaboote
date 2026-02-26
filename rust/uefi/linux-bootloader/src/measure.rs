@@ -1,11 +1,3 @@
-use alloc::{string::ToString, vec::Vec};
-use log::info;
-use uefi::{
-    cstr16,
-    proto::tcg::PcrIndex,
-    runtime::{self, VariableAttributes},
-};
-
 use crate::{
     companions::{CompanionInitrd, CompanionInitrdType},
     efivars::BOOT_LOADER_VENDOR_UUID,
@@ -13,6 +5,13 @@ use crate::{
     tpm::tpm_log_event_ascii,
     uefi_helpers::PeInMemory,
     unified_sections::UnifiedSection,
+};
+use alloc::{string::ToString, vec::Vec};
+use log::info;
+use uefi::{
+    cstr16,
+    proto::tcg::PcrIndex,
+    runtime::{self, VariableAttributes},
 };
 
 /// This is where any stub payloads are extended, e.g. kernel ELF image, embedded initrd
@@ -32,7 +31,11 @@ const TPM_PCR_INDEX_KERNEL_CONFIG: PcrIndex = PcrIndex(12);
 /// This is where we extend the initrd sysext images into which we pass to the booted kernel
 const TPM_PCR_INDEX_SYSEXTS: PcrIndex = PcrIndex(13);
 
-pub fn measure_image(image: &PeInMemory) -> uefi::Result<u32> {
+pub fn measure_image(
+    image: &PeInMemory,
+    kernel_data: &[u8],
+    initrd_data: &[u8],
+) -> uefi::Result<u32> {
     // SAFETY: We get a slice that represents our currently running
     // image and then parse the PE data structures from it. This is
     // safe, because we don't touch any data in the data sections that
@@ -57,8 +60,17 @@ pub fn measure_image(image: &PeInMemory) -> uefi::Result<u32> {
 
     let mut measurements = 0;
     for (unified_section, section) in sections_to_measure {
-        if let Some(data) = pe_section_data(pe_binary, section) {
-            let section_name = unified_section.name();
+        let section_name = unified_section.name();
+
+        let section_data = pe_section_data(pe_binary, section);
+        let data = match unified_section {
+            // Use kernel/initrd data that were loaded from file system to match systemd-stub's measuring
+            UnifiedSection::Linux => Some(kernel_data),
+            UnifiedSection::Initrd => Some(initrd_data),
+            _ => section_data.as_deref(),
+        };
+
+        if let Some(data) = data {
             info!("Measuring section `{}`...", section_name);
 
             // Per UKI spec: "For each section two measurements shall be made into PCR 11"
@@ -73,7 +85,7 @@ pub fn measure_image(image: &PeInMemory) -> uefi::Result<u32> {
             }
 
             // 2. "The (binary) section contents"
-            if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, &data, section_name)? {
+            if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, data, section_name)? {
                 measurements += 1;
             }
         }
