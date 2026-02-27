@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 
 members = [
     "shared",
@@ -14,6 +14,13 @@ default-members = [
 [workspace.package]
 version = "1.0.0"
 edition = "2024"
+
+[workspace.dependencies]
+anyhow = { version = "1.0", default-features = false }
+log = { version = "0.4", default-features = false }
+serde_json = { version = "1.0", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+tempfile = { version = "3.23", default-features = false }
 
 [profile.release]
 opt-level = "s"
