@@ -23,11 +23,31 @@ let
   ++ cfg.extraEfiSysMountPoints;
 
   mkInstallCommand = efiSysMountPoint: ''
+    profDir="/nix/var/nix/profiles"
+    profiles=()
+
+    if compgen -G "$profDir/system-*-link" > /dev/null; then
+      profiles+=("$profDir"/system-*-link)
+    fi
+
+    if [ -d "$profDir/system-profiles" ] &&
+      compgen -G "$profDir/system-profiles/*-*-link" > /dev/null; then
+      profiles+=("$profDir"/system-profiles/*-*-link)
+    fi
+
+    if [ "''${#profiles[@]}" -eq 0 ]; then
+      ${lib.getExe' pkgs.coreutils "printf"} "%s %s %s\n" \
+        "Failed to find usable system profiles. Please make sure that" \
+        "system profiles are present under $profDir/system-*-link and/or" \
+        "$profDir/system-profiles/<profile-name>-*-link." 1>&2
+      exit 1
+    fi
+
     ${cfg.installCommand} \
       --public-key ${cfg.publicKeyFile} \
       --private-key ${cfg.privateKeyFile} \
       ${efiSysMountPoint} \
-      /nix/var/nix/profiles/system-*-link
+      "''${profiles[@]}"
   '';
 
   format = pkgs.formats.yaml { };

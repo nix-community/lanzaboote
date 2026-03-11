@@ -1,7 +1,7 @@
 use std::fs;
 
 use anyhow::{Context, Result};
-use expect_test::expect;
+use expect_test::{Expect, expect};
 use tempfile::tempdir;
 
 use crate::common;
@@ -13,25 +13,60 @@ fn generate_expected_os_release() -> Result<()> {
     let profiles = tempdir()?;
     let toplevel = common::setup_toplevel(tmpdir.path())?;
 
-    let generation_link =
-        common::setup_generation_link_from_toplevel(&toplevel, profiles.path(), 1)
-            .expect("Failed to setup generation link");
+    let assert_os_release =
+        |profile: Option<&str>, is_default_profile: bool, expected: Expect| -> Result<()> {
+            let generation_link =
+                common::setup_generation_link_from_toplevel(&toplevel, profiles.path(), 1, profile)
+                    .expect("Failed to setup generation link");
 
-    let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), vec![generation_link])?;
-    assert!(output0.status.success());
+            let output0 =
+                common::lanzaboote_install(0, esp_mountpoint.path(), vec![generation_link])?;
+            assert!(output0.status.success());
 
-    let stub_data = fs::read(common::image_path(&esp_mountpoint, 1, &toplevel)?)?;
-    let os_release_section = pe_section(&stub_data, ".osrel")
-        .context("Failed to read .osrelease PE section.")?
-        .to_owned();
+            let stub_data = fs::read(common::image_path(
+                &esp_mountpoint,
+                1,
+                profile,
+                is_default_profile,
+                &toplevel,
+            )?)?;
+            let os_release_section = pe_section(&stub_data, ".osrel")
+                .context("Failed to read .osrelease PE section.")?
+                .to_owned();
 
-    let expected = expect![[r#"
-        ID=lanzaboote
-        PRETTY_NAME=LanzaOS (Generation 1, 1970-01-01)
-        VERSION_ID=Generation 1, 1970-01-01
-    "#]];
+            expected.assert_eq(&String::from_utf8(os_release_section)?);
+            Ok(())
+        };
 
-    expected.assert_eq(&String::from_utf8(os_release_section)?);
+    assert_os_release(
+        None,
+        true,
+        expect![[r#"
+            ID=lanzaboote
+            PRETTY_NAME=LanzaOS (Generation 1, 1970-01-01)
+            VERSION_ID=Generation 1, 1970-01-01
+        "#]],
+    )?;
+
+    assert_os_release(
+        Some("My W#@cky_Yet_L3g!t profile-name -3"),
+        false,
+        expect![[r#"
+            ID=lanzaboote
+            PRETTY_NAME=LanzaOS [My W#@cky_Yet_L3g!t profile-name -3] (Generation 1, 1970-01-01)
+            VERSION_ID=Generation 1, 1970-01-01
+        "#]],
+    )?;
+
+    assert_os_release(
+        Some("system"),
+        false,
+        expect![[r#"
+            ID=lanzaboote
+            PRETTY_NAME=LanzaOS [system] (Generation 1, 1970-01-01)
+            VERSION_ID=Generation 1, 1970-01-01
+        "#]],
+    )?;
 
     Ok(())
 }

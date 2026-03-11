@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
@@ -18,7 +18,7 @@ use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
-use lanzaboote_tool::generation::{Generation, GenerationLink};
+use lanzaboote_tool::generation::{Generation, GenerationLink, GenerationTime};
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
 use lanzaboote_tool::signature::Signer;
@@ -81,7 +81,7 @@ impl InstallerBuilder {
 }
 
 pub struct Installer<S: Signer> {
-    broken_gens: BTreeSet<u64>,
+    broken_gens: BTreeSet<String>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
@@ -98,28 +98,11 @@ impl<S: Signer> Installer<S> {
     pub fn install(&mut self) -> Result<()> {
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 
-        let mut links = self
+        let links = self
             .generation_links
             .iter()
             .map(GenerationLink::from_path)
             .collect::<Result<Vec<GenerationLink>>>()?;
-
-        // Sort the links by version, so that the limit actually skips the oldest generations.
-        links.sort_by_key(|l| l.version);
-
-        // A configuration limit of 0 means there is no limit.
-        if self.configuration_limit > 0 {
-            // Only install the number of generations configured. Reverse the list to only take the
-            // latest generations and then, after taking them, reverse the list again so that the
-            // generations are installed from oldest to newest, i.e. from smallest to largest
-            // generation version.
-            links = links
-                .into_iter()
-                .rev()
-                .take(self.configuration_limit)
-                .rev()
-                .collect()
-        };
         self.install_generations_from_links(&links)?;
 
         self.install_systemd_boot()?;
@@ -146,9 +129,9 @@ impl<S: Signer> Installer<S> {
                 Garbage collection is disabled because you have malformed NixOS generations that do
                 not contain a readable bootspec document.
 
-                Remove the malformed generations to re-enable garbage collection with
-                `nix-env --delete-generations {}`
-            ", self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" ")};
+                Remove the malformed generations to re-enable garbage collection with:
+                {}
+            ", self.broken_gens.iter().map(|hint| format!("  - `{hint}`")).collect::<Vec<String>>().join("\n")};
             log::warn!("{warning}");
         };
 
@@ -158,7 +141,7 @@ impl<S: Signer> Installer<S> {
 
     /// Install all generations from the provided `GenerationLinks`.
     fn install_generations_from_links(&mut self, links: &[GenerationLink]) -> Result<()> {
-        let generations = links
+        let mut generations = links
             .iter()
             .filter_map(|link| {
                 let generation_result = Generation::from_link(link)
@@ -172,12 +155,24 @@ impl<S: Signer> Installer<S> {
                     // to manually intervene by getting rid of the old generations to re-enable
                     // garbage collection. This safeguard against catastrophic failure in case of
                     // unhandled upstream changes to NixOS.
-                    self.broken_gens.insert(link.version);
+                    self.broken_gens.insert(malformed_generation_hint(link));
                 }
 
                 generation_result.ok()
             })
             .collect::<Vec<Generation>>();
+
+        normalize_generation_times(&mut generations);
+        order_generations(&mut generations);
+
+        if self.configuration_limit > 0 {
+            generations = generations
+                .into_iter()
+                .rev()
+                .take(self.configuration_limit)
+                .rev()
+                .collect();
+        }
 
         if generations.is_empty() {
             // We can't continue, because we would remove all boot entries, if we did.
@@ -314,8 +309,8 @@ impl<S: Signer> Installer<S> {
         // The second number is the amount of times the boot entry has been tried unsuccessfully.
         // See https://uapi-group.org/specifications/specs/boot_loader_specification/#boot-counting
         let pattern = format!(
-            r"{}(\+\d(-\d)?)?.efi",
-            stub_prefix(generation, &self.signer)?
+            r"^{}(\+\d(-\d)?)?\.efi$",
+            regex::escape(&stub_prefix(generation, &self.signer)?)
         );
         let regex =
             Regex::new(&pattern).context("Failed to construct regex to read stubs from ESP")?;
@@ -473,16 +468,168 @@ fn stub_prefix<S: Signer>(generation: &Generation, signer: &S) -> Result<String>
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
+
+    let mut efi_name = String::from("nixos");
+    if !generation.is_default_profile {
+        efi_name.push('-');
+        efi_name.push_str(&profile_component_for_efi(&generation.profile));
+    }
     if let Some(specialisation_name) = &generation.specialisation_name {
-        Ok(format!(
-            "nixos-generation-{}-specialisation-{}-{}",
+        efi_name.push_str(&format!(
+            "-generation-{}-specialisation-{}-{}",
             generation, specialisation_name, stub_input_hash
-        ))
+        ));
     } else {
-        Ok(format!(
-            "nixos-generation-{}-{}",
-            generation, stub_input_hash
-        ))
+        efi_name.push_str(&format!("-generation-{}-{}", generation, stub_input_hash));
+    }
+
+    Ok(efi_name)
+}
+
+fn order_generations(generations: &mut [Generation]) {
+    generations.sort_by(|left, right| {
+        left.build_time
+            .cmp(&right.build_time)
+            .then_with(|| left.profile.cmp(&right.profile))
+            .then_with(|| left.version.cmp(&right.version))
+            .then_with(|| {
+                left.spec
+                    .bootspec
+                    .bootspec
+                    .toplevel
+                    .0
+                    .cmp(&right.spec.bootspec.bootspec.toplevel.0)
+            })
+    });
+}
+
+fn normalize_generation_times(generations: &mut [Generation]) {
+    let mut earliest_link_times = HashMap::new();
+    for generation in generations.iter() {
+        collect_generation_times(generation, &mut earliest_link_times);
+    }
+
+    for generation in generations.iter_mut() {
+        apply_generation_times(generation, &earliest_link_times);
+    }
+}
+
+fn collect_generation_times(
+    generation: &Generation,
+    earliest_link_times: &mut HashMap<PathBuf, Option<GenerationTime>>,
+) {
+    let toplevel = generation.spec.bootspec.bootspec.toplevel.0.clone();
+    let generation_time = generation.build_time;
+    earliest_link_times
+        .entry(toplevel)
+        .and_modify(|existing| {
+            *existing = match (*existing, generation_time) {
+                (Some(existing), Some(candidate)) => Some(existing.min(candidate)),
+                (None, candidate) => candidate,
+                (existing, None) => existing,
+            };
+        })
+        .or_insert(generation_time);
+
+    for specialisation in generation.specialisations.values() {
+        collect_generation_times(specialisation, earliest_link_times);
+    }
+}
+
+fn apply_generation_times(
+    generation: &mut Generation,
+    earliest_link_times: &HashMap<PathBuf, Option<GenerationTime>>,
+) {
+    generation.build_time = earliest_link_times
+        .get(&generation.spec.bootspec.bootspec.toplevel.0)
+        .copied()
+        .flatten();
+
+    for specialisation in generation.specialisations.values_mut() {
+        apply_generation_times(specialisation, earliest_link_times);
+    }
+}
+
+fn profile_component_for_efi(profile: &str) -> String {
+    let digest = Sha256::digest(profile.as_bytes());
+    let mut component = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        component.push_str(&format!("{byte:02x}"));
+    }
+    component
+}
+
+fn malformed_generation_hint(link: &GenerationLink) -> String {
+    if link.is_default_profile {
+        format!("nix-env --delete-generations {}", link.version)
+    } else {
+        let profile_path = link
+            .path
+            .parent()
+            .map(|parent| parent.join(&link.profile))
+            .unwrap_or_else(|| {
+                PathBuf::from(format!(
+                    "/nix/var/nix/profiles/system-profiles/{}",
+                    link.profile
+                ))
+            });
+        format!(
+            "nix-env -p {} --delete-generations {}",
+            shell_quote(profile_path.as_os_str()),
+            link.version
+        )
+    }
+}
+
+fn shell_quote(value: &OsStr) -> String {
+    let value = value.to_string_lossy();
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+
+    use super::{profile_component_for_efi, shell_quote};
+
+    #[test]
+    fn profile_component_for_efi_is_stable() {
+        let component = profile_component_for_efi("Workstation-1_2.test");
+        assert_eq!(component, profile_component_for_efi("Workstation-1_2.test"));
+        assert_eq!(component.len(), 64);
+        assert!(
+            component
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        );
+    }
+
+    #[test]
+    fn profile_component_for_efi_distinguishes_case() {
+        assert_ne!(
+            profile_component_for_efi("Work"),
+            profile_component_for_efi("work")
+        );
+    }
+
+    #[test]
+    fn profile_component_for_efi_is_injective_for_escape_sequences() {
+        assert_ne!(
+            profile_component_for_efi("foo bar"),
+            profile_component_for_efi("foo~20bar")
+        );
+    }
+
+    #[test]
+    fn shell_quote_handles_spaces_and_single_quotes() {
+        assert_eq!(
+            shell_quote(OsStr::new("/tmp/profile name")),
+            "'/tmp/profile name'"
+        );
+        assert_eq!(
+            shell_quote(OsStr::new("/tmp/it's complicated")),
+            "'/tmp/it'\"'\"'s complicated'"
+        );
     }
 }
 

@@ -9,7 +9,9 @@ use bootspec::BootJson;
 use bootspec::BootSpec;
 use bootspec::SpecialisationName;
 use serde::Deserialize;
-use time::Date;
+use time::OffsetDateTime;
+
+pub type GenerationTime = OffsetDateTime;
 
 /// (Possibly) extended Bootspec.
 ///
@@ -62,10 +64,14 @@ impl From<bootspec::BootJson> for LanzabooteExtension {
 /// of the generation link.
 #[derive(Debug, Clone)]
 pub struct Generation {
+    /// Profile symlink name
+    pub profile: String,
+    /// Whether this generation comes from the default /nix/var/nix/profiles/system-*-link path.
+    pub is_default_profile: bool,
     /// Profile symlink index
     pub version: u64,
-    /// Build time
-    pub build_time: Option<Date>,
+    /// Generation build time derived from the underlying generation contents, not the profile link.
+    pub build_time: Option<GenerationTime>,
     /// Top-level specialisation name
     pub specialisation_name: Option<SpecialisationName>,
     /// Top-level extended boot specification
@@ -92,8 +98,10 @@ impl Generation {
         specialisation: bootspec::Specialisation,
     ) -> Result<Self> {
         Ok(Self {
+            profile: link.profile.clone(),
+            is_default_profile: link.is_default_profile,
             version: link.version,
-            build_time: link.build_time,
+            build_time: link.link_time,
             specialisation_name: Some(specialisation_name),
             spec: ExtendedBootJson {
                 bootspec: specialisation.clone().generation,
@@ -127,8 +135,10 @@ impl Generation {
         let bootspec: BootSpec = boot_json.clone().generation.try_into()?;
 
         Ok(Self {
+            profile: link.profile.clone(),
+            is_default_profile: link.is_default_profile,
             version: link.version,
-            build_time: link.build_time,
+            build_time: link.link_time,
             specialisation_name,
             spec: ExtendedBootJson {
                 bootspec: bootspec.clone(),
@@ -147,6 +157,15 @@ impl Generation {
         }
     }
 
+    /// Describe the generation profile name for humans.
+    pub fn describe_profile(&self) -> String {
+        if self.is_default_profile {
+            String::new()
+        } else {
+            format!(" [{}]", self.profile)
+        }
+    }
+
     /// Describe the generation in a single line for humans.
     ///
     /// Emulates how NixOS's current systemd-boot-builder.py describes generations so that the user
@@ -157,7 +176,7 @@ impl Generation {
     pub fn describe(&self) -> String {
         let build_time = self
             .build_time
-            .map(|x| x.to_string())
+            .map(|x| x.date().to_string())
             .unwrap_or_else(|| String::from("Unknown"));
 
         format!(
@@ -180,9 +199,11 @@ impl fmt::Display for Generation {
     }
 }
 
-fn read_build_time(path: &Path) -> Result<Date> {
-    let build_time =
-        time::OffsetDateTime::from_unix_timestamp(fs::symlink_metadata(path)?.mtime())?.date();
+fn read_build_time(path: &Path) -> Result<GenerationTime> {
+    let metadata = fs::symlink_metadata(path)?;
+    let build_time = OffsetDateTime::from_unix_timestamp_nanos(
+        i128::from(metadata.mtime()) * 1_000_000_000 + i128::from(metadata.mtime_nsec()),
+    )?;
     Ok(build_time)
 }
 
@@ -192,30 +213,73 @@ fn read_build_time(path: &Path) -> Result<Date> {
 /// symlink encodes the version number.
 #[derive(Debug)]
 pub struct GenerationLink {
+    pub profile: String,
+    pub is_default_profile: bool,
     pub version: u64,
     pub path: PathBuf,
-    pub build_time: Option<Date>,
+    pub link_time: Option<GenerationTime>,
 }
 
 impl GenerationLink {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self {
+            profile: parse_profile(&path).context("Failed to parse profile name")?,
+            is_default_profile: parse_is_default_profile(&path),
             version: parse_version(&path).context("Failed to parse version")?,
             path: PathBuf::from(path.as_ref()),
-            build_time: read_build_time(path.as_ref()).ok(),
+            link_time: read_build_time(path.as_ref()).ok(),
         })
     }
 }
 
-/// Parse version number from a path.
+fn parse_is_default_profile(path: impl AsRef<Path>) -> bool {
+    path.as_ref()
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        != Some("system-profiles")
+}
+
+/// Parse profile name from a path.
 ///
-/// Expects a path in the format of "system-{version}-link".
-fn parse_version(path: impl AsRef<Path>) -> Result<u64> {
-    let generation_version = path
+/// Expects a path in the format of "{profile}-{version}-link".
+fn parse_profile(path: impl AsRef<Path>) -> Result<String> {
+    let file_name = path
         .as_ref()
         .file_name()
         .and_then(|x| x.to_str())
-        .and_then(|x| x.split('-').nth(1))
+        .with_context(|| format!("Failed to extract file name from: {:?}", path.as_ref()))?;
+
+    let profile_and_version = file_name
+        .strip_suffix("-link")
+        .with_context(|| format!("Generation link is missing '-link' suffix: {file_name:?}"))?;
+
+    let profile = profile_and_version
+        .rsplit_once('-')
+        .map(|(profile, _)| profile)
+        .filter(|profile| !profile.is_empty())
+        .with_context(|| format!("Failed to extract profile name from: {:?}", path.as_ref()))?;
+
+    Ok(profile.to_string())
+}
+
+/// Parse version number from a path.
+///
+/// Expects a path in the format of "{profile}-{version}-link".
+fn parse_version(path: impl AsRef<Path>) -> Result<u64> {
+    let file_name = path
+        .as_ref()
+        .file_name()
+        .and_then(|x| x.to_str())
+        .with_context(|| format!("Failed to extract file name from: {:?}", path.as_ref()))?;
+
+    let profile_and_version = file_name
+        .strip_suffix("-link")
+        .with_context(|| format!("Generation link is missing '-link' suffix: {file_name:?}"))?;
+
+    let generation_version = profile_and_version
+        .rsplit_once('-')
+        .map(|(_, version)| version)
         .and_then(|x| x.parse::<u64>().ok())
         .with_context(|| format!("Failed to extract version from: {:?}", path.as_ref()))?;
 
@@ -227,9 +291,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parse_profile_correctly() {
+        let path = Path::new("system-2-link");
+        let parsed_profile = parse_profile(path).unwrap();
+        assert_eq!(parsed_profile, "system");
+
+        let path = Path::new("my-2nd-nixos-machine-3-link");
+        let parsed_profile = parse_profile(path).unwrap();
+        assert_eq!(parsed_profile, "my-2nd-nixos-machine");
+    }
+
+    #[test]
     fn parse_version_correctly() {
         let path = Path::new("system-2-link");
         let parsed_version = parse_version(path).unwrap();
         assert_eq!(parsed_version, 2,);
+    }
+
+    #[test]
+    fn reject_malformed_generation_link_names() {
+        for name in ["system-link", "system-abc-link", "2-link", "system-2"] {
+            let path = Path::new(name);
+            assert!(parse_profile(path).is_err() || parse_version(path).is_err());
+        }
     }
 }

@@ -13,7 +13,7 @@ fn keep_systemd_boot_binaries() -> Result<()> {
     let esp = tempdir()?;
     let tmpdir = tempdir()?;
     let profiles = tempdir()?;
-    let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1)
+    let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1, None)
         .expect("Failed to setup generation link");
 
     let systemd_boot_path = systemd_boot_path(&esp);
@@ -50,7 +50,7 @@ fn overwrite_malformed_systemd_boot_binaries() -> Result<()> {
     let esp = tempdir()?;
     let tmpdir = tempdir()?;
     let profiles = tempdir()?;
-    let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1)
+    let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1, None)
         .expect("Failed to setup generation link");
 
     let systemd_boot_path = systemd_boot_path(&esp);
@@ -89,7 +89,7 @@ fn overwrite_unsigned_systemd_boot_binaries() -> Result<()> {
     let esp = tempdir()?;
     let tmpdir = tempdir()?;
     let profiles = tempdir()?;
-    let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1)
+    let generation_link = common::setup_generation_link(tmpdir.path(), profiles.path(), 1, None)
         .expect("Failed to setup generation link");
 
     let systemd_boot_path = systemd_boot_path(&esp);

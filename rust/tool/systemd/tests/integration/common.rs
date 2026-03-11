@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use anyhow::{Context, Result};
-use assert_cmd::{cargo_bin, Command};
+use assert_cmd::{Command, cargo_bin};
 use base32ct::{Base32Unpadded, Encoding};
 use rand::distr::Alphanumeric;
-use rand::{rng, RngExt};
+use rand::{RngExt, rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
@@ -37,9 +37,10 @@ pub fn setup_generation_link(
     tmpdir: &Path,
     profiles_directory: &Path,
     version: u64,
+    profile: Option<&str>,
 ) -> Result<PathBuf> {
     let toplevel = setup_toplevel(tmpdir).context("Failed to setup toplevel")?;
-    setup_generation_link_from_toplevel(&toplevel, profiles_directory, version)
+    setup_generation_link_from_toplevel(&toplevel, profiles_directory, version, profile)
 }
 
 /// Create a mock generation link.
@@ -50,6 +51,7 @@ pub fn setup_generation_link_from_toplevel(
     toplevel: &Path,
     profiles_directory: &Path,
     version: u64,
+    profile: Option<&str>,
 ) -> Result<PathBuf> {
     let bootspec = json!({
         "org.nixos.bootspec.v1": {
@@ -104,8 +106,11 @@ pub fn setup_generation_link_from_toplevel(
         },
     });
 
-    let generation_link_path = profiles_directory.join(format!("system-{}-link", version));
-    fs::create_dir(&generation_link_path)?;
+    let generation_link_path = profiles_directory.join(match profile {
+        Some(profile) => format!("system-profiles/{profile}-{version}-link"),
+        None => format!("system-{version}-link"),
+    });
+    fs::create_dir_all(&generation_link_path)?;
 
     let bootspec_path = generation_link_path.join("boot.json");
     let mut file = fs::File::create(bootspec_path)?;
@@ -115,6 +120,11 @@ pub fn setup_generation_link_from_toplevel(
     // This has to happen after any modifications to the directory.
     filetime::set_file_mtime(&generation_link_path, filetime::FileTime::zero())?;
     Ok(generation_link_path)
+}
+
+pub fn set_generation_link_mtime(path: &Path, unix_seconds: i64) -> Result<()> {
+    filetime::set_file_mtime(path, filetime::FileTime::from_unix_time(unix_seconds, 0))?;
+    Ok(())
 }
 
 /// Setup a mock toplevel inside a temporary directory.
@@ -150,6 +160,7 @@ pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     fs::copy(&test_systemd_stub, kernel_path)?;
     fs::write(nixos_version_path, b"23.05")?;
     fs::create_dir_all(kernel_modules_path)?;
+    filetime::set_file_mtime(&toplevel, filetime::FileTime::zero())?;
 
     Ok(toplevel)
 }
@@ -264,7 +275,13 @@ pub fn count_files(path: &Path) -> Result<usize> {
     Ok(fs::read_dir(path)?.count())
 }
 
-pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBuf> {
+pub fn image_path(
+    esp: &TempDir,
+    version: u64,
+    profile: Option<&str>,
+    is_default_profile: bool,
+    toplevel: &Path,
+) -> Result<PathBuf> {
     let stub_inputs = [
         // Generation numbers can be reused if the latest generation was deleted.
         // To detect this, the stub path depends on the actual toplevel used.
@@ -279,9 +296,23 @@ pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBu
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
+    let profile_prefix = profile
+        .filter(|_| !is_default_profile)
+        .map(profile_component_for_efi)
+        .map(|profile| format!("nixos-{profile}"))
+        .unwrap_or_else(|| String::from("nixos"));
     Ok(esp.path().join(format!(
-        "EFI/Linux/nixos-generation-{version}-{stub_input_hash}.efi"
+        "EFI/Linux/{profile_prefix}-generation-{version}-{stub_input_hash}.efi"
     )))
+}
+
+fn profile_component_for_efi(profile: &str) -> String {
+    let digest = Sha256::digest(profile.as_bytes());
+    let mut component = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        component.push_str(&format!("{byte:02x}"));
+    }
+    component
 }
 
 fn systemd_stub_filename(architecture: &Architecture) -> PathBuf {
