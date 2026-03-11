@@ -1,11 +1,16 @@
 let
   self = import ./default.nix { };
   inherit (self.passthru) pkgs;
+  cargo-release = pkgs.cargo-release.overrideAttrs (_: {
+    # Upstream snapshot tests are currently failing in nixpkgs, which breaks
+    # shell evaluation even though this tool is only a dev-shell convenience.
+    doCheck = false;
+  });
 in
 pkgs.mkShell {
   packages = [
     pkgs.lon
-    pkgs.cargo-release
+    cargo-release
     pkgs.cargo-machete
     pkgs.cargo-edit
     pkgs.cargo-bloat
