@@ -60,6 +60,8 @@ in
       '';
     };
 
+    keepCurrentBootedConfiguration = lib.mkEnableOption "keeping the current booted configuration (labeled 'SAFE' in boot menu)";
+
     pkiBundle = lib.mkOption {
       type = lib.types.nullOr lib.types.externalPath;
       description = "PKI bundle containing db, PK, KEK";
@@ -170,7 +172,7 @@ in
           --systemd-boot-loader-config ${loaderConfigFile} \
           --configuration-limit ${toString configurationLimit} \
           --allow-unsigned ${lib.boolToString cfg.allowUnsigned} \
-          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}${lib.optionalString cfg.keepCurrentBootedConfiguration " \\\n  --safe-generation /run/booted-system"}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe config.boot.lanzaboote.package} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
@@ -178,7 +180,7 @@ in
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --configuration-limit ''${toString configurationLimit} \
           --allow-unsigned ''${lib.boolToString config.boot.lanzaboote.allowUnsigned} \
-          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries}''${lib.optionalString config.boot.lanzaboote.keepCurrentBootedConfiguration " \\\n --safe-generation /run/booted-system"}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
