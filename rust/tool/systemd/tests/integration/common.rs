@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use anyhow::{Context, Result};
-use assert_cmd::{cargo_bin, Command};
+use assert_cmd::{Command, cargo_bin};
 use base32ct::{Base32Unpadded, Encoding};
 use rand::distr::Alphanumeric;
-use rand::{rng, RngExt};
+use rand::{RngExt, rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
@@ -168,6 +168,30 @@ pub fn lanzaboote_install(
     esp_mountpoint: &Path,
     generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
 ) -> Result<Output> {
+    lanzaboote_install_impl(config_limit, 0, esp_mountpoint, generation_links)
+}
+
+/// Call the `lanzaboote install` command with boot counting enabled.
+pub fn lanzaboote_install_with_bootcounting(
+    config_limit: u64,
+    bootcounting_tries: u32,
+    esp_mountpoint: &Path,
+    generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
+) -> Result<Output> {
+    lanzaboote_install_impl(
+        config_limit,
+        bootcounting_tries,
+        esp_mountpoint,
+        generation_links,
+    )
+}
+
+fn lanzaboote_install_impl(
+    config_limit: u64,
+    bootcounting_tries: u32,
+    esp_mountpoint: &Path,
+    generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
+) -> Result<Output> {
     // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
     // the comment in setup_toplevel for details.
     let architecture = Architecture::from_nixos_system(SYSTEM)?;
@@ -183,8 +207,7 @@ pub fn lanzaboote_install(
     fs::write(test_loader_config_path.path(), test_loader_config)?;
 
     let mut cmd = Command::new(cargo_bin!("lzbt-systemd"));
-    let output = cmd
-        .env("LANZABOOTE_STUB", test_systemd_stub)
+    cmd.env("LANZABOOTE_STUB", test_systemd_stub)
         .arg("-vv")
         .arg("install")
         .arg("--system")
@@ -199,9 +222,10 @@ pub fn lanzaboote_install(
         .arg("tests/fixtures/uefi-keys/db.key")
         .arg("--configuration-limit")
         .arg(config_limit.to_string())
-        .arg(esp_mountpoint)
-        .args(generation_links)
-        .output()?;
+        .arg("--bootcounting-initial-tries")
+        .arg(bootcounting_tries.to_string());
+
+    let output = cmd.arg(esp_mountpoint).args(generation_links).output()?;
 
     // Print debugging output.
     // This is a weird hack to make cargo test capture the output.
