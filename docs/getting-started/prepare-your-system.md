@@ -81,7 +81,7 @@ lanzaboote = import sources.lanzaboote { inherit pkgs; };
 
 ## Configure NixOS (with Flakes)
 
-**Step 1a**. Modify `flake.nix`: Add `lanzaboot` input
+**Step 1a**. Modify `flake.nix`: Add `lanzaboote` input
 
 ```nix
 inputs = {
@@ -96,7 +96,7 @@ inputs = {
 };
 ```
 
-**Step 1b**. Modify `flake.nix`: Add `lanzaboot` module to
+**Step 1b**. Modify `flake.nix`: Add `lanzaboote` module to
    `nixosConfigurations.<hostname>.modules` in `outputs`
 
 ```nix
