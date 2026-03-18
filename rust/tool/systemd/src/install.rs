@@ -466,24 +466,31 @@ fn stub_prefix<S: Signer>(generation: &Generation, signer: &S) -> Result<String>
         // Generation numbers can be reused if the latest generation was deleted.
         // To detect this, the stub path depends on the actual toplevel used.
         ("toplevel", bootspec.toplevel.0.as_os_str().as_bytes()),
-        // If the key is rotated, the signed stubs must be re-generated.
+        // If the key is rotated, the signed stubs must be regenerated.
         // So we make their path depend on the public key used for signature.
         ("public_key", &public_key),
     ];
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
+
+    let mut efi_name = String::from("nixos");
+    if &generation.profile != "system" {
+        efi_name.push_str(&format!("-{}", &generation.profile));
+    };
     if let Some(specialisation_name) = &generation.specialisation_name {
-        Ok(format!(
-            "nixos-generation-{}-specialisation-{}-{}",
+        efi_name.push_str(&format!(
+            "-generation-{}-specialisation-{}-{}",
             generation, specialisation_name, stub_input_hash
-        ))
+        ));
     } else {
-        Ok(format!(
-            "nixos-generation-{}-{}",
+        efi_name.push_str(&format!(
+            "-generation-{}-{}",
             generation, stub_input_hash
-        ))
+        ));
     }
+
+    Ok(efi_name)
 }
 
 /// Install a PE file. The PE gets signed in the process.
