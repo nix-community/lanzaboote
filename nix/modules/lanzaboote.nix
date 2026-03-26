@@ -178,6 +178,17 @@ in
       };
     };
 
+    logLevel = lib.mkOption {
+      type = lib.types.enum [
+        "info"
+        "debug"
+      ];
+      default = "info";
+      description = ''
+        Log level of lzbt.
+      '';
+    };
+
     installCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -189,7 +200,7 @@ in
       default = ''
         # Use the system from the kernel's hostPlatform because this should
         # always, even in the cross compilation case, be the right system.
-        ${lib.getExe cfg.package} install \
+        ${lib.getExe cfg.package} ${lib.optionalString (cfg.logLevel == "debug") "-vv"} install \
           --system ${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ${config.systemd.package} \
           --systemd-boot-loader-config ${loaderConfigFile} \
@@ -197,7 +208,7 @@ in
           --allow-unsigned ${lib.boolToString cfg.allowUnsigned} \
           --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}'';
       defaultText = lib.literalExpression ''
-        ''${lib.getExe config.boot.lanzaboote.package} install \
+        ''${lib.getExe config.boot.lanzaboote.package} ''${lib.optionalString (config.boot.lanzaboote.logLevel == "debug") "-vv"} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
           --systemd ''${config.systemd.package} \
           --systemd-boot-loader-config ''${loaderConfigFile} \
