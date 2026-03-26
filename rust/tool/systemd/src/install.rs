@@ -309,7 +309,7 @@ impl<S: Signer> Installer<S> {
         // The second number is the amount of times the boot entry has been tried unsuccessfully.
         // See https://uapi-group.org/specifications/specs/boot_loader_specification/#boot-counting
         let pattern = format!(
-            r"^{}(\+\d(-\d)?)?\.efi$",
+            r"^{}(\+\d+(-\d+)?)?\.efi$",
             regex::escape(&stub_prefix(generation, &self.signer)?)
         );
         let regex =
