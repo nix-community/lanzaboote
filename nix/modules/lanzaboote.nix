@@ -22,6 +22,7 @@ let
   ]
   ++ cfg.extraEfiSysMountPoints;
 
+<<<<<<< HEAD
   mkInstallCommand = efiSysMountPoint: ''
     profDir="/nix/var/nix/profiles"
     set --
@@ -48,10 +49,12 @@ let
       exit 1
     fi
 
+    PATH=${config.systemd.package}/lib/systemd:$PATH
     ${cfg.installCommand} \
-      --public-key ${cfg.publicKeyFile} \
-      --private-key ${cfg.privateKeyFile} \
-      ${efiSysMountPoint} \
+      --public-key ${lib.escapeShellArg (toString cfg.publicKeyFile)} \
+      --private-key ${lib.escapeShellArg (toString cfg.privateKeyFile)} \
+      ${lib.optionalString (cfg.measuredBoot.enable && pcr 4) "--pcrlock-directory ${lib.escapeShellArg (toString cfg.measuredBoot.pcrlockDirectory)} \\"}
+      ${lib.escapeShellArg efiSysMountPoint} \
       "$@"
   '';
 
@@ -60,6 +63,35 @@ let
     keydir = "${cfg.pkiBundle}/keys";
     guid = "${cfg.pkiBundle}/GUID";
   };
+
+  json = pkgs.formats.json { };
+
+  pcr = n: lib.elem n cfg.measuredBoot.pcrs;
+
+  staticMeasurements = pkgs.runCommand "pcrlock.d" { preferLocalBuild = true; } ''
+    mkdir -p $out
+
+    for f in ${toString cfg.measuredBoot.upstreamStaticMeasurements}; do
+      mkdir -p $(dirname $out/$f)
+      ln -sf ${config.systemd.package}/lib/pcrlock.d/$f $out/$f
+    done
+
+    ${lib.concatLines (
+      lib.mapAttrsToList (n: v: "ln -s ${v.source} $out/${n}.pcrlock") cfg.measuredBoot.staticMeasurements
+    )}
+  '';
+
+  makePolicyCommand = lib.escapeShellArgs (
+    [
+      "${config.systemd.package}/lib/systemd/systemd-pcrlock"
+      "make-policy"
+      "--components=${staticMeasurements}"
+      "--components=${cfg.measuredBoot.pcrlockDirectory}"
+      "--policy=${cfg.measuredBoot.pcrlockPolicy}"
+      "--location=770"
+    ]
+    ++ lib.map (pcr: "--pcr=${toString pcr}") cfg.measuredBoot.pcrs
+  );
 in
 {
   imports = [
@@ -273,6 +305,114 @@ in
         '';
       };
     };
+
+    measuredBoot = {
+      enable = lib.mkEnableOption "Measured Boot";
+
+      pcrs = lib.mkOption {
+        type = lib.types.listOf (
+          lib.types.enum [
+            0
+            1
+            2
+            3
+            4
+            7
+          ]
+        );
+        default = [ ];
+        description = ''
+          PCRs to lock via systemd-pcrlock.
+        '';
+      };
+
+      pcrlockDirectory = lib.mkOption {
+        type = lib.types.path;
+        default = "/var/lib/pcrlock.d";
+        description = ''
+          Directory to store the pcrlock files in.
+        '';
+      };
+
+      pcrlockPolicy = lib.mkOption {
+        type = lib.types.path;
+        default = "/var/lib/systemd/pcrlock.json";
+        description = ''
+          Location to store the pcrlock policy in.
+        '';
+      };
+
+      upstreamStaticMeasurements = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = ''
+          Filenames of static pcrlock measurements to include from the systemd
+          package.
+        '';
+      };
+
+      staticMeasurements = lib.mkOption {
+        default = { };
+        description = ''
+          Static systemd-pcrlock measurements.
+        '';
+        type = lib.types.attrsOf (
+          lib.types.submodule (
+            {
+              name,
+              config,
+              options,
+              ...
+            }:
+            {
+              options = {
+                source = lib.mkOption {
+                  type = lib.types.path;
+                  description = "Path of the source file.";
+                };
+                json = lib.mkOption {
+                  default = null;
+                  type = lib.types.nullOr json.type;
+                  description = ''
+                    systemd-pcrlock components in their literal form. This option is directly transformed to a JSON.
+                  '';
+                };
+              };
+              config = {
+                source = lib.mkIf (config.json != null) (
+                  lib.mkDerivedConfig options.json (json.generate "${name}.pcrlock")
+                );
+              };
+            }
+          )
+        );
+      };
+
+      autoCryptenroll = {
+        enable = lib.mkEnableOption "automatically re-enroll systemd-pcrlock TPM2 policy into LUKS volume";
+
+        device = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            The device that is encrypted via LUKS2 to enroll the TPM2 policy into.
+
+            This is useful for unattended systems to upgrade a LUKS2 volume
+            from being locked against a static PCR to a full systemd-pcrlock
+            policy.
+          '';
+        };
+
+        autoReboot = lib.mkEnableOption "" // {
+          description = ''
+            Whether to automatically reboot after preparing the measurements.
+
+            Enable this to enroll the new systemd-pcrlock policy with full
+            protection without having to wait for a manual reboot.
+          '';
+        };
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -287,6 +427,16 @@ in
             2. Accept the risk via autoEnrollKeys.allowBrickingMyMachine
         '';
       }
+      {
+        assertion = cfg.measuredBoot.enable -> (configurationLimit > 0 && configurationLimit <= 8);
+        message = ''
+          If Measured Boot is enabled, you cannot store more than 8 generations on the ESP.
+
+            This is a strict limit required and enforced by systemd-pcrlock.
+
+            Set `boot.lanzaboote.configurationLimit = 8;` to reduce the number of generations you store.
+        '';
+      }
     ];
 
     boot.bootspec = {
@@ -299,15 +449,67 @@ in
     boot.loader.external = {
       enable = true;
       installHook = pkgs.writeShellScript "bootinstall" (
-        lib.concatStringsSep "\n" (map mkInstallCommand efiSysMountPoints)
+        ''
+          ${lib.concatStringsSep "\n" (map mkInstallCommand efiSysMountPoints)}
+        ''
+        + lib.optionalString cfg.measuredBoot.enable ''
+          echo "Predicting the PCR state for future boots..."
+          ${makePolicyCommand}
+        ''
       );
     };
+    boot.lanzaboote.measuredBoot.upstreamStaticMeasurements =
+      lib.optionals (pcr 0 || pcr 1 || pcr 2 || pcr 3 || pcr 4) [
+        "500-separator.pcrlock.d/300-0x00000000.pcrlock"
+      ]
+      ++ lib.optionals (pcr 4) [
+        "350-action-efi-application.pcrlock"
+      ]
+      ++ lib.optionals (pcr 7) [
+        "400-secureboot-separator.pcrlock.d/300-0x00000000.pcrlock"
+      ];
 
     environment.etc."sbctl/sbctl.conf" =
       lib.mkIf (cfg.autoGenerateKeys.enable || cfg.autoEnrollKeys.enable)
         {
           source = sbctlConfigFile;
         };
+
+    # Write this to /etc so that manually calling systemd-pcrlock by the user
+    # still works without them having to specify the directory.
+    environment.etc."pcrlock" = lib.mkIf cfg.measuredBoot.enable {
+      target = "pcrlock.d";
+      source = staticMeasurements;
+    };
+
+    systemd.additionalUpstreamSystemUnits = lib.mkIf cfg.measuredBoot.enable [
+      "systemd-pcrlock-make-policy.service"
+      "systemd-pcrlock-firmware-code.service"
+      "systemd-pcrlock-firmware-config.service"
+      "systemd-pcrlock-secureboot-policy.service"
+      "systemd-pcrlock-secureboot-authority.service"
+    ];
+    systemd.services.systemd-pcrlock-make-policy = lib.mkIf cfg.measuredBoot.enable {
+      wantedBy = [ "sysinit.target" ];
+
+      serviceConfig.ExecStart = [
+        "" # unset previous value
+        makePolicyCommand
+      ];
+    };
+    systemd.targets.sysinit = lib.mkIf cfg.measuredBoot.enable {
+      wants =
+        lib.optionals (pcr 0 || pcr 2) [
+          "systemd-pcrlock-firmware-code.service"
+        ]
+        ++ lib.optionals (pcr 1 || pcr 3) [
+          "systemd-pcrlock-firmware-config.service"
+        ]
+        ++ lib.optionals (pcr 7) [
+          "systemd-pcrlock-secureboot-policy.service"
+          "systemd-pcrlock-secureboot-authority.service"
+        ];
+    };
 
     systemd.services.generate-sb-keys = lib.mkIf cfg.autoGenerateKeys.enable {
       wantedBy = [ "multi-user.target" ];
@@ -341,13 +543,11 @@ in
           "!${espMountPoint}/loader/keys/auto/KEK.auth"
           "!${espMountPoint}/loader/keys/auto/db.auth"
         ];
-        SuccessAction = lib.mkIf cfg.autoEnrollKeys.autoReboot "reboot";
       };
 
       serviceConfig = {
         Type = "oneshot";
-        # SuccessAction doesn't trigger if the service is RemainAfterExit
-        RemainAfterExit = lib.mkIf (!cfg.autoEnrollKeys.autoReboot) true;
+        RemainAfterExit = true;
         RuntimeDirectory = "prepare-sb-auto-enroll";
         WorkingDirectory = "/run/prepare-sb-auto-enroll";
       };
@@ -374,6 +574,88 @@ in
           ${mkInstallCommand espMountPoint}
         '';
     };
+
+    # Re-create/sign all artifacts on the ESP to securely generate pcrlock
+    # measurements. If this is successful, immediately reboot. Only on the next
+    # boot can the new policy be created and enrolled because the artifacts
+    # which were used for the current boot might not be the ones used after
+    # re-creating/signing them. systemd-pcrlock only allows including PCRs if
+    # the current TPM measurements are included.
+    systemd.services.prepare-auto-cryptenroll = lib.mkIf cfg.measuredBoot.autoCryptenroll.enable {
+      wantedBy = [ "sysinit.target" ];
+      before = [ "systemd-pcrlock-make-policy.service" ];
+      # Allow creating files for re-creating/signing via systemd-tmpfiles.
+      # This is useful for testing and shouldn't harm anything.
+      after = [ "systemd-tmpfiles-setup.service" ];
+
+      unitConfig = {
+        DefaultDependencies = false;
+        # Only run once before any policy was created because this only needs
+        # to be done once when enabling Measured Boot for the first time. On
+        # subsequent boots, this is handled via lzbt in the bootinstall hook of
+        # switch-to-configuration.
+        ConditionPathExists = [ "!${cfg.measuredBoot.pcrlockPolicy}" ];
+      };
+
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+
+      script = ''
+        ${mkInstallCommand espMountPoint}
+      '';
+    };
+
+    systemd.services.auto-cryptenroll = lib.mkIf cfg.measuredBoot.autoCryptenroll.enable {
+      wantedBy = [ "multi-user.target" ];
+      after = [ "prepare-auto-cryptenroll.service" ];
+
+      unitConfig = {
+        ConditionPathExists = [
+          "${cfg.measuredBoot.pcrlockPolicy}"
+          # If this path exists the new policy was already enrolled and thus
+          # does not need to be enrolled again. systemd-pcrlock will update the
+          # policy in place in the same NV index of the TPM.
+          "!/var/lib/auto-cryptenroll/1"
+        ];
+      };
+
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        StateDirectory = "auto-cryptenroll";
+        ExecStart = ''
+          systemd-cryptenroll \
+            --wipe-slot=tpm2 \
+            --tpm2-device=auto \
+            --unlock-tpm2-device=auto \
+            --tpm2-pcrlock=${cfg.measuredBoot.pcrlockPolicy} \
+            ${cfg.measuredBoot.autoCryptenroll.device}
+        '';
+        ExecStartPost = "${pkgs.coreutils}/bin/touch /var/lib/auto-cryptenroll/1";
+      };
+    };
+
+    # Reboot in a separate service instead of via SuccessAction= in individual
+    # services so that users can both autoEnrollKeys and autoCryptenroll.
+    systemd.services.auto-reboot =
+      lib.mkIf (cfg.autoEnrollKeys.autoReboot || cfg.measuredBoot.autoCryptenroll.autoReboot)
+        {
+          requiredBy = [
+            "prepare-sb-auto-enroll.service"
+            "prepare-auto-cryptenroll.service"
+          ];
+          after = [
+            "prepare-sb-auto-enroll.service"
+            "prepare-auto-cryptenroll.service"
+          ];
+
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = "systemctl reboot";
+          };
+        };
 
     systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
       # Tell fwupd to load its efi files from /run

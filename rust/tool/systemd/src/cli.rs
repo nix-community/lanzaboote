@@ -65,6 +65,9 @@ struct InstallCommand {
     #[arg(long, default_value_t = 0)]
     bootcounting_initial_tries: u32,
 
+    #[arg(long)]
+    pcrlock_directory: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -111,6 +114,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.systemd_boot_loader_config,
         args.configuration_limit,
         args.bootcounting_initial_tries,
+        args.pcrlock_directory,
         args.esp,
         args.generations,
     );

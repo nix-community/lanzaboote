@@ -2,6 +2,7 @@ mod architecture;
 mod cli;
 mod esp;
 mod install;
+mod pcrlock;
 mod version;
 
 use clap::Parser;
