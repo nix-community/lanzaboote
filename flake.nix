@@ -55,7 +55,7 @@
       nixosModules = {
         default = self.nixosModules.lanzaboote;
         lanzaboote = (
-          { pkgs, ... }:
+          { pkgs, lib, ... }:
           {
             imports = [
               ./nix/modules/lanzaboote.nix
@@ -65,7 +65,7 @@
               let
                 system = pkgs.stdenv.hostPlatform.system;
               in
-              self.packages.${system}.lzbt;
+              lib.mkDefault self.packages.${system}.lzbt;
           }
         );
       };

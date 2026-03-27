@@ -14,7 +14,7 @@ in
 rec {
   nixosModules.lanzaboote = {
     imports = [ ./nix/modules/lanzaboote.nix ];
-    boot.lanzaboote.package = packages.lzbt;
+    boot.lanzaboote.package = lib.mkDefault packages.lzbt;
   };
 
   packages = lib.recurseIntoAttrs (
