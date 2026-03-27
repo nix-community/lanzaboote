@@ -39,7 +39,7 @@ buildRustApp {
       in
       ''
         makeWrapper $out/bin/lzbt-systemd $out/bin/lzbt \
-          --set PATH ${path} \
+          --prefix PATH : ${path} \
           --set LANZABOOTE_STUB ${stub}/bin/lanzaboote_stub.efi
       '';
 
