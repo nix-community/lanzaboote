@@ -4,20 +4,22 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::pcr_signature::create_pcr_policy_signature_with_systemd_measure;
+use crate::utils::{SecureTempDirExt, file_hash, tmpname};
 use anyhow::{Context, Result};
 use goblin::pe::PE;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
-use crate::utils::{SecureTempDirExt, file_hash, tmpname};
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StubParameters {
+    pub systemd_store_path: PathBuf,
     pub lanzaboote_store_path: PathBuf,
     pub kernel_cmdline: Vec<String>,
     pub os_release_contents: Vec<u8>,
     pub kernel_store_path: PathBuf,
     pub initrd_store_path: PathBuf,
+    pub pcr_signature_config_path: Option<PathBuf>,
     /// Kernel path rooted at the ESP
     /// i.e. if you refer to /boot/efi/EFI/NixOS/kernel.efi
     /// this gets turned into \\EFI\\NixOS\\kernel.efi as a UTF-16 string
@@ -28,12 +30,15 @@ pub struct StubParameters {
 }
 
 impl StubParameters {
+    #![allow(clippy::too_many_arguments)]
     pub fn new(
+        systemd: &Path,
         lanzaboote_stub: &Path,
         kernel_path: &Path,
         initrd_path: &Path,
         kernel_target: &Path,
         initrd_target: &Path,
+        pcr_signature_config: Option<&Path>,
         esp: &Path,
     ) -> Result<Self> {
         // Resolve maximally those paths
@@ -41,6 +46,7 @@ impl StubParameters {
         // unit tests.
 
         Ok(Self {
+            systemd_store_path: systemd.to_path_buf(),
             lanzaboote_store_path: lanzaboote_stub.to_path_buf(),
             kernel_store_path: kernel_path.to_path_buf(),
             initrd_store_path: initrd_path.to_path_buf(),
@@ -48,6 +54,7 @@ impl StubParameters {
             initrd_path_at_esp: esp_relative_uefi_path(esp, initrd_target)?,
             kernel_cmdline: Vec::new(),
             os_release_contents: Vec::new(),
+            pcr_signature_config_path: pcr_signature_config.map(Path::to_path_buf),
         })
     }
 
@@ -112,8 +119,28 @@ pub fn lanzaboote_image(
     let kernel_path_offs = initrd_path_offs + file_size(&initrd_path_file)?;
     let initrd_hash_offs = kernel_path_offs + file_size(&kernel_path_file)?;
     let kernel_hash_offs = initrd_hash_offs + file_size(&initrd_hash_file)?;
+    let pcr_signature_offs = kernel_hash_offs + file_size(&kernel_hash_file)?;
 
-    let sections = vec![
+    let pcr_signature_section =
+        if let Some(pcr_signature_config_path) = &stub_parameters.pcr_signature_config_path {
+            if let Some(pcr_signature) = create_pcr_policy_signature_with_systemd_measure(
+                &stub_parameters.systemd_store_path,
+                &kernel_cmdline_file,
+                &stub_parameters.kernel_store_path,
+                &stub_parameters.initrd_store_path,
+                &os_release,
+                pcr_signature_config_path,
+            )? {
+                let pcr_signature_file = tempdir.write_secure_file(&pcr_signature)?;
+                Some(s(".pcrsig", pcr_signature_file, pcr_signature_offs))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+    let mut sections = vec![
         s(".osrel", os_release, os_release_offs),
         s(".cmdline", kernel_cmdline_file, kernel_cmdline_offs),
         s(".initrd", initrd_path_file, initrd_path_offs),
@@ -121,6 +148,10 @@ pub fn lanzaboote_image(
         s(".initrdh", initrd_hash_file, initrd_hash_offs),
         s(".linuxh", kernel_hash_file, kernel_hash_offs),
     ];
+
+    if let Some(section) = pcr_signature_section {
+        sections.push(section);
+    }
 
     let image_path = tempdir.path().join(tmpname());
     wrap_in_pe(

@@ -35,6 +35,12 @@ let
     keydir = "${cfg.pkiBundle}/keys";
     guid = "${cfg.pkiBundle}/GUID";
   };
+
+  pcrSignatureConfigFile =
+    if cfg.pcrSignatures == [ ] then
+      null
+    else
+      (pkgs.formats.json { }).generate "lanzaboote-pcr-signing-config.json" cfg.pcrSignatures;
 in
 {
   imports = [
@@ -153,6 +159,63 @@ in
       };
     };
 
+    pcrSignatures = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            privateKeyFile = lib.mkOption {
+              type = lib.types.path;
+              description = ''
+                Private key to sign PCR policies.
+
+                A key pair may be generated with `openssl` with the following commands:
+                ```bash
+                openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out tpm2-pcr-private-key.pem
+                openssl rsa -pubout -in tpm2-pcr-private-key.pem -out tpm2-pcr-public-key.pem
+                ```
+              '';
+              example = "/etc/systemd/tpm2-pcr-private-key.pem";
+            };
+            phases = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              description = ''
+                Boot phase paths (colon-separated) to sign a PCR policy for.
+                If empty, defaults to default phases of `systemd-measure(1)`.
+
+                Note: By default NixOS does not measure boot phases into PCR 11. See `systemd-pcrphase.service(8)`.
+              '';
+              default = [ ];
+              example = [
+                "enter-initrd"
+                "enter-initrd:leave-initrd"
+              ];
+            };
+            banks = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              description = ''
+                PCR banks to sign a PCR policy for.
+                If empty, defaults to default banks of `systemd-measure(1)`.
+              '';
+              default = [ ];
+              example = [ "sha256" ];
+            };
+          };
+        }
+      );
+      description = "PCR signature configurations used to sign PCR policies with `systemd-measure`.";
+      default = [ ];
+      example = [
+        {
+          privateKeyFile = "/etc/systemd/tpm2-pcr-private-key.pem";
+          banks = [ "sha256" ];
+        }
+        {
+          privateKeyFile = "/etc/systemd/tpm2-pcr-initrd-private-key.pem";
+          phases = [ "enter-initrd" ];
+        }
+      ];
+    };
+
     installCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -170,7 +233,10 @@ in
           --systemd-boot-loader-config ${loaderConfigFile} \
           --configuration-limit ${toString configurationLimit} \
           --allow-unsigned ${lib.boolToString cfg.allowUnsigned} \
-          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries} \
+          ${lib.optionalString (
+            pcrSignatureConfigFile != null
+          ) "--pcr-signature-config ${pcrSignatureConfigFile}"}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe config.boot.lanzaboote.package} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
@@ -178,7 +244,8 @@ in
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --configuration-limit ''${toString configurationLimit} \
           --allow-unsigned ''${lib.boolToString config.boot.lanzaboote.allowUnsigned} \
-          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries} \
+          ''${lib.optionalString (pcrSignatureConfigFile != null) "--pcr-signature-config ''${pcrSignatureConfigFile}"}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
@@ -365,6 +432,23 @@ in
 
     services.fwupd.uefiCapsuleSettings = lib.mkIf config.services.fwupd.enable {
       DisableShimForSecureBoot = true;
+    };
+
+    # Copy stub provided metadata from /.extra into /run/, so that it will survive the initrd stage
+    # Source: https://github.com/systemd/systemd/blob/v259.1/tmpfiles.d/20-systemd-stub.conf.in
+    boot.initrd.systemd.tmpfiles.settings."20-lanzaboote-stub" = {
+      "/run/systemd/tpm2-pcr-signature.json".C = {
+        mode = "0444";
+        user = "root";
+        group = "root";
+        argument = "/.extra/tpm2-pcr-signature.json";
+      };
+      "/run/systemd/tpm2-pcr-public-key.pem".C = {
+        mode = "0444";
+        user = "root";
+        group = "root";
+        argument = "/.extra/tpm2-pcr-public-key.pem";
+      };
     };
   };
 }

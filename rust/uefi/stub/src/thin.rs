@@ -1,5 +1,6 @@
 use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
 use alloc::vec::Vec;
+use linux_bootloader::cpio::pack_cpio_literal;
 use linux_bootloader::pe_section::pe_section;
 use linux_bootloader::uefi_helpers::PeInMemory;
 use log::{error, warn};
@@ -19,6 +20,9 @@ pub struct UkiComponents {
 
     /// The kernel command-line.
     pub cmdline: CString16,
+
+    /// Raw JSON data with signed PCR values
+    pub pcr_signature: Option<Vec<u8>>,
 }
 
 /// Extract a SHA256 hash from a PE section.
@@ -65,6 +69,7 @@ impl UkiComponents {
             kernel_data,
             initrd_data,
             cmdline,
+            pcr_signature: pe_section(pe_data, ".pcrsig"),
         })
     }
 }
@@ -90,12 +95,24 @@ fn check_hash(data: &[u8], expected_hash: Hash, name: &str, secure_boot: bool) -
 pub fn boot_linux(
     handle: Handle,
     components: UkiComponents,
-    dynamic_initrds: Vec<Vec<u8>>,
+    mut dynamic_initrds: Vec<Vec<u8>>,
 ) -> uefi::Result<()> {
     let secure_boot_enabled = get_secure_boot_status();
     let cmdline = get_cmdline(&components.cmdline, secure_boot_enabled);
 
     let mut initrd_data = components.initrd_data;
+
+    if let Some(pcr_signature) = components.pcr_signature {
+        let cpio = pack_cpio_literal(
+            &pcr_signature,
+            uefi::fs::Path::new(cstr16!("tpm2-pcr-signature.json")),
+            ".extra",
+            555,
+            444,
+        )
+        .expect("Failed to pack cpio from PCR signature data");
+        dynamic_initrds.push(cpio.into_inner());
+    }
 
     // Correctness: dynamic initrds are supposed to be validated by caller,
     // i.e. they are system extension images or credentials
