@@ -20,3 +20,4 @@
 - [Automatic Provisioning](explanation/automatic-provisioning.md)
 - [Windows Dual-Boot & Bitlocker](explanation/windows-dual-boot-bitlocker.md)
 - [Troubleshooting](explanation/troubleshooting.md)
+- [Measured Boot](explanation/measured-boot.md)
