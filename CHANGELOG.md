@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added support for Measured Boot via `systemd-pcrlock`. Refer to the [Measured
+  Boot
+  guide](https://nix-community.github.io/lanzaboote/how-to-guides/enable-measured-boot.html)
+  to get started using this.
+
 ## 1.0.0
 
 ### Added
