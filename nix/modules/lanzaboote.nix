@@ -9,6 +9,12 @@ let
   cfg = config.boot.lanzaboote;
   espMountPoint = config.boot.loader.efi.efiSysMountPoint;
 
+  bootMountPoint =
+    if config.boot.loader.systemd-boot.xbootldrMountPoint != null then
+      config.boot.loader.systemd-boot.xbootldrMountPoint
+    else
+      config.boot.loader.efi.efiSysMountPoint;
+
   loaderSettingsFormat = pkgs.formats.keyValue {
     mkKeyValue = k: v: if v == null then "" else lib.generators.mkKeyValueDefault { } " " k v;
   };
