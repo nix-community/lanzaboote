@@ -71,6 +71,10 @@ struct InstallCommand {
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
+    /// $BOOT as per [Boot Loader Specification](https://uapi-group.org/specifications/specs/boot_loader_specification/#the-boot-partition-placeholder)
+    /// (i.e. xbootldrMountPoint if exists, otherwise efiSysMountPoint)
+    boot: PathBuf,
+
     /// List of generation links (e.g. /nix/var/nix/profiles/system-*-link)
     generations: Vec<PathBuf>,
 }
