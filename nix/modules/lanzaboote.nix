@@ -28,6 +28,11 @@ let
   ]
   ++ cfg.extraEfiSysMountPoints;
 
+  bootMountPoints = [
+    bootMountPoint
+  ]
+  ++ cfg.extraXbootldrMountPoints;
+  
   mkInstallCommand =
     efiSysMountPoint:
     ''
@@ -257,6 +262,15 @@ in
         List of EFI system partition mount points to install the bootloader to (additionally to boot.loader.efi.efiSysMountPoint).
       '';
       default = [ ];
+    };
+
+    extraXbootldrMountPoints = lib.mkOption {
+      type = lib.types.listOf (lib.types.nullOr lib.types.str);
+      description = ''
+        List of Extended Bootloader (XBOOTLDR) mount points to install the boot entries to, paired with each entries in `extraEfiSysMountPoints` (additionally to boot.loader.systemd-boot.xbootldrMountPoint).
+      '';
+      default = lib.genList (_: null) (lib.length cfg.extraEfiSysMountPoints);
+      defaultText = "[ null ] # repeated to match extraEfiSysMountPoints length";
     };
 
     allowUnsigned = lib.mkEnableOption "" // {
