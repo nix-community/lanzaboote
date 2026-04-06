@@ -453,17 +453,17 @@ impl<S: Signer> Installer<S> {
             log::warn!("systemd-boot is not signed. Replacing it with a signed binary...")
         };
 
-        let measurement_exists = self
+        let measurement_missing = self
             .pcrlock_paths
             .as_ref()
-            .is_some_and(|p| p.bootloader_measurement("current").exists());
-        if !measurement_exists {
+            .is_some_and(|p| !p.bootloader_measurement("current").exists());
+        if measurement_missing {
             log::warn!(
                 "systemd-boot has not been measured. Creating measurement and re-installing..."
             )
         };
 
-        if newer_systemd_boot_available || !systemd_boot_is_signed || !measurement_exists {
+        if newer_systemd_boot_available || !systemd_boot_is_signed || measurement_missing {
             if let Some(pcrlock_paths) = &self.pcrlock_paths {
                 // We do not version the bootloader measurement file. There will only ever be one
                 // bootloader version installed on the ESP and there is no rollback mechanism for it.
