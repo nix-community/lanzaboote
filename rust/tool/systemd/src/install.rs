@@ -14,6 +14,7 @@ use tempfile::TempDir;
 
 use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
+use crate::pcrlock::{PcrlockPaths, lock_pe};
 use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
@@ -31,6 +32,7 @@ pub struct InstallerBuilder {
     systemd_boot_loader_config: PathBuf,
     configuration_limit: usize,
     bootcounting_initial_tries: u32,
+    pcrlock_directory: Option<PathBuf>,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
 }
@@ -44,6 +46,7 @@ impl InstallerBuilder {
         systemd_boot_loader_config: PathBuf,
         configuration_limit: usize,
         bootcounting_initial_tries: u32,
+        pcrlock_directory: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
@@ -54,6 +57,7 @@ impl InstallerBuilder {
             systemd_boot_loader_config,
             configuration_limit,
             bootcounting_initial_tries,
+            pcrlock_directory,
             esp,
             generation_links,
         }
@@ -64,6 +68,11 @@ impl InstallerBuilder {
         let esp_paths = SystemdEspPaths::new(self.esp, self.arch);
         gc_roots.extend(esp_paths.iter());
 
+        let pcrlock_paths = self.pcrlock_directory.map(PcrlockPaths::new);
+        if let Some(pcrlock_paths) = &pcrlock_paths {
+            gc_roots.extend(pcrlock_paths.iter());
+        };
+
         Installer {
             broken_gens: BTreeSet::new(),
             gc_roots,
@@ -73,6 +82,7 @@ impl InstallerBuilder {
             signer,
             configuration_limit: self.configuration_limit,
             bootcounting_initial_tries: self.bootcounting_initial_tries,
+            pcrlock_paths,
             esp_paths,
             generation_links: self.generation_links,
             arch: self.arch,
@@ -89,6 +99,7 @@ pub struct Installer<S: Signer> {
     signer: S,
     configuration_limit: usize,
     bootcounting_initial_tries: u32,
+    pcrlock_paths: Option<PcrlockPaths>,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
@@ -126,10 +137,10 @@ impl<S: Signer> Installer<S> {
 
         if self.broken_gens.is_empty() {
             log::info!("Collecting garbage...");
-            // Only collect garbage in these two directories. This way, no files that do not belong to
-            // the NixOS installation are deleted. Lanzatool takes full control over the esp/EFI/nixos
-            // directory and deletes ALL files that it doesn't know about. Dual- or multiboot setups
-            // that need files in this directory will NOT work.
+            // Only collect garbage in these two directories on the ESP. This way, no files that do
+            // not belong to the NixOS installation are deleted. Lanzatool takes full control over
+            // the esp/EFI/nixos directory and deletes ALL files that it doesn't know about. Dual-
+            // or multiboot setups that need files in this directory will NOT work.
             self.gc_roots.collect_garbage(&self.esp_paths.nixos)?;
             // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
             // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
@@ -140,6 +151,12 @@ impl<S: Signer> Installer<S> {
                         .and_then(|n| n.to_str())
                         .is_some_and(|n| n.starts_with("nixos-"))
                 })?;
+            // Only collect garbage in the Lanzaboote directory because that's the only directory
+            // we fully control. Bootloader measurements are not garbage collected because there is
+            // only a single installed bootloader version without the possibility of rollbacks.
+            if let Some(pcrlock_paths) = &self.pcrlock_paths {
+                self.gc_roots.collect_garbage(pcrlock_paths.lanzaboote())?;
+            }
         } else {
             // This might produce a ridiculous message if you have a lot of malformed generations.
             let warning = indoc::formatdoc! {"
@@ -213,6 +230,8 @@ impl<S: Signer> Installer<S> {
     /// Hence, this function cannot overwrite files of other generations with different contents.
     /// All installed files are added as garbage collector roots.
     fn install_generation(&mut self, generation: &Generation) -> Result<()> {
+        log::debug!("Installing generation {}", generation.version_tag());
+
         // If the generation is already properly installed, don't overwrite it.
         if self.register_installed_generation(generation)? {
             return Ok(());
@@ -291,6 +310,14 @@ impl<S: Signer> Installer<S> {
         let lanzaboote_image_path = lanzaboote_image(&tempdir, &parameters)
             .context("Failed to build and sign lanzaboote stub image.")?;
 
+        if let Some(pcrlock_paths) = &self.pcrlock_paths {
+            let lanzaboote_image_pcrlock =
+                pcrlock_paths.lanzaboote_measurement(generation.version_tag());
+            lock_pe(&lanzaboote_image_path, &lanzaboote_image_pcrlock)
+                .context("Failed to lock Lanzaboote image with systemd-pcrlock")?;
+            self.gc_roots.extend([&lanzaboote_image_pcrlock]);
+        }
+
         let stub_target = self.esp_paths.linux.join(
             stub_name(generation, &self.signer, self.bootcounting_initial_tries)
                 .context("Get stub name")?,
@@ -325,10 +352,22 @@ impl<S: Signer> Installer<S> {
         if let Ok((stub_target, kernel_path, initrd_path)) = self.read_installed_generation(regex) {
             self.gc_roots
                 .extend([&stub_target, &kernel_path, &initrd_path]);
-            Ok(true)
+            // Do not return yet, we still need to check the existence of the pcrlock measurements.
         } else {
-            Ok(false)
+            return Ok(false);
         }
+
+        if let Some(pcrlock_paths) = &self.pcrlock_paths {
+            let lanzaboote_image_pcrlock =
+                pcrlock_paths.lanzaboote_measurement(generation.version_tag());
+            if lanzaboote_image_pcrlock.exists() {
+                self.gc_roots.extend([&lanzaboote_image_pcrlock]);
+            } else {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 
     // Read the stub, kernel and initrd paths belonging to the generation matching the given regex.
@@ -401,24 +440,65 @@ impl<S: Signer> Installer<S> {
             .join("lib/systemd/boot/efi")
             .join(self.arch.systemd_filename());
 
-        let paths = [
-            (&systemd_boot, &self.esp_paths.efi_fallback),
-            (&systemd_boot, &self.esp_paths.systemd_boot),
-        ];
+        let newer_systemd_boot_available =
+            newer_systemd_boot(&systemd_boot, &self.esp_paths.efi_fallback)?
+                || newer_systemd_boot(&systemd_boot, &self.esp_paths.systemd_boot)?;
+        if newer_systemd_boot_available {
+            log::info!("Updating systemd-boot...")
+        };
 
-        for (from, to) in paths {
-            let newer_systemd_boot_available = newer_systemd_boot(from, to)?;
-            if newer_systemd_boot_available {
-                log::info!("Updating {to:?}...")
-            };
-            let systemd_boot_is_signed = &self.signer.verify_path(to)?;
-            if !systemd_boot_is_signed {
-                log::warn!("{to:?} is not signed. Replacing it with a signed binary...")
-            };
+        let systemd_boot_is_signed = self.signer.verify_path(&self.esp_paths.efi_fallback)?
+            && self.signer.verify_path(&self.esp_paths.systemd_boot)?;
+        if !systemd_boot_is_signed {
+            log::warn!("systemd-boot is not signed. Replacing it with a signed binary...")
+        };
 
-            if newer_systemd_boot_available || !systemd_boot_is_signed {
-                install_signed(&self.signer, from, to)
+        let measurement_exists = self
+            .pcrlock_paths
+            .as_ref()
+            .is_some_and(|p| p.bootloader_measurement("current").exists());
+        if !measurement_exists {
+            log::warn!(
+                "systemd-boot has not been measured. Creating measurement and re-installing..."
+            )
+        };
+
+        if newer_systemd_boot_available || !systemd_boot_is_signed || !measurement_exists {
+            if let Some(pcrlock_paths) = &self.pcrlock_paths {
+                // We do not version the bootloader measurement file. There will only ever be one
+                // bootloader version installed on the ESP and there is no rollback mechanism for it.
+                // That's why we also do not extend the GC roots with the path.
+                //
+                // However, we call this file "next" so that while the new bootloader is installed,
+                // the measurements of the current and next remain available.
+                let bootloader_pcrlock = pcrlock_paths.bootloader_measurement("next");
+                lock_pe(&systemd_boot, &bootloader_pcrlock)
+                    .context("Failed to lock Lanzaboote image with systemd-pcrlock")?;
+            }
+
+            for to in [&self.esp_paths.efi_fallback, &self.esp_paths.systemd_boot] {
+                log::info!("Installing {}", to.display());
+                install_signed(&self.signer, &systemd_boot, to)
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
+            }
+
+            // After installing the bootloader, rename the pcrlock measurement from "next" to
+            // "current". So that we can install "next" on the next update again.
+            if let Some(pcrlock_paths) = &self.pcrlock_paths {
+                let next = pcrlock_paths.bootloader_measurement("next");
+                let current = pcrlock_paths.bootloader_measurement("current");
+                log::debug!(
+                    "Renaming {} to {} after installing the bootloader.",
+                    next.display(),
+                    current.display()
+                );
+                fs::rename(&next, &current).with_context(|| {
+                    format!(
+                        "Failed to rename {} to {}",
+                        next.display(),
+                        current.display()
+                    )
+                })?;
             }
         }
 

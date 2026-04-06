@@ -27,6 +27,7 @@ in
 
       lanzaboote = {
         enable = true;
+        logLevel = "debug";
         pkiBundle = lib.mkDefault pkiBundle;
       };
     };
