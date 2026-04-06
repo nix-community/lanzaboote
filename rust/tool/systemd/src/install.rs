@@ -448,10 +448,12 @@ impl<S: Signer> Installer<S> {
             log::warn!("systemd-boot is not signed. Replacing it with a signed binary...")
         };
 
+        // If Measured Boot is not enabled (i.e. `pcrlock_paths` is `None`), this should be true.
+        // Otherwise we will always re-install systemd-boot if Measured Boot is disabled.
         let measurement_exists = self
             .pcrlock_paths
             .as_ref()
-            .is_some_and(|p| p.bootloader_measurement("current").exists());
+            .is_none_or(|p| p.bootloader_measurement("current").exists());
         if !measurement_exists {
             log::warn!(
                 "systemd-boot has not been measured. Creating measurement and re-installing..."
