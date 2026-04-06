@@ -166,6 +166,7 @@ fn random_string(length: usize) -> String {
 pub fn lanzaboote_install(
     config_limit: u64,
     esp_mountpoint: &Path,
+    boot_mountpoint: &Path,
     generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
 ) -> Result<Output> {
     // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
@@ -200,6 +201,7 @@ pub fn lanzaboote_install(
         .arg("--configuration-limit")
         .arg(config_limit.to_string())
         .arg(esp_mountpoint)
+        .arg(boot_mountpoint)
         .args(generation_links)
         .output()?;
 

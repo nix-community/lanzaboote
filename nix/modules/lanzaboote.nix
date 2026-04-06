@@ -32,9 +32,9 @@ let
     bootMountPoint
   ]
   ++ cfg.extraXbootldrMountPoints;
-  
+
   mkInstallCommand =
-    efiSysMountPoint:
+    espAndBootMountPoint:
     ''
       PATH=${config.systemd.package}/lib/systemd:$PATH
       ${cfg.installCommand} \
@@ -49,7 +49,10 @@ let
           "--pcrlock-directory=${cfg.measuredBoot.pcrlockDirectory}"
         ]
         ++ [
-          efiSysMountPoint
+          espAndBootMountPoint.esp
+        ]
+        ++ [
+          (if espAndBootMountPoint.boot == null then espAndBootMountPoint.esp else espAndBootMountPoint.boot)
         ]
       )
       + " /nix/var/nix/profiles/system-*-link"
@@ -57,7 +60,14 @@ let
 
   installHook = pkgs.writeShellScriptBin "lzbt" (
     ''
-      ${lib.concatStringsSep "\n" (map mkInstallCommand efiSysMountPoints)}
+      ${lib.concatStringsSep "\n" (
+        map mkInstallCommand (
+          lib.zipListsWith (a: b: {
+            esp = a;
+            boot = b;
+          }) efiSysMountPoints bootMountPoints
+        )
+      )}
     ''
     + lib.optionalString cfg.measuredBoot.enable ''
       echo "Predicting the PCR state for future boots..."
