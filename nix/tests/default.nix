@@ -30,6 +30,7 @@ in
   measured-boot = runTest ./lanzaboote/measured-boot.nix;
   auto-reboot = runTest ./lanzaboote/auto-reboot.nix;
   protected-system = runTest ./lanzaboote/protected-system.nix;
+  xbootldr = runTest ./lanzaboote/xbootldr.nix;
 
   systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
   systemd-measure = runTest ./lanzaboote/systemd-measure.nix;
