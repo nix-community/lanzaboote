@@ -68,7 +68,7 @@ impl InstallerBuilder {
 
     pub fn build<S: Signer>(self, signer: S) -> Installer<S> {
         let mut gc_roots = Roots::new();
-        let esp_paths = SystemdEspPaths::new(self.esp, self.arch);
+        let esp_paths = SystemdEspPaths::new(self.esp, self.boot, self.arch);
         gc_roots.extend(esp_paths.iter());
 
         let pcrlock_paths = self.pcrlock_directory.map(PcrlockPaths::new);
@@ -413,7 +413,7 @@ impl<S: Signer> Installer<S> {
         Ok((stub_target, kernel_path, initrd_path))
     }
 
-    /// Install a content-addressed file to the `EFI/nixos` directory on the ESP.
+    /// Install a content-addressed file to the `EFI/nixos` directory on the $BOOT (ESP, or XBOOTLDR if exists).
     ///
     /// It is automatically added to the garbage collector roots.
     /// The full path to the target file is returned.
