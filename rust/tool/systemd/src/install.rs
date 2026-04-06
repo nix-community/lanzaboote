@@ -34,6 +34,7 @@ pub struct InstallerBuilder {
     bootcounting_initial_tries: u32,
     pcrlock_directory: Option<PathBuf>,
     esp: PathBuf,
+    boot: PathBuf,
     generation_links: Vec<PathBuf>,
 }
 
@@ -48,6 +49,7 @@ impl InstallerBuilder {
         bootcounting_initial_tries: u32,
         pcrlock_directory: Option<PathBuf>,
         esp: PathBuf,
+        boot: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
         Self {
@@ -59,6 +61,7 @@ impl InstallerBuilder {
             bootcounting_initial_tries,
             pcrlock_directory,
             esp,
+            boot,
             generation_links,
         }
     }
