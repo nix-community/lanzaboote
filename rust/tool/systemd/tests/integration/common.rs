@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use anyhow::{Context, Result};
-use assert_cmd::{cargo_bin, Command};
+use assert_cmd::{Command, cargo_bin};
 use base32ct::{Base32Unpadded, Encoding};
 use rand::distr::Alphanumeric;
-use rand::{rng, RngExt};
+use rand::{RngExt, rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
