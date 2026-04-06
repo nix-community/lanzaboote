@@ -221,8 +221,8 @@ impl<S: Signer> Installer<S> {
         // Sync files to persistent storage. This may improve the
         // chance of a consistent boot directory in case the system
         // crashes.
-        let boot = File::open(&self.esp_paths.esp).context("Failed to open ESP root directory.")?;
-        syncfs(boot).context("Failed to sync ESP filesystem.")?;
+        let boot = File::open(&self.esp_paths.boot).context(format!("Failed to open $BOOT root directory ({}).", &self.esp_paths.boot.display()))?;
+        syncfs(boot).context(format!("Failed to sync $BOOT ({}) filesystem.", &self.esp_paths.boot.display()))?;
 
         Ok(())
     }
