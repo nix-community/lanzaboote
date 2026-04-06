@@ -14,6 +14,7 @@ use uefi::{
     runtime::{self, VariableAttributes},
 };
 
+const TPM_PCR_INDEX_BOOT_LOADER: PcrIndex = PcrIndex(4);
 /// This is where any stub payloads are extended, e.g. kernel ELF image, embedded initrd
 /// and so on.
 /// Compared to PCR4, this contains only the unified sections rather than the whole PE image as-is.
@@ -30,6 +31,11 @@ const TPM_PCR_INDEX_KERNEL_IMAGE: PcrIndex = PcrIndex(11);
 const TPM_PCR_INDEX_KERNEL_CONFIG: PcrIndex = PcrIndex(12);
 /// This is where we extend the initrd sysext images into which we pass to the booted kernel
 const TPM_PCR_INDEX_SYSEXTS: PcrIndex = PcrIndex(13);
+
+/// Measure arbitrary data into PCR 4 via an IPL event.
+pub fn measure_boot_loader(buffer: &[u8], description: &str) -> uefi::Result<()> {
+    tpm_log_event_ascii(TPM_PCR_INDEX_BOOT_LOADER, buffer, description)
+}
 
 pub fn measure_image(
     image: &PeInMemory,

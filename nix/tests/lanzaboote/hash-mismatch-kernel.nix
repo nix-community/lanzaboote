@@ -29,6 +29,6 @@
       machine.crash()
 
       machine.start()
-      machine.succeed("bootctl", timeout=120)
+      machine.wait_for_console_text("hash does not match")
     '';
 }

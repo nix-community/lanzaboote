@@ -14,10 +14,14 @@
       virtualisation.tpm.enable = true;
 
       lanzabooteTest = {
+        # Don't enroll Secure Boot keys via systemd-boot. We don't need them to
+        # test Measured Boot and this speeds up our boot.
+        keyFixture = lib.mkForce false;
         persistentRoot = true;
       };
 
       boot.lanzaboote = {
+        allowUnsigned = true;
         configurationLimit = 8;
         measuredBoot = {
           enable = true;
