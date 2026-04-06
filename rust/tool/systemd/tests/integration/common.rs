@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use anyhow::{Context, Result};
-use assert_cmd::{cargo_bin, Command};
+use assert_cmd::{Command, cargo_bin};
 use base32ct::{Base32Unpadded, Encoding};
 use rand::distr::Alphanumeric;
-use rand::{rng, RngExt};
+use rand::{RngExt, rng};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
@@ -224,11 +224,11 @@ On a system with Nix installed, you can set it with: export TEST_SYSTEMD=$(nix-b
     std::env::var("TEST_SYSTEMD").context(error_msg)
 }
 
-/// Look up the modification time (mtime) of a file.
+/// Look up the modification time (mtime) of a file in nanosecond resolution.
 pub fn mtime(path: &Path) -> i64 {
     fs::metadata(path)
         .expect("Failed to read modification time.")
-        .mtime()
+        .mtime_nsec()
 }
 
 pub fn hash_file(path: &Path) -> sha2::digest::Output<Sha256> {
