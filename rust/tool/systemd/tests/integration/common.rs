@@ -224,11 +224,11 @@ On a system with Nix installed, you can set it with: export TEST_SYSTEMD=$(nix-b
     std::env::var("TEST_SYSTEMD").context(error_msg)
 }
 
-/// Look up the modification time (mtime) of a file.
+/// Look up the modification time (mtime) of a file in nanosecond resolution.
 pub fn mtime(path: &Path) -> i64 {
     fs::metadata(path)
         .expect("Failed to read modification time.")
-        .mtime()
+        .mtime_nsec()
 }
 
 pub fn hash_file(path: &Path) -> sha2::digest::Output<Sha256> {
