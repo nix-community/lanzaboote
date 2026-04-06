@@ -35,6 +35,7 @@ pub struct InstallerBuilder {
     pcrlock_directory: Option<PathBuf>,
     protected_system: Option<PathBuf>,
     esp: PathBuf,
+    boot: PathBuf,
     generation_links: Vec<PathBuf>,
 }
 
@@ -50,6 +51,7 @@ impl InstallerBuilder {
         pcrlock_directory: Option<PathBuf>,
         protected_system: Option<PathBuf>,
         esp: PathBuf,
+        boot: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
         Self {
@@ -62,6 +64,7 @@ impl InstallerBuilder {
             pcrlock_directory,
             protected_system,
             esp,
+            boot,
             generation_links,
         }
     }

@@ -124,6 +124,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.pcrlock_directory,
         args.protected_system,
         args.esp,
+        args.boot,
         args.generations,
     );
 
