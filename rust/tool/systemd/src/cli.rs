@@ -120,6 +120,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.bootcounting_initial_tries,
         args.pcrlock_directory,
         args.esp,
+        args.boot,
         args.generations,
     );
 
