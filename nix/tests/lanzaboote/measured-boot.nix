@@ -110,13 +110,6 @@
         machine.wait_for_unit("systemd-pcrlock-secureboot-authority.service")
         machine.wait_for_unit("systemd-pcrlock-secureboot-policy.service")
 
-        with subtest("ESP artifact measurements are generated"):
-          machine.wait_for_unit("prepare-auto-cryptenroll.service")
-          print(machine.succeed("tree /var/lib/pcrlock.d"))
-          print(machine.succeed("stat /var/lib/pcrlock.d/630-bootloader.pcrlock.d/current.pcrlock"))
-          print(machine.succeed("stat /var/lib/pcrlock.d/635-lanzaboote.pcrlock.d/1.pcrlock"))
-          print(machine.succeed("stat /var/lib/pcrlock.d/635-lanzaboote.pcrlock.d/1-new-generation.pcrlock"))
-
       with subtest("pcrlock policy is generated"):
         machine.wait_for_unit("systemd-pcrlock-make-policy.service")
         policy_json = machine.succeed("cat /var/lib/systemd/pcrlock.json | tee /dev/stderr")
@@ -142,6 +135,12 @@
 
       with subtest("New policy is automatically enrolled"):
         machine.wait_for_unit("auto-cryptenroll.service")
+
+        print(machine.succeed("tree /var/lib/pcrlock.d"))
+        print(machine.succeed("stat /var/lib/pcrlock.d/630-bootloader.pcrlock.d/current.pcrlock"))
+        print(machine.succeed("stat /var/lib/pcrlock.d/635-lanzaboote.pcrlock.d/1.pcrlock"))
+        print(machine.succeed("stat /var/lib/pcrlock.d/635-lanzaboote.pcrlock.d/1-new-generation.pcrlock"))
+
         metadata_json = machine.succeed("cryptsetup luksDump /dev/disk/by-partlabel/encrypted --dump-json-metadata | tee /dev/stderr")
         metadata = json.loads(metadata_json)
 

@@ -58,6 +58,16 @@ let
       "$@"
   '';
 
+  installHook = pkgs.writeShellScriptBin "lzbt" (
+    ''
+      ${lib.concatStringsSep "\n" (map mkInstallCommand efiSysMountPoints)}
+    ''
+    + lib.optionalString cfg.measuredBoot.enable ''
+      echo "Predicting the PCR state for future boots..."
+      ${makePolicyCommand}
+    ''
+  );
+
   format = pkgs.formats.yaml { };
   sbctlConfigFile = format.generate "sbctl.conf" {
     keydir = "${cfg.pkiBundle}/keys";
@@ -409,6 +419,9 @@ in
 
             Enable this to enroll the new systemd-pcrlock policy with full
             protection without having to wait for a manual reboot.
+
+            When you combine this with automatically provisioning Secure Boot,
+            you generally don't need to reboot after autoCryptenroll.
           '';
         };
       };
@@ -448,15 +461,7 @@ in
     boot.loader.supportsInitrdSecrets = true;
     boot.loader.external = {
       enable = true;
-      installHook = pkgs.writeShellScript "bootinstall" (
-        ''
-          ${lib.concatStringsSep "\n" (map mkInstallCommand efiSysMountPoints)}
-        ''
-        + lib.optionalString cfg.measuredBoot.enable ''
-          echo "Predicting the PCR state for future boots..."
-          ${makePolicyCommand}
-        ''
-      );
+      installHook = "${installHook}/bin/lzbt";
     };
     boot.lanzaboote.measuredBoot.upstreamStaticMeasurements =
       lib.optionals (pcr 0 || pcr 1 || pcr 2 || pcr 3 || pcr 4) [
@@ -489,8 +494,22 @@ in
       "systemd-pcrlock-secureboot-policy.service"
       "systemd-pcrlock-secureboot-authority.service"
     ];
+    # Since we might want to include PCR7 (the Secure Boot policy) we can only
+    # create these measurements after we have booted in a Secure Boot system
+    # for the first time. Thus, run this only if Secure Boot is already enabled
+    # if we autoEnrollKeys.
+    systemd.services.systemd-pcrlock-secureboot-policy = lib.mkIf cfg.autoEnrollKeys.enable {
+      unitConfig.ConditionSecurity = "uefi-secureboot";
+    };
+    systemd.services.systemd-pcrlock-secureboot-authority = lib.mkIf cfg.autoEnrollKeys.enable {
+      unitConfig.ConditionSecurity = "uefi-secureboot";
+    };
+
     systemd.services.systemd-pcrlock-make-policy = lib.mkIf cfg.measuredBoot.enable {
       wantedBy = [ "sysinit.target" ];
+      # Otherwise, systemd-pcrlock will not be able to write the boot loader
+      # credential to the ESP if you're not using an automounted ESP.
+      after = [ "local-fs.target" ];
 
       serviceConfig.ExecStart = [
         "" # unset previous value
@@ -543,11 +562,13 @@ in
           "!${espMountPoint}/loader/keys/auto/KEK.auth"
           "!${espMountPoint}/loader/keys/auto/db.auth"
         ];
+        SuccessAction = lib.mkIf cfg.autoEnrollKeys.autoReboot "reboot";
       };
 
       serviceConfig = {
         Type = "oneshot";
-        RemainAfterExit = true;
+        # SuccessAction doesn't trigger if the service is RemainAfterExit
+        RemainAfterExit = lib.mkIf (!cfg.autoEnrollKeys.autoReboot) true;
         RuntimeDirectory = "prepare-sb-auto-enroll";
         WorkingDirectory = "/run/prepare-sb-auto-enroll";
       };
@@ -571,91 +592,45 @@ in
 
           # Re-sign all the artifacts on the ESP after the new keys have been
           # auto enrolled.
-          ${mkInstallCommand espMountPoint}
+          ${installHook}/bin/lzbt
         '';
-    };
-
-    # Re-create/sign all artifacts on the ESP to securely generate pcrlock
-    # measurements. If this is successful, immediately reboot. Only on the next
-    # boot can the new policy be created and enrolled because the artifacts
-    # which were used for the current boot might not be the ones used after
-    # re-creating/signing them. systemd-pcrlock only allows including PCRs if
-    # the current TPM measurements are included.
-    systemd.services.prepare-auto-cryptenroll = lib.mkIf cfg.measuredBoot.autoCryptenroll.enable {
-      wantedBy = [ "sysinit.target" ];
-      before = [ "systemd-pcrlock-make-policy.service" ];
-      # Allow creating files for re-creating/signing via systemd-tmpfiles.
-      # This is useful for testing and shouldn't harm anything.
-      after = [ "systemd-tmpfiles-setup.service" ];
-
-      unitConfig = {
-        DefaultDependencies = false;
-        # Only run once before any policy was created because this only needs
-        # to be done once when enabling Measured Boot for the first time. On
-        # subsequent boots, this is handled via lzbt in the bootinstall hook of
-        # switch-to-configuration.
-        ConditionPathExists = [ "!${cfg.measuredBoot.pcrlockPolicy}" ];
-      };
-
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-
-      script = ''
-        ${mkInstallCommand espMountPoint}
-      '';
     };
 
     systemd.services.auto-cryptenroll = lib.mkIf cfg.measuredBoot.autoCryptenroll.enable {
       wantedBy = [ "multi-user.target" ];
-      after = [ "prepare-auto-cryptenroll.service" ];
 
       unitConfig = {
         ConditionPathExists = [
-          "${cfg.measuredBoot.pcrlockPolicy}"
           # If this path exists the new policy was already enrolled and thus
           # does not need to be enrolled again. systemd-pcrlock will update the
           # policy in place in the same NV index of the TPM.
           "!/var/lib/auto-cryptenroll/1"
         ];
+        ConditionSecurity = lib.mkIf cfg.autoEnrollKeys.enable "uefi-secureboot";
+        SuccessAction = lib.mkIf cfg.measuredBoot.autoCryptenroll.autoReboot "reboot";
       };
 
       serviceConfig = {
         Type = "oneshot";
-        RemainAfterExit = true;
+        # SuccessAction doesn't trigger if the service is RemainAfterExit
+        RemainAfterExit = lib.mkIf (!cfg.measuredBoot.autoCryptenroll.autoReboot) true;
         StateDirectory = "auto-cryptenroll";
-        ExecStart = ''
-          systemd-cryptenroll \
-            --wipe-slot=tpm2 \
-            --tpm2-device=auto \
-            --unlock-tpm2-device=auto \
-            --tpm2-pcrlock=${cfg.measuredBoot.pcrlockPolicy} \
-            ${cfg.measuredBoot.autoCryptenroll.device}
-        '';
+        ExecStart = [
+          # Re-create all artifacts on the ESP to generate pcrlock measurements
+          # for PCR 4. This will also create a new pcrlock policy.
+          "${installHook}/bin/lzbt"
+          ''
+            systemd-cryptenroll \
+              --wipe-slot=tpm2 \
+              --tpm2-device=auto \
+              --unlock-tpm2-device=auto \
+              --tpm2-pcrlock=${cfg.measuredBoot.pcrlockPolicy} \
+              ${cfg.measuredBoot.autoCryptenroll.device}
+          ''
+        ];
         ExecStartPost = "${pkgs.coreutils}/bin/touch /var/lib/auto-cryptenroll/1";
       };
     };
-
-    # Reboot in a separate service instead of via SuccessAction= in individual
-    # services so that users can both autoEnrollKeys and autoCryptenroll.
-    systemd.services.auto-reboot =
-      lib.mkIf (cfg.autoEnrollKeys.autoReboot || cfg.measuredBoot.autoCryptenroll.autoReboot)
-        {
-          requiredBy = [
-            "prepare-sb-auto-enroll.service"
-            "prepare-auto-cryptenroll.service"
-          ];
-          after = [
-            "prepare-sb-auto-enroll.service"
-            "prepare-auto-cryptenroll.service"
-          ];
-
-          serviceConfig = {
-            Type = "oneshot";
-            ExecStart = "systemctl reboot";
-          };
-        };
 
     systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
       # Tell fwupd to load its efi files from /run
