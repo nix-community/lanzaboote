@@ -3,3 +3,4 @@ result*
 target
 /.pre-commit-config.yaml
 book
+.github/aw/logs/*
