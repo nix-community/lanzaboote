@@ -1,4 +1,4 @@
-# Lanzaboote: Secure Boot for NixOS
+# Lanzaboote: Secure Boot & Measured Boot for NixOS
 
 [![Chat on Matrix](https://matrix.to/img/matrix-badge.svg)](https://matrix.to/#/#nixos-secure-boot:ukvly.org)
 ![GitHub branch checks state](https://img.shields.io/github/checks-status/blitz/lanzaboote/master)
@@ -6,7 +6,8 @@
 ![GitHub](https://img.shields.io/github/license/blitz/lanzaboote)
 
 This repository contains tooling for [UEFI Secure
-Boot](https://en.wikipedia.org/wiki/UEFI#Secure_Boot) on
+Boot](https://en.wikipedia.org/wiki/UEFI#Secure_Boot) and [Measured
+Boot](https://0pointer.net/blog/brave-new-trusted-boot-world.html) on
 [NixOS](https://nixos.org/).
 
 ## Getting Started
@@ -33,7 +34,7 @@ where one trusted component only hands off control to the next part of
 the boot flow when the integrity of the chain is cryptographically
 validated.
 
-### Caveats
+#### Caveats
 
 There are some additional steps that are required to make UEFI Secure
 Boot effective:
@@ -42,6 +43,27 @@ Boot effective:
   unauthorized changes to the Secure Boot policy.
 - The booted system must have some form of integrity protection.
 - The firmware must be kept up-to-date.
+
+These steps will not be covered here.
+
+### Measured Boot
+
+Measured Boot leverages measurements done by a TPM of all relevant boot
+components to bind the encryption of secrets (e.g. your LUKS volume key) to a
+security policy (i.e. expected measurements). This approach is compatible with
+Secure Boot. It can be used as an additional layer of protection against boot
+security threats. However, it could also be used without Secure Boot.
+
+#### Caveats
+
+Just like with Secure Boot, there are some additional steps that are required
+for a secure system:
+
+- Configure the encryption of your root volume with secure options.
+- Protect against confusion attacks. Ideally, for attended systems (e.g. your
+  laptop) with a pin.
+- Backup passphrase or recovery key to avoid data loss in the case of a brittle
+  TPM.
 
 These steps will not be covered here.
 
@@ -85,7 +107,7 @@ binary is placed in `/run` that fwupd will use.
 
 ## State of Upstreaming to Nixpkgs
 
-Secure Boot is available by adding this project to your configuration.
+Secure Boot & Measured Boot is available by adding this project to your configuration.
 
 It relies on [bootspec](https://github.com/NixOS/rfcs/pull/125)
 which is enabled by default since NixOS 23.05.
