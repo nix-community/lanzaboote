@@ -9,6 +9,14 @@
   guide](https://nix-community.github.io/lanzaboote/how-to-guides/enable-measured-boot.html)
   to get started using this.
 
+### Removed
+
+- Removed support for features that depended on whether Secure Boot was enabled
+  in the Lanzaboote stub. This was done so that users can leverage Measured
+  Boot without requiring Secure Boot.
+    - Removed support for loading kernels or initrds whose hashes do not match
+      those embedded into the Lanzaboote image.
+
 ## 1.0.0
 
 ### Added

@@ -58,8 +58,12 @@ impl UkiComponents {
             .expect("Failed to read initrd file into memory");
 
         let secure_boot_enabled = get_secure_boot_status();
-        check_hash(&kernel_data, kernel_hash, "Kernel", secure_boot_enabled)?;
-        check_hash(&initrd_data, initrd_hash, "Initrd", secure_boot_enabled)?;
+        if !secure_boot_enabled {
+            warn!("Secure Boot is not active!");
+        }
+
+        check_hash(&kernel_data, kernel_hash, "Kernel")?;
+        check_hash(&initrd_data, initrd_hash, "Initrd")?;
 
         Ok(Self {
             kernel_data,
@@ -71,18 +75,12 @@ impl UkiComponents {
 
 /// Verify some data against its expected hash.
 ///
-/// In case of a mismatch:
-/// * If Secure Boot is active, an error message is logged, and the SECURITY_VIOLATION error is returned to stop the boot.
-/// * If Secure Boot is not active, only a warning is logged, and the boot process is allowed to continue.
-fn check_hash(data: &[u8], expected_hash: Hash, name: &str, secure_boot: bool) -> uefi::Result<()> {
+/// In case of a mismatch a SECURITY_VIOLATION error is returned and the boot is stopped.
+fn check_hash(data: &[u8], expected_hash: Hash, name: &str) -> uefi::Result<()> {
     let hash_correct = Sha256::digest(data) == expected_hash;
     if !hash_correct {
-        if secure_boot {
-            error!("{name} hash does not match!");
-            return Err(Status::SECURITY_VIOLATION.into());
-        } else {
-            warn!("{name} hash does not match! Continuing anyway.");
-        }
+        error!("{name} hash does not match!");
+        return Err(Status::SECURITY_VIOLATION.into());
     }
     Ok(())
 }
@@ -92,8 +90,7 @@ pub fn boot_linux(
     components: UkiComponents,
     dynamic_initrds: Vec<Vec<u8>>,
 ) -> uefi::Result<()> {
-    let secure_boot_enabled = get_secure_boot_status();
-    let cmdline = get_cmdline(&components.cmdline, secure_boot_enabled);
+    let cmdline = get_cmdline(&components.cmdline);
 
     let mut initrd_data = components.initrd_data;
 

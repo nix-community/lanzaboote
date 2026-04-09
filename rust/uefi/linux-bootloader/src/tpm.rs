@@ -38,9 +38,9 @@ pub fn tpm_log_event_ascii(
     pcr_index: PcrIndex,
     buffer: &[u8],
     description: &str,
-) -> uefi::Result<bool> {
+) -> uefi::Result<()> {
     if pcr_index.0 == u32::MAX {
-        return Ok(false);
+        return Err(uefi::Status::UNSUPPORTED.into());
     }
     if let Ok(mut tpm2) = open_capable_tpm2() {
         let description_encoded = description
@@ -54,5 +54,5 @@ pub fn tpm_log_event_ascii(
         tpm2.hash_log_extend_event(Default::default(), buffer, &event)?;
     }
 
-    Ok(true)
+    Ok(())
 }
