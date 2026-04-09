@@ -16,7 +16,7 @@ bootspec = "2"
 # Keep the fastrand version aligned with the one from tempfile to avoid two
 # different versions.
 fastrand = "2.3.0"
-goblin = "0.10"
+goblin.workspace = true
 serde = { version = "1.0.228", features = ["derive"] }
 time = "0.3"
 walkdir = "2"

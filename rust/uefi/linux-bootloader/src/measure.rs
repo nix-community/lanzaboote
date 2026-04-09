@@ -48,7 +48,12 @@ pub fn measure_image(
     // might conceivably change while we look at the slice.
     // (data sections := all unified sections that can be measured.)
     let pe_binary = unsafe { image.as_slice() };
-    let pe = goblin::pe::PE::parse(pe_binary).map_err(|_err| uefi::Status::LOAD_ERROR)?;
+
+    let mut parse_options = goblin::pe::options::ParseOptions::default();
+    // Don't parse the certificates because they are not present in the in-memory representation.
+    parse_options.parse_attribute_certificates = false;
+    let pe = goblin::pe::PE::parse_with_opts(pe_binary, &parse_options)
+        .map_err(|_err| uefi::Status::LOAD_ERROR)?;
 
     // Build a list of (unified_section, pe_section) pairs and sort by canonical order.
     // Per UKI spec: "shall measure the sections listed above, starting from the .linux section,

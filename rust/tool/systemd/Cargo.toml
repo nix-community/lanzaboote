@@ -25,6 +25,6 @@ stderrlog = "0.6.0"
 assert_cmd = "2.1.1"
 expect-test = "1.5.1"
 filetime = "0.2.26"
-goblin = "0.10.3"
+goblin.workspace = true
 rand = "0.10.0"
 walkdir = "2.5.0"

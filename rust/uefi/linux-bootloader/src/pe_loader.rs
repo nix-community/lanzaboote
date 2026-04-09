@@ -137,8 +137,7 @@ impl Image {
         if pe
             .header
             .optional_header
-            .and_then(|h| *h.data_directories.get_base_relocation_table())
-            .is_some()
+            .is_some_and(|h| h.data_directories.get_base_relocation_table().is_some())
         {
             return Err(Status::INCOMPATIBLE_VERSION.into());
         }
@@ -148,12 +147,16 @@ impl Image {
         // Platform-specific flushes need to be performed to prevent this from happening.
         make_instruction_cache_coherent(image);
 
-        if pe.entry >= image.len() {
+        let pe_entry: usize = pe
+            .entry
+            .try_into()
+            .expect("Failed to convert RVA of PE binary to usize");
+        if pe_entry >= image.len() {
             return Err(Status::LOAD_ERROR.into());
         }
         let entry = unsafe {
             core::mem::transmute::<&u8, extern "efiapi" fn(Handle, Option<NonNull<c_void>>) -> Status>(
-                &image[pe.entry],
+                &image[pe_entry],
             )
         };
 
