@@ -80,12 +80,14 @@ pub fn measure_image(
                 TPM_PCR_INDEX_KERNEL_IMAGE,
                 section_name_ascii.as_bytes(),
                 section_name,
-            )? {
+            )
+            .is_ok()
+            {
                 measurements += 1;
             }
 
             // 2. "The (binary) section contents"
-            if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, data, section_name)? {
+            if tpm_log_event_ascii(TPM_PCR_INDEX_KERNEL_IMAGE, data, section_name).is_ok() {
                 measurements += 1;
             }
         }
@@ -132,7 +134,9 @@ pub fn measure_companion_initrds(companions: &[CompanionInitrd]) -> uefi::Result
                     TPM_PCR_INDEX_KERNEL_CONFIG,
                     initrd.cpio.as_ref(),
                     "Credentials initrd",
-                )? {
+                )
+                .is_ok()
+                {
                     measurements += 1;
                     credentials_measured += 1;
                 }
@@ -142,7 +146,9 @@ pub fn measure_companion_initrds(companions: &[CompanionInitrd]) -> uefi::Result
                     TPM_PCR_INDEX_KERNEL_CONFIG,
                     initrd.cpio.as_ref(),
                     "Global credentials initrd",
-                )? {
+                )
+                .is_ok()
+                {
                     measurements += 1;
                     credentials_measured += 1;
                 }
@@ -152,7 +158,9 @@ pub fn measure_companion_initrds(companions: &[CompanionInitrd]) -> uefi::Result
                     TPM_PCR_INDEX_SYSEXTS,
                     initrd.cpio.as_ref(),
                     "System extension initrd",
-                )? {
+                )
+                .is_ok()
+                {
                     measurements += 1;
                     sysext_measured = true;
                 }
