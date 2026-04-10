@@ -1,7 +1,6 @@
-use crate::common::{boot_linux_unchecked, extract_string, get_cmdline, get_secure_boot_status};
-use alloc::vec::Vec;
-use linux_bootloader::pe_section::pe_section;
-use linux_bootloader::uefi_helpers::PeInMemory;
+use crate::common::{boot_linux_unchecked, get_cmdline, get_secure_boot_status};
+use alloc::{string::String, vec::Vec};
+use linux_bootloader::uefi_helpers::{ParsedPe, PeInMemory};
 use log::{error, warn};
 use sha2::{Digest, Sha256};
 use uefi::fs::FileSystem;
@@ -21,9 +20,19 @@ pub struct UkiComponents {
     pub cmdline: CString16,
 }
 
+/// Extract a string, stored as UTF-8, from a PE section.
+fn extract_string(pe: &ParsedPe, section: &str) -> uefi::Result<CString16> {
+    Ok(pe
+        .section_data(section)
+        .and_then(|data| String::from_utf8(data).ok())
+        .and_then(|s| CString16::try_from(s.as_str()).ok())
+        .ok_or(Status::INVALID_PARAMETER)?)
+}
+
 /// Extract a SHA256 hash from a PE section.
-fn extract_hash(pe_data: &[u8], section: &str) -> uefi::Result<Hash> {
-    let array: [u8; 32] = pe_section(pe_data, section)
+fn extract_hash(pe: &ParsedPe, section: &str) -> uefi::Result<Hash> {
+    let array: [u8; 32] = pe
+        .section_data(section)
         .ok_or(Status::INVALID_PARAMETER)?
         .try_into()
         .map_err(|_| Status::INVALID_PARAMETER)?;
@@ -37,13 +46,13 @@ impl UkiComponents {
         // image and then parse the PE data structures from it. This is
         // safe, because we don't touch any data in the data sections that
         // might conceivably change while we look at the slice.
-        let pe_data = unsafe { pe_in_memory.as_slice() };
+        let pe = ParsedPe::from_pe_in_memory(pe_in_memory)?;
 
-        let kernel_filename = extract_string(pe_data, ".linux")?;
-        let kernel_hash = extract_hash(pe_data, ".linuxh")?;
-        let initrd_filename = extract_string(pe_data, ".initrd")?;
-        let initrd_hash = extract_hash(pe_data, ".initrdh")?;
-        let cmdline = extract_string(pe_data, ".cmdline")?;
+        let kernel_filename = extract_string(&pe, ".linux")?;
+        let kernel_hash = extract_hash(&pe, ".linuxh")?;
+        let initrd_filename = extract_string(&pe, ".initrd")?;
+        let initrd_hash = extract_hash(&pe, ".initrdh")?;
+        let cmdline = extract_string(&pe, ".cmdline")?;
 
         let file_system = boot::get_image_file_system(boot::image_handle())
             .expect("Failed to get file system handle");
