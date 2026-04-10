@@ -18,8 +18,7 @@ log = { workspace = true, features = [ "max_level_info", "release_max_level_warn
 uefi = { workspace = true, default-features = false, features = [ "alloc", "global_allocator" ] }
 
 bitflags = "2.10.0"
-# Update blocked by #237
-goblin = { version = "=0.6.1", default-features = false, features = [ "pe64", "alloc" ]}
+goblin = { version = "0.10", default-features = false, features = [ "pe64", "alloc" ]}
 
 pio = { path = "../pio" }
 

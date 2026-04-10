@@ -6,7 +6,7 @@
 
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 use core::cmp::min;
-use goblin::pe::section_table::SectionTable;
+use goblin::pe::{options::ParseOptions, section_table::SectionTable};
 
 /// Extracts the data of a section in a loaded PE file
 /// based on the section table.
@@ -28,7 +28,10 @@ pub fn pe_section_data<'a>(pe_data: &'a [u8], section: &SectionTable) -> Option<
 /// Extracts the data of a section of a loaded PE file
 /// based on the section name.
 pub fn pe_section<'a>(pe_data: &'a [u8], section_name: &str) -> Option<Vec<u8>> {
-    let pe_binary = goblin::pe::PE::parse(pe_data).ok()?;
+    let mut parse_options = ParseOptions::default();
+    // Don't parse the certificates because they are not present in the in-memory representation.
+    parse_options.parse_attribute_certificates = false;
+    let pe_binary = goblin::pe::PE::parse_with_opts(pe_data, &parse_options).ok()?;
 
     pe_binary
         .sections

@@ -11,8 +11,5 @@
   "dependencyDashboard": true,
   "nix": {
     "enabled": true
-  },
-  "ignoreDeps": [
-    "goblin"
-  ]
+  }
 }
