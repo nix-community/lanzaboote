@@ -1,9 +1,8 @@
 use crate::{
     companions::{CompanionInitrd, CompanionInitrdType},
     efivars::BOOT_LOADER_VENDOR_UUID,
-    pe_section::pe_section_data,
     tpm::tpm_log_event_ascii,
-    uefi_helpers::PeInMemory,
+    uefi_helpers::{ParsedPe, PeInMemory},
     unified_sections::UnifiedSection,
 };
 use alloc::{string::ToString, vec::Vec};
@@ -42,38 +41,25 @@ pub fn measure_image(
     kernel_data: &[u8],
     initrd_data: &[u8],
 ) -> uefi::Result<u32> {
-    // SAFETY: We get a slice that represents our currently running
-    // image and then parse the PE data structures from it. This is
-    // safe, because we don't touch any data in the data sections that
-    // might conceivably change while we look at the slice.
-    // (data sections := all unified sections that can be measured.)
-    let pe_binary = unsafe { image.as_slice() };
-
-    let mut parse_options = goblin::pe::options::ParseOptions::default();
-    // Don't parse the certificates because they are not present in the in-memory representation.
-    parse_options.parse_attribute_certificates = false;
-    let pe = goblin::pe::PE::parse_with_opts(pe_binary, &parse_options)
-        .map_err(|_err| uefi::Status::LOAD_ERROR)?;
-
-    // Build a list of (unified_section, pe_section) pairs and sort by canonical order.
+    let pe = ParsedPe::from_pe_in_memory(image)?;
+    // Build a list of unified_sections and sort by canonical order.
     // Per UKI spec: "shall measure the sections listed above, starting from the .linux section,
     // in the order as listed (which should be considered the canonical order)."
     let mut sections_to_measure = Vec::new();
-    for section in &pe.sections {
-        let section_name = section.name().map_err(|_err| uefi::Status::UNSUPPORTED)?;
+    for section_name in pe.sections() {
         if let Ok(unified_section) = UnifiedSection::try_from(section_name) {
             if unified_section.should_be_measured() {
-                sections_to_measure.push((unified_section, section));
+                sections_to_measure.push(unified_section);
             }
         }
     }
-    sections_to_measure.sort_by_key(|(unified_section, _)| *unified_section);
+    sections_to_measure.sort();
 
     let mut measurements = 0;
-    for (unified_section, section) in sections_to_measure {
+    for unified_section in sections_to_measure {
         let section_name = unified_section.name();
 
-        let section_data = pe_section_data(pe_binary, section);
+        let section_data = pe.section_data(section_name);
         let data = match unified_section {
             // Use kernel/initrd data that were loaded from file system to match systemd-stub's measuring
             UnifiedSection::Linux => Some(kernel_data),
