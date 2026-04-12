@@ -73,6 +73,10 @@ struct InstallCommand {
 
     /// List of generation links (e.g. /nix/var/nix/profiles/system-*-link)
     generations: Vec<PathBuf>,
+
+    /// A safe generation (usually /run/booted-system) that should always be kept, ignored from --configuration-limit if used
+    #[arg(long)]
+    safe_generation: Option<PathBuf>,
 }
 
 impl Cli {
@@ -117,6 +121,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.pcrlock_directory,
         args.esp,
         args.generations,
+        args.safe_generation,
     );
 
     if args.allow_unsigned
