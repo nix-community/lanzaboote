@@ -20,20 +20,20 @@ volume to Measured Boot.
 > variants](https://github.com/systemd/systemd/issues/41526).
 
 ```nix
+boot.initrd.systemd.enable = true;
 boot.lanzaboote = {
   measuredBoot = {
     enable = true;
     pcrs = [
       0
-      1
-      2
-      3
       4
       7
     ];
   };
 };
 ```
+
+The additional `pcrs` entries `1`, `2` and `3` might be flaky. You have try out how they behave on you hardware. See [the explanation page for measured boot](../explanation/measured-boot.md).
 
 ## Switch to the New Generation
 

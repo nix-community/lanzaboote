@@ -82,3 +82,22 @@ Epoch:         	12
 
 In this case you can convert in place while the partition is not in use with `cryptsetup convert --type LUKS2 /dev/sdX`. If this is your root partition you will need to Live boot from a USB stick to convert your LUKS partition.
 
+## PCR policy error when running `nixos-rebuild`
+
+In some cases, `nixos-rebuild` fails due to PCR policy violations while trying to add more entries in `boot.lanzaboote.measuredBoot.pcrs`.
+This error message has been observed before:
+```
+Failed to submit PCR policy to TPM: Remote address changed
+```
+
+Remove `/var/lib/systemd/pcrlock.json` and run nixos-rebuild to re-initialize the `pcrlock.json`.
+
+After the PCR lock has been removed and re-created you will manually need to re-enroll it. Run cryptenroll with `--wipe-slot=tpm2`:
+```
+systemd-cryptenroll \
+  --tpm2-device=auto \
+  --tpm2-with-pin=true \
+  --tpm2-pcrlock=/var/lib/systemd/pcrlock.json \
+  --wipe-slot=tpm2 \
+  /dev/sdX
+```
