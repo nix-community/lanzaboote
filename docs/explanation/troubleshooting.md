@@ -66,3 +66,19 @@ A more recent medium must be used for the recovery procedure to work reliably.
 It is the most likely issue that Lanzaboote could not verify a cryptographic hash.
 To recover from this, disable Secure Boot in your firmware settings.
 Please file a bug, if you hit this issue.
+
+## Failing to execute `systemd-cryptenroll` for measured boot
+
+Your LUKS-encrypted filesystem might still use the old (version 1) format, which is not supported.
+Check your LUKS version with:
+
+```
+$ cryptsetup luksDump /dev/sdX
+LUKS header information
+Version:       	1
+Epoch:         	12
+...
+```
+
+In this case you can convert in place while the partition is not in use with `cryptsetup convert --type LUKS2 /dev/sdX`. If this is your root partition you will need to Live boot from a USB stick to convert your LUKS partition.
+
