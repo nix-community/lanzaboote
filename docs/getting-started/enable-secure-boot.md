@@ -29,7 +29,7 @@ You can see these steps as a video [here](https://www.youtube.com/watch?v=aLuCAh
 
 > [!CAUTION]
 > **Don't** select "Clear All Secure Boot Keys" as it will drop the Forbidden
-> Signature Database (dbx).
+> Signature Database (dbx). The video is not correct about this.
 
 ### Framework Devices: Enter Setup Mode
 
