@@ -7,6 +7,7 @@
 }:
 let
   espLabel = "esp";
+  xbootldrLabel = "xbootldr";
   nixStorePartitionLabel = "nix-store";
   rootPartitionLabel = "root";
 
@@ -29,8 +30,17 @@ let
     '';
 
   espFiles = pkgs.runCommand "esp-files" { } (
-    ''
-      mkdir -p $out
+    (
+      if config.lanzabooteTest.xbootldr then
+        ''
+          mkdir -p $out/esp $out/xbootldr
+        ''
+      else
+        ''
+          mkdir -p $out
+        ''
+    )
+    + ''
       ln -s ${config.system.build.toplevel} system-1-link
       ${cfg.installCommand} \
     ''
@@ -48,8 +58,19 @@ let
           --private-key ${cfg.privateKeyFile} \
         ''
     )
+    + (
+      if config.lanzabooteTest.xbootldr then
+        ''
+          $out/esp \
+          $out/xbootldr \
+        ''
+      else
+        ''
+          $out \
+          $out \
+        ''
+    )
     + ''
-      $out \
       system-1-link
     ''
   );
@@ -75,36 +96,46 @@ in
 {
   imports = [ "${modulesPath}/image/repart.nix" ];
 
-  fileSystems = {
-    "/boot" = {
-      device = "/dev/disk/by-partlabel/${espLabel}";
-      fsType = "vfat";
-      options = [ "umask=077" ];
+  fileSystems =
+    let
+      esp = {
+        device = "/dev/disk/by-partlabel/${espLabel}";
+        fsType = "vfat";
+        options = [ "umask=077" ];
+      };
+      xbootldr = {
+        device = "/dev/disk/by-partlabel/${xbootldrLabel}";
+        fsType = "vfat";
+        options = [ "umask=077" ];
+      };
+    in
+    {
+      "/boot" = if config.lanzabooteTest.xbootldr then xbootldr else esp;
+      "/" =
+        if config.lanzabooteTest.persistentRoot then
+          {
+            device = "/dev/disk/by-partlabel/${rootPartitionLabel}";
+            fsType = "ext4";
+          }
+        else
+          {
+            fsType = "tmpfs";
+            options = [ "mode=755" ];
+          };
+      "/nix/store" = {
+        device = "/dev/disk/by-partlabel/${nixStorePartitionLabel}";
+        fsType = "erofs";
+        options = [ "ro" ];
+      };
+    }
+    // lib.optionalAttrs config.lanzabooteTest.xbootldr {
+      "/efi" = esp;
     };
-    "/" =
-      if config.lanzabooteTest.persistentRoot then
-        {
-          device = "/dev/disk/by-partlabel/${rootPartitionLabel}";
-          fsType = "ext4";
-        }
-      else
-        {
-          fsType = "tmpfs";
-          options = [ "mode=755" ];
-        };
-    "/nix/store" = {
-      device = "/dev/disk/by-partlabel/${nixStorePartitionLabel}";
-      fsType = "erofs";
-      options = [ "ro" ];
-    };
-  };
 
   system.image = {
     id = config.system.name;
     version = config.system.nixos.version;
   };
-
-  system.build.espFiles = espFiles;
 
   image.repart = {
     name = config.system.name;
@@ -115,7 +146,7 @@ in
     partitions = {
       "esp" = {
         contents = {
-          "/".source = espFiles;
+          "/".source = if config.lanzabooteTest.xbootldr then "${espFiles}/esp" else espFiles;
         }
         // lib.optionalAttrs config.lanzabooteTest.keyFixture {
           "/loader/keys/auto/PK.auth".source = "${authVariables}/PK.auth";
@@ -124,7 +155,11 @@ in
         };
         repartConfig = {
           Type = "esp";
-          Format = config.fileSystems."/boot".fsType;
+          Format =
+            if config.lanzabooteTest.xbootldr then
+              config.fileSystems."/efi".fsType
+            else
+              config.fileSystems."/boot".fsType;
           Label = espLabel;
           SizeMinBytes = if config.nixpkgs.hostPlatform.isx86_64 then "64M" else "96M";
           UUID = "a3c9c5a1-1a9a-451c-bdac-a80bacb4170b";
@@ -151,6 +186,20 @@ in
           Format = config.fileSystems."/".fsType;
           Label = rootPartitionLabel;
           SizeMinBytes = "1M";
+        };
+      };
+    }
+    // lib.optionalAttrs config.lanzabooteTest.xbootldr {
+      "xbootldr" = {
+        contents = {
+          "/".source = "${espFiles}/xbootldr";
+        };
+        repartConfig = {
+          Type = "xbootldr";
+          Format = config.fileSystems."/boot".fsType;
+          Label = xbootldrLabel;
+          SizeMinBytes = if config.nixpkgs.hostPlatform.isx86_64 then "64M" else "96M";
+          UUID = "c0787616-512d-4e27-a487-5fba825e60a4";
         };
       };
     };
