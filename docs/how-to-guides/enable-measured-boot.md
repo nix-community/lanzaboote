@@ -11,6 +11,17 @@ volume to Measured Boot.
 > policy) for unlocking filesystem level encryption, there is no integration we
 > provide for it. You will have to implement this yourself.
 
+## Check Whether Your System Supports Measured Boot
+
+```console
+$ /run/current-system/systemd/lib/systemd/systemd-pcrlock is-supported
+yes
+```
+
+If this says anything other than `yes`, you will not be able to use Lanzaboote
+for Measured Boot because the TPM in your system is not supported by
+systemd-pcrlock.
+
 ## Enable Measured Boot in Your Config
 
 > [!NOTE]
