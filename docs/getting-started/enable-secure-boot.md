@@ -33,14 +33,18 @@ You can see these steps as a video [here](https://www.youtube.com/watch?v=aLuCAh
 
 ### Framework Devices: Enter Setup Mode
 
-On Framework laptops (13th generation or newer) you can enter the setup mode like this:
+On Framework laptops, follow these steps:
 
 1. Select "Administer Secure Boot"
-2. Select "Erase all Secure Boot Settings"
+2. For each "PK Options", "KEK Options", and "DB Options", select and then:
+  - Select "Delete *"
+  - Select each item inside, press Enter and confirm "Delete this signature"
+
+This puts your secure boot into "setup mode".
 
 > [!CAUTION]
-> **Don't** select "Erase all Secure Boot Settings" in the Framework 13 Core Ultra Series 1 firmware.
-> This firmware is bugged, instead delete all keys from the "PK", "KEK" and "DB" sections manually.
+> **Don't** select "Erase all Secure Boot Settings".
+> In most Framework models the firmware seems bugged, instead follow the manual process as described.
 > See [this](https://community.frame.work/t/cant-enable-secure-boot-setup-mode/57683/5) thread on the Framework forum.
 
 When you are done, press F10 to save and exit.
@@ -97,6 +101,9 @@ System:
 > `/sys/firmware/efi/efivars/dbx-*`.
 > Keeping an up to date dbx reduces Secure Boot bypasses, see for example:
 > <https://uefi.org/sites/default/files/resources/dbx_release_info.pdf>.
+>
+> To fix this on Framework laptops, select "Restore Secure Boot to Factory Settings" in the "Administer Secure Boot" menu in the UEFI firmware settings.
+> Then follow the steps from "Enter Secure Boot Setup Mode" again.
 
 ### Framework Devices: Enable Secure Boot
 
