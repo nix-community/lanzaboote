@@ -80,7 +80,7 @@ Epoch:         	12
 ...
 ```
 
-In this case you can convert in place while the partition is not in use with `cryptsetup convert --type LUKS2 /dev/sdX`. If this is your root partition you will need to Live boot from a USB stick to convert your LUKS partition.
+In this case you can convert in place while the partition is not in use with `cryptsetup convert --type luks2 /dev/sdX`. If this is your root partition you will need to Live boot from a USB stick to convert your LUKS partition.
 
 ## PCR policy error when running `nixos-rebuild`
 
