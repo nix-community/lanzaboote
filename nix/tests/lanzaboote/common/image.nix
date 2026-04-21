@@ -126,7 +126,7 @@ in
           Type = "esp";
           Format = config.fileSystems."/boot".fsType;
           Label = espLabel;
-          SizeMinBytes = if config.nixpkgs.hostPlatform.isx86_64 then "64M" else "96M";
+          SizeMinBytes = if config.nixpkgs.hostPlatform.isx86_64 then "64M" else "128M";
           UUID = "a3c9c5a1-1a9a-451c-bdac-a80bacb4170b";
         };
       };
