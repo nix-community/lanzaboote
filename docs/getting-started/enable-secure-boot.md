@@ -80,6 +80,12 @@ Enrolled keys to the EFI variables!
 > Another more experimental option would be to enroll OptionROMs checksum seen
 > at last boot using `--tpm-eventlog`, but these checksums might change later.
 
+> [!NOTE]
+> On some hardware, most notably on Framework laptops, you want to add the
+> `--firmware-builtin` flag when enrolling your Secure Boot keys, to keep the
+> keys that came pre-provisioned with your firmware. This is necessary for
+> firmware updates provided by the vendor.
+
 You can now reboot your system. After you've booted, Secure Boot is
 activated and in user mode:
 
