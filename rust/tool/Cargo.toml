@@ -19,7 +19,7 @@ edition = "2024"
 anyhow = { version = "1.0", default-features = false }
 log = { version = "0.4", default-features = false }
 serde_json = { version = "1.0", default-features = false }
-sha2 = { version = "0.10", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 tempfile = { version = "3.23", default-features = false }
 goblin = { version = "0.10" }
 

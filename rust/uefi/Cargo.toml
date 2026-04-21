@@ -17,7 +17,7 @@ edition = "2024"
 
 [workspace.dependencies]
 log = { version = "0.4.28", default-features = false }
-uefi = { version = "0.36.1", default-features = false }
+uefi = { version = "0.37.0", default-features = false }
 
 [profile.release]
 opt-level = "s"
