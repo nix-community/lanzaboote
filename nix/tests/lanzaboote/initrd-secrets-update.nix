@@ -28,13 +28,15 @@ in
     {
       imports = [ ./common/lanzaboote.nix ];
 
+      testing.initrdBackdoor = true;
+
       boot.initrd = {
         secrets = {
           "/test" = lib.mkDefault (toString originalSecret);
         };
-        postMountCommands = ''
-          cp /test /mnt-root/secret-from-initramfs
-        '';
+        systemd.storePaths = [
+          "${pkgs.diffutils}/bin/cmp"
+        ];
       };
 
       specialisation.variant.configuration = {
@@ -48,23 +50,21 @@ in
     { nodes, ... }:
     (import ./common/image-helper.nix { inherit (nodes) machine; })
     + ''
-      machine.start()
-      machine.wait_for_unit("multi-user.target")
+      # It is expected that the initrd contains the original secret.
+      machine.succeed("${pkgs.diffutils}/bin/cmp ${originalSecret} /test")
+
+      machine.switch_root()
 
       # Assert that only three boot files exists (a single kernel and a two
       # initrds).
       assert int(machine.succeed("ls -1 /boot/EFI/nixos | wc -l")) == 3
 
-      # It is expected that the initrd contains the original secret.
-      machine.succeed("cmp ${originalSecret} /secret-from-initramfs")
-
       machine.succeed("bootctl set-default nixos-generation-1-specialisation-variant-\*.efi")
       machine.succeed("sync")
       machine.crash()
-      machine.start()
-      machine.wait_for_unit("multi-user.target")
+
       # It is expected that the initrd of the specialisation contains the new secret.
-      machine.succeed("cmp ${newSecret} /secret-from-initramfs")
+      machine.succeed("${pkgs.diffutils}/bin/cmp ${newSecret} /test")
     '';
 
 }

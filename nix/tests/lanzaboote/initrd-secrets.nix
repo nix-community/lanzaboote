@@ -17,13 +17,15 @@ in
   nodes.machine = {
     imports = [ ./common/lanzaboote.nix ];
 
+    testing.initrdBackdoor = true;
+
     boot.initrd = {
       secrets = {
         "/test" = toString secret;
       };
-      postMountCommands = ''
-        cp /test /mnt-root/secret-from-initramfs
-      '';
+      systemd.storePaths = [
+        "${pkgs.diffutils}/bin/cmp"
+      ];
     };
   };
 
@@ -31,10 +33,7 @@ in
     { nodes, ... }:
     (import ./common/image-helper.nix { inherit (nodes) machine; })
     + ''
-      machine.start()
-      machine.wait_for_unit("multi-user.target")
-
-      machine.succeed("cmp ${secret} /secret-from-initramfs")
+      machine.succeed("${pkgs.diffutils}/bin/cmp ${secret} /test")
       assert "Secure Boot: enabled (user)" in machine.succeed("bootctl status")
     '';
 
