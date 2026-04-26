@@ -17,10 +17,7 @@ let
 
   configurationLimit = if cfg.configurationLimit == null then 0 else cfg.configurationLimit;
 
-  efiSysMountPoints = [
-    espMountPoint
-  ]
-  ++ cfg.extraEfiSysMountPoints;
+  efiSysMountPoints = [ espMountPoint ] ++ cfg.extraEfiSysMountPoints;
 
   mkInstallCommand =
     efiSysMountPoint:
@@ -37,9 +34,7 @@ let
         ++ lib.optionals (cfg.measuredBoot.enable && pcr 4) [
           "--pcrlock-directory=${cfg.measuredBoot.pcrlockDirectory}"
         ]
-        ++ [
-          efiSysMountPoint
-        ]
+        ++ [ efiSysMountPoint ]
       )
       + " /nix/var/nix/profiles/system-*-link"
     );
@@ -88,6 +83,12 @@ let
     ]
     ++ lib.map (pcr: "--pcr=${toString pcr}") cfg.measuredBoot.pcrs
   );
+
+  pcrSignatureConfigFile =
+    if cfg.pcrSignatures == [ ] then
+      null
+    else
+      json.generate "lanzaboote-pcr-signing-config.json" cfg.pcrSignatures;
 in
 {
   imports = [
@@ -140,9 +141,7 @@ in
     };
 
     settings = lib.mkOption {
-      type = lib.types.submodule {
-        freeformType = loaderSettingsFormat.type;
-      };
+      type = lib.types.submodule { freeformType = loaderSettingsFormat.type; };
 
       apply = lib.recursiveUpdate options.boot.lanzaboote.settings.default;
 
@@ -152,9 +151,7 @@ in
         editor = config.boot.loader.systemd-boot.editor;
         default = "nixos-*";
       }
-      // lib.optionalAttrs cfg.autoEnrollKeys.enable {
-        secure-boot-enroll = "force";
-      };
+      // lib.optionalAttrs cfg.autoEnrollKeys.enable { secure-boot-enroll = "force"; };
 
       defaultText = ''
         {
@@ -217,6 +214,63 @@ in
       '';
     };
 
+    pcrSignatures = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            privateKeyFile = lib.mkOption {
+              type = lib.types.path;
+              description = ''
+                Private key to sign PCR policies.
+
+                A key pair may be generated with `openssl` with the following commands:
+                ```bash
+                openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out tpm2-pcr-private-key.pem
+                openssl rsa -pubout -in tpm2-pcr-private-key.pem -out tpm2-pcr-public-key.pem
+                ```
+              '';
+              example = "/etc/systemd/tpm2-pcr-private-key.pem";
+            };
+            phases = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              description = ''
+                Boot phase paths (colon-separated) to sign a PCR policy for.
+                If empty, defaults to default phases of `systemd-measure(1)`.
+
+                Note: By default NixOS does not measure boot phases into PCR 11. See `systemd-pcrphase.service(8)`.
+              '';
+              default = [ ];
+              example = [
+                "enter-initrd"
+                "enter-initrd:leave-initrd"
+              ];
+            };
+            banks = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              description = ''
+                PCR banks to sign a PCR policy for.
+                If empty, defaults to default banks of `systemd-measure(1)`.
+              '';
+              default = [ ];
+              example = [ "sha256" ];
+            };
+          };
+        }
+      );
+      description = "PCR signature configurations used to sign PCR policies with `systemd-measure`.";
+      default = [ ];
+      example = [
+        {
+          privateKeyFile = "/etc/systemd/tpm2-pcr-private-key.pem";
+          banks = [ "sha256" ];
+        }
+        {
+          privateKeyFile = "/etc/systemd/tpm2-pcr-initrd-private-key.pem";
+          phases = [ "enter-initrd" ];
+        }
+      ];
+    };
+
     installCommand = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -234,7 +288,10 @@ in
           --systemd-boot-loader-config ${loaderConfigFile} \
           --configuration-limit ${toString configurationLimit} \
           --allow-unsigned ${lib.boolToString cfg.allowUnsigned} \
-          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries} \
+          ${lib.optionalString (
+            pcrSignatureConfigFile != null
+          ) "--pcr-signature-config ${pcrSignatureConfigFile}"}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe config.boot.lanzaboote.package} ''${lib.optionalString (config.boot.lanzaboote.logLevel == "debug") "-vv"} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
@@ -242,7 +299,8 @@ in
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --configuration-limit ''${toString configurationLimit} \
           --allow-unsigned ''${lib.boolToString config.boot.lanzaboote.allowUnsigned} \
-          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries} \
+          ''${lib.optionalString (pcrSignatureConfigFile != null) "--pcr-signature-config ''${pcrSignatureConfigFile}"}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
@@ -453,18 +511,12 @@ in
       lib.optionals (pcr 0 || pcr 1 || pcr 2 || pcr 3 || pcr 4) [
         "500-separator.pcrlock.d/300-0x00000000.pcrlock"
       ]
-      ++ lib.optionals (pcr 4) [
-        "350-action-efi-application.pcrlock"
-      ]
-      ++ lib.optionals (pcr 7) [
-        "400-secureboot-separator.pcrlock.d/300-0x00000000.pcrlock"
-      ];
+      ++ lib.optionals (pcr 4) [ "350-action-efi-application.pcrlock" ]
+      ++ lib.optionals (pcr 7) [ "400-secureboot-separator.pcrlock.d/300-0x00000000.pcrlock" ];
 
-    environment.etc."sbctl/sbctl.conf" =
-      lib.mkIf (cfg.autoGenerateKeys.enable || cfg.autoEnrollKeys.enable)
-        {
-          source = sbctlConfigFile;
-        };
+    environment.etc."sbctl/sbctl.conf" = lib.mkIf (
+      cfg.autoGenerateKeys.enable || cfg.autoEnrollKeys.enable
+    ) { source = sbctlConfigFile; };
 
     # Write this to /etc so that manually calling systemd-pcrlock by the user
     # still works without them having to specify the directory.
@@ -504,12 +556,8 @@ in
     };
     systemd.targets.sysinit = lib.mkIf cfg.measuredBoot.enable {
       wants =
-        lib.optionals (pcr 0 || pcr 2) [
-          "systemd-pcrlock-firmware-code.service"
-        ]
-        ++ lib.optionals (pcr 1 || pcr 3) [
-          "systemd-pcrlock-firmware-config.service"
-        ]
+        lib.optionals (pcr 0 || pcr 2) [ "systemd-pcrlock-firmware-code.service" ]
+        ++ lib.optionals (pcr 1 || pcr 3) [ "systemd-pcrlock-firmware-config.service" ]
         ++ lib.optionals (pcr 7) [
           "systemd-pcrlock-secureboot-policy.service"
           "systemd-pcrlock-secureboot-authority.service"
@@ -565,9 +613,7 @@ in
             [ "--export auth" ]
             ++ lib.optionals cfg.autoEnrollKeys.includeMicrosoftKeys [ "--microsoft" ]
             ++ lib.optionals cfg.autoEnrollKeys.includeChecksumsFromTPM [ "--tpm-eventlog" ]
-            ++ lib.optionals cfg.autoEnrollKeys.allowBrickingMyMachine [
-              "--yes-this-might-brick-my-machine"
-            ]
+            ++ lib.optionals cfg.autoEnrollKeys.allowBrickingMyMachine [ "--yes-this-might-brick-my-machine" ]
           );
         in
         ''
@@ -644,6 +690,23 @@ in
 
     services.fwupd.uefiCapsuleSettings = lib.mkIf config.services.fwupd.enable {
       DisableShimForSecureBoot = true;
+    };
+
+    # Copy stub provided metadata from /.extra into /run/, so that it will survive the initrd stage
+    # Source: https://github.com/systemd/systemd/blob/v259.1/tmpfiles.d/20-systemd-stub.conf.in
+    boot.initrd.systemd.tmpfiles.settings."20-lanzaboote-stub" = {
+      "/run/systemd/tpm2-pcr-signature.json".C = {
+        mode = "0444";
+        user = "root";
+        group = "root";
+        argument = "/.extra/tpm2-pcr-signature.json";
+      };
+      "/run/systemd/tpm2-pcr-public-key.pem".C = {
+        mode = "0444";
+        user = "root";
+        group = "root";
+        argument = "/.extra/tpm2-pcr-public-key.pem";
+      };
     };
   };
 }
