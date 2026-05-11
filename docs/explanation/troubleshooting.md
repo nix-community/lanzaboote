@@ -84,10 +84,11 @@ In this case you can convert in place while the partition is not in use with `cr
 
 ## PCR policy error when running `nixos-rebuild`
 
-In some cases, `nixos-rebuild` fails due to PCR policy violations while trying to add more entries in `boot.lanzaboote.measuredBoot.pcrs`.
-This error message has been observed before:
+In some cases, `nixos-rebuild` fails due to PCR policy violations (e.g., when trying to add more entries in `boot.lanzaboote.measuredBoot.pcrs`).
+These error messages have been observed before:
 ```
 Failed to submit PCR policy to TPM: Remote address changed
+Failed to submit AuthorizeNV policy: Remote address changed
 ```
 
 Remove `/var/lib/systemd/pcrlock.json` and run nixos-rebuild to re-initialize the `pcrlock.json`.
