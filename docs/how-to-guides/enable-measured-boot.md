@@ -5,7 +5,7 @@ already has some form of `LUKS2` disk encryption and migrating this `LUKS2`
 volume to Measured Boot.
 
 > [!NOTE]
-> We do not support filesystem level encryption via ZFS or brtfs.
+> We do not support filesystem level encryption via ZFS or btrfs.
 >
 > While you will be able to use this same basic mechanism (i.e. a managed TPM2
 > policy) for unlocking filesystem level encryption, there is no integration we
@@ -44,7 +44,7 @@ boot.lanzaboote = {
 };
 ```
 
-The additional `pcrs` entries `1`, `2` and `3` might be flaky. You have try out how they behave on you hardware. See [the explanation page for measured boot](../explanation/measured-boot.md).
+The additional `pcrs` entries `1`, `2` and `3` might be flaky. You'll have to try out how they behave on your hardware. See [the explanation page for measured boot](../explanation/measured-boot.md).
 
 ## Switch to the New Generation
 
