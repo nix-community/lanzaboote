@@ -484,12 +484,16 @@ in
     # create these measurements after we have booted in a Secure Boot system
     # for the first time. Thus, run this only if Secure Boot is already enabled
     # if we autoEnrollKeys.
-    systemd.services.systemd-pcrlock-secureboot-policy = lib.mkIf cfg.autoEnrollKeys.enable {
-      unitConfig.ConditionSecurity = "uefi-secureboot";
-    };
-    systemd.services.systemd-pcrlock-secureboot-authority = lib.mkIf cfg.autoEnrollKeys.enable {
-      unitConfig.ConditionSecurity = "uefi-secureboot";
-    };
+    systemd.services.systemd-pcrlock-secureboot-policy =
+      lib.mkIf (cfg.measuredBoot.enable && cfg.autoEnrollKeys.enable)
+        {
+          unitConfig.ConditionSecurity = "uefi-secureboot";
+        };
+    systemd.services.systemd-pcrlock-secureboot-authority =
+      lib.mkIf (cfg.measuredBoot.enable && cfg.autoEnrollKeys.enable)
+        {
+          unitConfig.ConditionSecurity = "uefi-secureboot";
+        };
 
     systemd.services.systemd-pcrlock-make-policy = lib.mkIf cfg.measuredBoot.enable {
       wantedBy = [ "sysinit.target" ];
