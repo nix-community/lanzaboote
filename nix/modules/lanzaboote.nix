@@ -439,7 +439,6 @@ in
     ];
 
     boot.bootspec = {
-      enable = true;
       extensions."org.nix-community.lanzaboote" = {
         sort_key = config.boot.lanzaboote.sortKey;
       };
