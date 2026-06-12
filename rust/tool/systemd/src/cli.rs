@@ -68,6 +68,10 @@ struct InstallCommand {
     #[arg(long)]
     pcrlock_directory: Option<PathBuf>,
 
+    /// JSON configuration for PCR policy signatures
+    #[arg(long)]
+    pcr_signature_config: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -109,6 +113,7 @@ fn install(args: InstallCommand) -> Result<()> {
 
     let installer_builder = install::InstallerBuilder::new(
         lanzaboote_stub,
+        args.pcr_signature_config,
         Architecture::from_nixos_system(&args.system)?,
         args.systemd,
         args.systemd_boot_loader_config,
