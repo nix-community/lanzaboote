@@ -44,7 +44,7 @@ boot.lanzaboote = {
 };
 ```
 
-The additional `pcrs` entries `1`, `2` and `3` might be flaky. You'll have to try out how they behave on your hardware. See [the explanation page for measured boot](../explanation/measured-boot.md).
+The additional `pcrs` entries `1`, `2`, and `3` might be flaky. You'll have to try out how they behave on your hardware. See [the explanation page for measured boot](../explanation/measured-boot.md).
 
 ## Switch to the New Generation
 
@@ -86,7 +86,7 @@ systemd-cryptenroll \
   /dev/sdX
 ```
 
-Congratulations, you are now a proud user of Measured Boot! You will not need
+Congratulations! You are now a proud user of Measured Boot. You will not need
 to re-enroll anything into your LUKS2 volume. Lanzaboote will automatically
 take care of creating measurements and updating the TPM policy whenever you
 update your system via `nixos-rebuild`.

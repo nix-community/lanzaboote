@@ -1,22 +1,16 @@
 # Enable Secure Boot
 
-Now that NixOS is ready for Secure Boot, we will setup the
-firmware. At the end of this section, Secure Boot will be enabled on
-your system and your firmware will only boot binaries that are signed
-with your keys.
+Now that NixOS is ready for Secure Boot, we will set up the firmware. At the end of this section, Secure Boot will be enabled on your system and your firmware will only boot binaries that are signed with your keys.
 
-At least on some ASUS boards and others, you may also need to set the `OS Type` to "Windows UEFI Mode" in the Secure Boot settings, so that Secure Boot does get enabled.
+On some ASUS motherboards and other systems, you may need to set the `OS Type` to "Windows UEFI Mode" in the Secure Boot settings for Secure Boot to be enabled.
 
-These instructions are specific to ThinkPads and may need to be
-adapted on other systems.
+These instructions are specific to ThinkPads and may need to be adapted on other systems.
 
 ## Enter Secure Boot Setup Mode
 
-The UEFI firmware allows enrolling Secure Boot keys when it is in
-_Setup Mode_.
+The UEFI firmware allows enrolling Secure Boot keys when it is in _Setup Mode_.
 
-On a Thinkpad enter the BIOS menu using the "Reboot into Firmware"
-entry in the systemd-boot boot menu. Once you are in the BIOS menu:
+On a ThinkPad, enter the BIOS menu using the "Reboot into Firmware" entry in the systemd-boot boot menu. Once you are in the BIOS menu:
 
 1. Select the "Security" tab.
 2. Select the "Secure Boot" entry.
@@ -37,10 +31,10 @@ On Framework laptops, follow these steps:
 
 1. Select "Administer Secure Boot"
 2. For each "PK Options", "KEK Options", and "DB Options", select and then:
-  - Select "Delete *"
-  - Select each item inside, press Enter and confirm "Delete this signature"
+   - Select "Delete *"
+   - Select each item inside, press Enter and confirm "Delete this signature"
 
-This puts your secure boot into "setup mode".
+This puts Secure Boot into Setup Mode.
 
 > [!CAUTION]
 > **Don't** select "Erase all Secure Boot Settings".
@@ -52,7 +46,7 @@ When you are done, press F10 to save and exit.
 ### Microsoft Surface Devices: Disable Secure Boot
 
 On Microsoft Surface devices (tested on Surface Book 3 and Surface Go 3), keep Secure Boot disabled in UEFI settings.
-On Surface Devices, having Secure Boot disabled defaults to "setup mode", and there is no need to re-enable it in this interface.
+On Surface devices, disabling Secure Boot places the firmware in Setup Mode by default, and there is no need to re-enable it in this interface.
 After following these instructions, Lanzaboote should enable Secure Boot for you.
 
 ### Other Systems
@@ -62,9 +56,7 @@ Instead, choose the option to erase the existing Platform Key.
 
 ## Enroll Keys
 
-Once you've booted your system into NixOS again, you have to enroll
-your keys to activate Secure Boot. We include Microsoft keys here to
-avoid boot issues.
+Once you have booted back into NixOS, you have to enroll your keys to activate Secure Boot. We include Microsoft keys here to avoid boot issues.
 
 ```console
 $ sudo sbctl enroll-keys --microsoft
@@ -74,9 +66,8 @@ Enrolled keys to the EFI variables!
 ```
 
 > [!NOTE]
-> During boot, some hardware might include OptionROMs signed with
-> Microsoft keys.
-> By using the `--microsoft`, we enroll the Microsoft OEM certificates.
+> During boot, some hardware might include OptionROMs signed with Microsoft keys.
+> Using `--microsoft` enrolls the Microsoft OEM certificates.
 > Another more experimental option would be to enroll OptionROMs checksum seen
 > at last boot using `--tpm-eventlog`, but these checksums might change later.
 
