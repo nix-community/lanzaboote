@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: samueldr/lix-gha-installer-action@v2026-02-16
       - run: nix-build -A docs.html
       - uses: actions/upload-pages-artifact@v5

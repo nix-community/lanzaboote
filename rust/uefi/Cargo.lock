@@ -97,7 +97,7 @@ dependencies = [
 
 [[package]]
 name = "lanzaboote_stub"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "linux-bootloader",
  "log",
@@ -113,7 +113,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
 name = "linux-bootloader"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bitflags",
  "goblin",
@@ -261,9 +261,9 @@ dependencies = [
 
 [[package]]
 name = "uefi"
-version = "0.37.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66ab9569afdd1e33a31d8002343aa1df594f055347b1a66136bf9dd6cbc3ec37"
+checksum = "d8f2e1b4a439d82899da4dc0ee8ac742db07a9ff493bc4f31d345c24e12e17e9"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -288,9 +288,9 @@ dependencies = [
 
 [[package]]
 name = "uefi-raw"
-version = "0.14.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3775e5934877acaef4b00f254f252df1e2266903c31e51455c117f4f2824eda"
+checksum = "8868c2fb03f31e55ccf9b47f72e17097bb88c45306cb82f5a2258935520c72d6"
 dependencies = [
  "bitflags",
  "uguid",
