@@ -8,7 +8,7 @@ edges. There may be cases where you end up with a system that does not
 boot.
 
 > [!CAUTION]
-> **We only recommend setting up Secure Boot to NixOS users that are comfortable
+> **We only recommend setting up Secure Boot for NixOS users that are comfortable
 > using recovery tools to restore their system or have a backup ready.**
 
 At this point we have tested a few notebooks and are confident about Lenovo
@@ -18,12 +18,12 @@ guarantees on the applicability of what we describe here.
 
 ## Prerequisites
 
-To be able to setup Secure Boot on your device, NixOS needs to be
+To be able to set up Secure Boot on your device, NixOS needs to be
 installed in UEFI mode and
 [`systemd-boot`](https://www.freedesktop.org/wiki/Software/systemd/systemd-boot/)
 must be used as a boot loader.
 This means if you wish to install Lanzaboote on a new machine,
-you need to follow the install instruction for systemd-boot
+you need to follow the installation instructions for systemd-boot
 and then switch to Lanzaboote after the first boot.
 
 These prerequisites can be checked via `bootctl status`:
@@ -47,6 +47,6 @@ you are all set to continue.
 
 ## Getting Started
 
-To setup Secure Boot on your machine, first [prepare your
+To set up Secure Boot on your machine, first [prepare your
 system](./getting-started/prepare-your-system.md) and then [enable Secure
 Boot](./getting-started/enable-secure-boot.md).

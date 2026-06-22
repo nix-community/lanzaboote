@@ -6,5 +6,5 @@ settings. Then you can disable the Lanzaboote related settings in the
 NixOS configuration and rebuild.
 
 You may need to clean up the `EFI/Linux` directory in the ESP manually
-to get rid of stale boot entries. **Please backup your ESP, before you
+to get rid of stale boot entries. **Please back up your ESP before you
 delete any files** in case something goes wrong.

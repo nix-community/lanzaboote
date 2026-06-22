@@ -4,14 +4,14 @@ You can use Lanzaboote to automatically and fully provision a system.
 
 ## Process
 
-This is an overview of the general process involved in fully provision a system
-from scratch:
+This is an overview of the general process involved in fully provisioning a
+system from scratch:
 
 - Assemble a NixOS config that includes the snippet from the next section
 - Install a system with unsigned artifacts (either via `nixos-install` or as an
   image)
 - On the first boot, a systemd service generates the keys
-- Another system service starts after the keys have been generated and prepares
+- Another systemd service starts after the keys have been generated and prepares
   their enrollment by:
   - Generating EFI Authenticated Variables from the generated keys
   - Storing them in the EFI System Partition (ESP)
@@ -22,7 +22,7 @@ from scratch:
 - Now Secure Boot enforcement is enabled and only signed artifacts can be
   booted
 
-This is essentially a trust on first use model where the system is unsigned and
+This is essentially a trust-on-first-use model where the system is unsigned and
 untrusted on the first boot but then becomes signed and trusted on the next
 boot.
 

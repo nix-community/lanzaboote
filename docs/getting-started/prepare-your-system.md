@@ -32,7 +32,7 @@ secret key so that only root can read it.
 
 ## Configure NixOS (with [`lon`](https://github.com/nikstur/lon))
 
-Add `lanzaboote` as a dependency via `lon` tracking a stable release tag (https://github.com/nix-community/lanzaboote/releases).
+Add `lanzaboote` as a dependency via `lon`, tracking a stable release tag (https://github.com/nix-community/lanzaboote/releases).
 
 ```console
 $ lon add github nix-community/lanzaboote -r v1.0.0 --frozen
@@ -152,5 +152,5 @@ Verifying file database and EFI images in /boot...
 
 It is expected that the files starting with `kernel-` are _not_ signed.
 
-Now, you need to [enable Secure Boot](./enable-secure-boot.md) so that your
+Next, [enable Secure Boot](./enable-secure-boot.md) so that your
 firmware enforces signature verification.

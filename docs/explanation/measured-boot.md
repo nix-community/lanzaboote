@@ -5,9 +5,9 @@ Lanzaboote supports Measured Boot by creating a TPM2 policy via
 inside a TPM to an expected state of your system.
 
 Most importantly, you can use this to improve the security of your LUKS2 volume
-encryption. It will only allow the unlocking of the volume if your system is in
+encryption. It will only allow the volume to be unlocked if your system is in
 an expected state. You can use this fully unattended by only relying on the
-policy or in combination of a user provided pin.
+policy or in combination with a user-provided PIN.
 
 ## Supported PCRs
 
@@ -34,5 +34,3 @@ other included components from the stub. We therefore cover the initrd, the
 kernel, and the cmdline which is included in the stub itself. Thus, by
 including PCR 4 in our policy we cover the entire boot chain after the firmware
 has booted.
-
-

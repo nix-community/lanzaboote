@@ -1,7 +1,7 @@
 # Security Requirements
 
-To provide any security your system needs to defend against an
-attacker turning UEFI Secure Boot off or being able to sign binaries
+To provide any security, your system needs to defend against an
+attacker turning off UEFI Secure Boot or being able to sign binaries
 with the keys we are going to generate.
 
 The easiest way to achieve this is to:

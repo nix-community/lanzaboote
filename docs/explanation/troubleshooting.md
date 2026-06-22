@@ -10,7 +10,7 @@ After that, some space on the ESP must be freed manually.
 To achieve this, delete some kernels and initrds in `/boot/EFI/nixos` (they will be recreated in the next step if they are in fact still required).
 Finally, run `nixos-rebuild boot` again to finish the installation process that was interrupted by the error.
 
-It is recommended run a garbage collection regularly, and monitor the ESP usage (particularly if it is quite small), to prevent this issue from happening again in the future.
+It is recommended to run a garbage collection regularly, and monitor the ESP usage (particularly if it is quite small), to prevent this issue from happening again in the future.
 
 **Warning:** It is recommended to not delete the currently booted kernel and initrd, and to not reboot the system before running `nixos-rebuild boot` again, to minimize the risk of accidentally rendering the system unbootable.
 
@@ -18,7 +18,7 @@ It is recommended run a garbage collection regularly, and monitor the ESP usage 
 Hence it is possible for this error to occur even if there was plenty (but less than half) free space available prior to the installation.
 In this case, it is not necessary to delete any generations, and you can proceed directly to deleting some kernels and initrds before running the installation again.
 
-## Power failed during bootloader installation, and now the system does not boot any more
+## Power failed during bootloader installation, and now the system does not boot anymore
 
 Due to the shortcomings of the FAT32 filesystem, in rare cases, it is possible for the ESP to become corrupted after power loss.
 With Lanzaboote enabled, this will lead to "secure boot errors" or "hash verification failures" (the exact wording depends on the firmware).
@@ -38,11 +38,11 @@ Run `nix-shell -p openssl sbctl` to ensure the tools required for recovery are a
    Any files that are printed are corrupted and must be deleted.
 3. Run `nixos-rebuild boot`.
    This should reinstate all files that are required for the newer generations to boot.
-4. Reboot the system, it should now work again.
+4. Reboot the system. It should now work again.
 
 ### The system cannot boot any generation anymore
 
-If no available generation can boot any more, the system must be recovered from a rescue system.
+If no available generation can boot anymore, the system must be recovered from a rescue system.
 First make sure that you have a recent NixOS install medium available.
 
 **Note:** Nix versions from before August 2023 contain a bug that can prevent `nixos-enter` from working.
@@ -65,7 +65,7 @@ A more recent medium must be used for the recovery procedure to work reliably.
 
 It is the most likely issue that Lanzaboote could not verify a cryptographic hash.
 To recover from this, disable Secure Boot in your firmware settings.
-Please file a bug, if you hit this issue.
+Please file a bug if you hit this issue.
 
 ## Failing to execute `systemd-cryptenroll` for measured boot
 
@@ -80,20 +80,22 @@ Epoch:         	12
 ...
 ```
 
-In this case you can convert in place while the partition is not in use with `cryptsetup convert --type luks2 /dev/sdX`. If this is your root partition you will need to Live boot from a USB stick to convert your LUKS partition.
+In this case you can convert in place while the partition is not in use with `cryptsetup convert --type luks2 /dev/sdX`. If this is your root partition, you will need to boot from a live USB stick to convert your LUKS partition.
 
 ## PCR policy error when running `nixos-rebuild`
 
 In some cases, `nixos-rebuild` fails due to PCR policy violations (e.g., when trying to add more entries in `boot.lanzaboote.measuredBoot.pcrs`).
 These error messages have been observed before:
+
 ```
 Failed to submit PCR policy to TPM: Remote address changed
 Failed to submit AuthorizeNV policy: Remote address changed
 ```
 
-Remove `/var/lib/systemd/pcrlock.json` and run nixos-rebuild to re-initialize the `pcrlock.json`.
+Remove `/var/lib/systemd/pcrlock.json` and run `nixos-rebuild` to re-initialize `pcrlock.json`.
 
-After the PCR lock has been removed and re-created you will manually need to re-enroll it. Run cryptenroll with `--wipe-slot=tpm2`:
+After the PCR lock has been removed and re-created, you will need to manually re-enroll it. Run cryptenroll with `--wipe-slot=tpm2`:
+
 ```
 systemd-cryptenroll \
   --tpm2-device=auto \
