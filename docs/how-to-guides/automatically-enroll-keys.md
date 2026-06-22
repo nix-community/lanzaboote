@@ -8,6 +8,9 @@ boot.lanzaboote.autoEnrollKeys = {
 };
 ```
 
+> [!NOTE]
+> If you're using an ephemeral root, you need to persist `/var/lib/auto-cryptenroll` across reboots.
+
 By default, when you enable automatic enrollment, Microsoft keys are enrolled
 alongside your own keys. If you don't know much about Secure Boot, you should
 stick with this default. Some Option ROMs are signed with Microsoft keys and
