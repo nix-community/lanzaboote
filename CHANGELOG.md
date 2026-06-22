@@ -1,21 +1,33 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 ### Added
 
 - Added support for Measured Boot via `systemd-pcrlock`. Refer to the [Measured
-  Boot
-  guide](https://nix-community.github.io/lanzaboote/how-to-guides/enable-measured-boot.html)
+  Boot guide](https://nix-community.github.io/lanzaboote/how-to-guides/enable-measured-boot.html)
   to get started using this.
+- Added boot counting support via `boot.lanzaboote.bootCounting.*`.
+- Exposed the NixOS module as default module of the flake.
+
+### Changed
+
+- The kernel and initrd are now only loaded once from the ESP. Previously, they
+  were loaded once for checking their hash and then another time for loading.
+- We now measure the kernel and initrd the same way as `systemd-stub`, allowing
+  to pre-compute PCR values.
+- Temporary files will not be placed in `/` anymore.
 
 ### Removed
 
 - Removed support for features that depended on whether Secure Boot was enabled
   in the Lanzaboote stub. This was done so that users can leverage Measured
   Boot without requiring Secure Boot.
-    - Removed support for loading kernels or initrds whose hashes do not match
-      those embedded into the Lanzaboote image.
+- We don't set `boot.bootspec.enable` anymore, because this option was removed
+  from NixOS.
+- Kernels and initrds with mismatched hash values will now be rejected
+  regardless of the Secure Boot state. Previously, they were only rejected if
+  Secure Boot was enabled.
 
 ## 1.0.0
 
