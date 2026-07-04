@@ -48,6 +48,16 @@ boot.lanzaboote.autoEnrollKeys = {
 };
 ```
 
+### Include Firmware Built-In Keys
+
+On some machines (such as Framework laptops), the firmware requires OEM certificates (pre-provisioned keys) to be retained so that features like vendor-provided firmware updates continue to function. To preserve these default certificates during enrollment, enable `includeFirmwareBuiltinKeys`:
+
+```nix
+boot.lanzaboote.autoEnrollKeys = {
+  includeFirmwareBuiltinKeys = true;
+};
+```
+
 ## Rebooting
 
 The final step of automatic enrollment is rebooting because it relies on

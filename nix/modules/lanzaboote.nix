@@ -286,6 +286,8 @@ in
         default = true;
       };
 
+      includeFirmwareBuiltinKeys = lib.mkEnableOption "including firmware built-in keys when enrolling the Secure Boot keys";
+
       includeChecksumsFromTPM = lib.mkEnableOption "" // {
         description = "Whether to include checksums from the TPM Eventlog when enrolling the Secure Boot keys.";
       };
@@ -566,6 +568,7 @@ in
         let
           sbctlArgs = lib.concatStringsSep " " (
             [ "--export auth" ]
+            ++ lib.optionals cfg.autoEnrollKeys.includeFirmwareBuiltinKeys [ "--firmware-builtin" ]
             ++ lib.optionals cfg.autoEnrollKeys.includeMicrosoftKeys [ "--microsoft" ]
             ++ lib.optionals cfg.autoEnrollKeys.includeChecksumsFromTPM [ "--tpm-eventlog" ]
             ++ lib.optionals cfg.autoEnrollKeys.allowBrickingMyMachine [
