@@ -7,7 +7,7 @@
     # Not used in the flake itself. Only used to make the source available for
     # the project.
     pre-commit = {
-      url = "github:cachix/pre-commit-hooks.nix";
+      url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
