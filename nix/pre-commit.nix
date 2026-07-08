@@ -7,7 +7,6 @@ let
     tools = import "${sources.pre-commit}/nix/call-tools.nix" pkgs;
     # Trick pre-commit into not needing gitignore.nix
     isFlakes = true;
-    gitignore-nix-src = { };
   };
 
   globalExcludes = [
