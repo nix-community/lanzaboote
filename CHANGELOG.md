@@ -1,5 +1,19 @@
 # Changelog
 
+## unreleased
+
+### Changed
+
+- The Measured Boot integration now supports locking against PCR4 throughout a
+  bootloader update. Previously a bootloader update was not covered by the
+  generated TPM policies and caused PCR4 to be dropped from the policy.
+  Users are expected to reboot between two consecutive bootloader updates.
+  Because of an implementational limitation in systemd-pcrlock[1], this change
+  reduces the maximum number of NixOS generations one can use with this
+  Measured Boot integration from `8` to `4`.
+
+[1]: https://github.com/systemd/systemd/issues/41526
+
 ## 1.1.0
 
 ### Added
