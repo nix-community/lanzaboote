@@ -27,6 +27,7 @@ use lanzaboote_tool::utils::{SecureTempDirExt, file_hash};
 
 pub struct InstallerBuilder {
     lanzaboote_stub: PathBuf,
+    pcr_signature_config: Option<PathBuf>,
     arch: Architecture,
     systemd: PathBuf,
     systemd_boot_loader_config: PathBuf,
@@ -41,6 +42,7 @@ impl InstallerBuilder {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
         lanzaboote_stub: impl AsRef<Path>,
+        pcr_signature_config: Option<PathBuf>,
         arch: Architecture,
         systemd: PathBuf,
         systemd_boot_loader_config: PathBuf,
@@ -52,6 +54,7 @@ impl InstallerBuilder {
     ) -> Self {
         Self {
             lanzaboote_stub: lanzaboote_stub.as_ref().to_path_buf(),
+            pcr_signature_config,
             arch,
             systemd,
             systemd_boot_loader_config,
@@ -77,6 +80,7 @@ impl InstallerBuilder {
             broken_gens: BTreeSet::new(),
             gc_roots,
             lanzaboote_stub: self.lanzaboote_stub,
+            pcr_signature_config: self.pcr_signature_config,
             systemd: self.systemd,
             systemd_boot_loader_config: self.systemd_boot_loader_config,
             signer,
@@ -94,6 +98,7 @@ pub struct Installer<S: Signer> {
     broken_gens: BTreeSet<u64>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
+    pcr_signature_config: Option<PathBuf>,
     systemd: PathBuf,
     systemd_boot_loader_config: PathBuf,
     signer: S,
@@ -297,11 +302,13 @@ impl<S: Signer> Installer<S> {
             assemble_kernel_cmdline(&bootspec.init, bootspec.kernel_params.clone());
 
         let parameters = pe::StubParameters::new(
+            &self.systemd,
             &self.lanzaboote_stub,
             &bootspec.kernel,
             &initrd_location,
             &kernel_target,
             &initrd_target,
+            self.pcr_signature_config.as_deref(),
             &self.esp_paths.esp,
         )?
         .with_cmdline(&kernel_cmdline)
