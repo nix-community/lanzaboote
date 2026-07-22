@@ -64,6 +64,8 @@ impl From<bootspec::BootJson> for LanzabooteExtension {
 pub struct Generation {
     /// Profile symlink index
     pub version: u64,
+    // Custom label, replacing version if present
+    pub label: Option<String>,
     /// Build time
     pub build_time: Option<Date>,
     /// Top-level specialisation name
@@ -93,6 +95,7 @@ impl Generation {
     ) -> Result<Self> {
         Ok(Self {
             version: link.version,
+            label: link.label.clone(),
             build_time: link.build_time,
             specialisation_name: Some(specialisation_name),
             spec: ExtendedBootJson {
@@ -128,6 +131,7 @@ impl Generation {
 
         Ok(Self {
             version: link.version,
+            label: link.label.clone(),
             build_time: link.build_time,
             specialisation_name,
             spec: ExtendedBootJson {
@@ -160,23 +164,30 @@ impl Generation {
             .map(|x| x.to_string())
             .unwrap_or_else(|| String::from("Unknown"));
 
-        format!(
-            "Generation {}{}, {}",
-            self.version,
-            self.describe_specialisation(),
-            build_time
-        )
+        format!("Generation {}, {}", self.version_tag(), build_time)
     }
 
     /// A unique short identifier.
     pub fn version_tag(&self) -> String {
-        format!("{}{}", self.version, self.describe_specialisation(),)
+        format!(
+            "{}{}",
+            self.label
+                .clone()
+                .unwrap_or_else(|| self.version.to_string()),
+            self.describe_specialisation(),
+        )
     }
 }
 
 impl fmt::Display for Generation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.version)
+        write!(
+            f,
+            "{}",
+            self.label
+                .clone()
+                .unwrap_or_else(|| self.version.to_string())
+        )
     }
 }
 
@@ -193,6 +204,7 @@ fn read_build_time(path: &Path) -> Result<Date> {
 #[derive(Debug)]
 pub struct GenerationLink {
     pub version: u64,
+    pub label: Option<String>,
     pub path: PathBuf,
     pub build_time: Option<Date>,
 }
@@ -201,6 +213,15 @@ impl GenerationLink {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self {
             version: parse_version(&path).context("Failed to parse version")?,
+            label: None,
+            path: PathBuf::from(path.as_ref()),
+            build_time: read_build_time(path.as_ref()).ok(),
+        })
+    }
+    pub fn from_path_with_label(path: impl AsRef<Path>, label: String) -> Result<Self> {
+        Ok(Self {
+            version: 0,
+            label: Some(label),
             path: PathBuf::from(path.as_ref()),
             build_time: read_build_time(path.as_ref()).ok(),
         })
