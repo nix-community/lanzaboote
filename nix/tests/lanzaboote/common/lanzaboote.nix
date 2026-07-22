@@ -12,6 +12,8 @@ in
     };
 
     persistentRoot = lib.mkEnableOption "a persistent root filesystem";
+
+    xbootldr = lib.mkEnableOption "a separate XBOOTLDR partition (as specified by UAPI)";
   };
 
   config = {
