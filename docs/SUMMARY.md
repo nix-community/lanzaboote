@@ -14,6 +14,7 @@
 - [Disable Secure Boot](how-to-guides/disable-secure-boot.md)
 - [Enable Measured Boot](how-to-guides/enable-measured-boot.md)
 - [Install on Multiple ESPs](how-to-guides/install-on-multiple-esps.md)
+- [Disable Measured Boot](how-to-guides/disable-measured-boot.md)
 
 # Explanation
 
