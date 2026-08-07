@@ -32,7 +32,7 @@ let
     ''
       mkdir -p $out
       ln -s ${config.system.build.toplevel} system-1-link
-      ${cfg.installCommand} \
+      PATH=${config.systemd.package}/lib/systemd:$PATH ${cfg.installCommand} \
     ''
     + (
       if config.lanzabooteTest.keyFixture then
