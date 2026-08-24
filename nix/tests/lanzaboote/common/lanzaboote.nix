@@ -8,7 +8,7 @@ in
 
   options.lanzabooteTest = {
     keyFixture = lib.mkEnableOption "pkiBundle fixture baked into the image" // {
-      default = config.virtualisation.useSecureBoot;
+      default = true;
     };
 
     persistentRoot = lib.mkEnableOption "a persistent root filesystem";

@@ -163,8 +163,5 @@ in
     useDefaultFilesystems = false;
 
     useEFIBoot = true;
-
-    useSecureBoot = true;
-    efi.OVMF = pkgs.OVMFFull.fd;
   };
 }
