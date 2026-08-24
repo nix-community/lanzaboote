@@ -5,7 +5,7 @@
     { lib, ... }:
     {
       imports = [ ./common/lanzaboote.nix ];
-      virtualisation.useSecureBoot = lib.mkForce false;
+      lanzabooteTest.keyFixture = lib.mkForce false;
       boot.lanzaboote.allowUnsigned = true;
     };
 
