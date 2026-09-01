@@ -9,6 +9,12 @@ let
   cfg = config.boot.lanzaboote;
   espMountPoint = config.boot.loader.efi.efiSysMountPoint;
 
+  bootMountPoint =
+    if config.boot.loader.systemd-boot.xbootldrMountPoint != null then
+      config.boot.loader.systemd-boot.xbootldrMountPoint
+    else
+      config.boot.loader.efi.efiSysMountPoint;
+
   loaderSettingsFormat = pkgs.formats.keyValue {
     mkKeyValue = k: v: if v == null then "" else lib.generators.mkKeyValueDefault { } " " k v;
   };
@@ -22,8 +28,13 @@ let
   ]
   ++ cfg.extraEfiSysMountPoints;
 
+  bootMountPoints = [
+    bootMountPoint
+  ]
+  ++ cfg.extraXbootldrMountPoints;
+
   mkInstallCommand =
-    efiSysMountPoint:
+    espAndBootMountPoint:
     ''
       PATH=${config.systemd.package}/lib/systemd:$PATH
       ${cfg.installCommand} \
@@ -38,7 +49,10 @@ let
           "--pcrlock-directory=${cfg.measuredBoot.pcrlockDirectory}"
         ]
         ++ [
-          efiSysMountPoint
+          espAndBootMountPoint.esp
+        ]
+        ++ [
+          (if espAndBootMountPoint.boot == null then espAndBootMountPoint.esp else espAndBootMountPoint.boot)
         ]
       )
       + " /nix/var/nix/profiles/system-*-link"
@@ -46,7 +60,14 @@ let
 
   installHook = pkgs.writeShellScriptBin "lzbt" (
     ''
-      ${lib.concatStringsSep "\n" (map mkInstallCommand efiSysMountPoints)}
+      ${lib.concatStringsSep "\n" (
+        map mkInstallCommand (
+          lib.zipListsWith (a: b: {
+            esp = a;
+            boot = b;
+          }) efiSysMountPoints bootMountPoints
+        )
+      )}
     ''
     + lib.optionalString cfg.measuredBoot.enable ''
       echo "Predicting the PCR state for future boots..."
@@ -251,6 +272,15 @@ in
         List of EFI system partition mount points to install the bootloader to (additionally to boot.loader.efi.efiSysMountPoint).
       '';
       default = [ ];
+    };
+
+    extraXbootldrMountPoints = lib.mkOption {
+      type = lib.types.listOf (lib.types.nullOr lib.types.str);
+      description = ''
+        List of Extended Bootloader (XBOOTLDR) mount points to install the boot entries to, paired with each entries in `extraEfiSysMountPoints` (additionally to boot.loader.systemd-boot.xbootldrMountPoint).
+      '';
+      default = lib.genList (_: null) (lib.length cfg.extraEfiSysMountPoints);
+      defaultText = "[ null ] # repeated to match extraEfiSysMountPoints length";
     };
 
     allowUnsigned = lib.mkEnableOption "" // {
