@@ -624,10 +624,14 @@ in
       };
     };
 
-    systemd.services.fwupd = lib.mkIf config.services.fwupd.enable {
-      # Tell fwupd to load its efi files from /run
-      environment.FWUPD_EFIAPPDIR = "/run/fwupd-efi";
-    };
+    # Patch fwupd with /run/fwupd-efi location
+    services.fwupd.package = lib.mkIf config.services.fwupd.enable (
+      pkgs.fwupd.overrideAttrs (old: {
+        mesonFlags = map (
+          flag: if lib.hasPrefix "-Defi_app_location=" flag then "-Defi_app_location=/run/fwupd-efi" else flag
+        ) old.mesonFlags;
+      })
+    );
 
     systemd.services.fwupd-efi = lib.mkIf config.services.fwupd.enable {
       description = "Sign fwupd EFI app";
