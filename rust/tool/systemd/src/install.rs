@@ -34,6 +34,7 @@ pub struct InstallerBuilder {
     bootcounting_initial_tries: u32,
     pcrlock_directory: Option<PathBuf>,
     esp: PathBuf,
+    boot: PathBuf,
     generation_links: Vec<PathBuf>,
 }
 
@@ -48,6 +49,7 @@ impl InstallerBuilder {
         bootcounting_initial_tries: u32,
         pcrlock_directory: Option<PathBuf>,
         esp: PathBuf,
+        boot: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
         Self {
@@ -59,13 +61,14 @@ impl InstallerBuilder {
             bootcounting_initial_tries,
             pcrlock_directory,
             esp,
+            boot,
             generation_links,
         }
     }
 
     pub fn build<S: Signer>(self, signer: S) -> Installer<S> {
         let mut gc_roots = Roots::new();
-        let esp_paths = SystemdEspPaths::new(self.esp, self.arch);
+        let esp_paths = SystemdEspPaths::new(self.esp, self.boot, self.arch);
         gc_roots.extend(esp_paths.iter());
 
         let pcrlock_paths = self.pcrlock_directory.map(PcrlockPaths::new);
@@ -218,8 +221,8 @@ impl<S: Signer> Installer<S> {
         // Sync files to persistent storage. This may improve the
         // chance of a consistent boot directory in case the system
         // crashes.
-        let boot = File::open(&self.esp_paths.esp).context("Failed to open ESP root directory.")?;
-        syncfs(boot).context("Failed to sync ESP filesystem.")?;
+        let boot = File::open(&self.esp_paths.boot).context(format!("Failed to open $BOOT root directory ({}).", &self.esp_paths.boot.display()))?;
+        syncfs(boot).context(format!("Failed to sync $BOOT ({}) filesystem.", &self.esp_paths.boot.display()))?;
 
         Ok(())
     }
@@ -302,7 +305,7 @@ impl<S: Signer> Installer<S> {
             &initrd_location,
             &kernel_target,
             &initrd_target,
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
         )?
         .with_cmdline(&kernel_cmdline)
         .with_os_release_contents(os_release_contents.as_bytes());
@@ -395,11 +398,11 @@ impl<S: Signer> Installer<S> {
         let stub = fs::read(&stub_target)
             .with_context(|| format!("Failed to read the stub: {}", stub_target.display()))?;
         let kernel_path = resolve_efi_path(
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
             pe::read_section_data(&stub, ".linux").context("Missing kernel path.")?,
         )?;
         let initrd_path = resolve_efi_path(
-            &self.esp_paths.esp,
+            &self.esp_paths.boot,
             pe::read_section_data(&stub, ".initrd").context("Missing initrd path.")?,
         )?;
 
@@ -410,7 +413,7 @@ impl<S: Signer> Installer<S> {
         Ok((stub_target, kernel_path, initrd_path))
     }
 
-    /// Install a content-addressed file to the `EFI/nixos` directory on the ESP.
+    /// Install a content-addressed file to the `EFI/nixos` directory on the $BOOT (ESP, or XBOOTLDR if exists).
     ///
     /// It is automatically added to the garbage collector roots.
     /// The full path to the target file is returned.
