@@ -466,41 +466,43 @@ impl<S: Signer> Installer<S> {
         };
 
         if newer_systemd_boot_available || !systemd_boot_is_signed || !measurement_exists {
+            // The following assumes that the "current" measurement before an update
+            // always refers to the bootloader that was used for startup of the system
+            // that performs the bootloader update.
+            // This means that a reboot must happen between two consecutive bootloader
+            // updates, otherwise we cannot produce a policy that covers PCR4 with this
+            // approach.
             if let Some(pcrlock_paths) = &self.pcrlock_paths {
-                // We do not version the bootloader measurement file. There will only ever be one
-                // bootloader version installed on the ESP and there is no rollback mechanism for it.
-                // That's why we also do not extend the GC roots with the path.
-                //
-                // However, we call this file "next" so that while the new bootloader is installed,
-                // the measurements of the current and next remain available.
-                let bootloader_pcrlock = pcrlock_paths.bootloader_measurement("next");
-                lock_pe(&systemd_boot, &bootloader_pcrlock)
-                    .context("Failed to lock Lanzaboote image with systemd-pcrlock")?;
+                // Path to measurement that was used prior to this implementation
+                let legacy_path = pcrlock_paths.bootloader_measurement("next");
+                // Path to measurement of the loader PE that will be overridden by a new one
+                let previous = if legacy_path.exists() {
+                    legacy_path
+                } else {
+                    pcrlock_paths.bootloader_measurement("previous")
+                };
+                // Path to measurement of the new loader PE that will override the current one
+                let current = pcrlock_paths.bootloader_measurement("current");
+
+                if current.exists() {
+                    fs::rename(&current, &previous).with_context(|| {
+                        format!(
+                            "Failed to rename {} to {}",
+                            current.display(),
+                            previous.display()
+                        )
+                    })?;
+                }
+
+                // Measure the bootloader we are about to install as "current".
+                lock_pe(&systemd_boot, &current)
+                    .context("Failed to lock systemd-boot image with systemd-pcrlock")?;
             }
 
             for to in [&self.esp_paths.efi_fallback, &self.esp_paths.systemd_boot] {
                 log::info!("Installing {}", to.display());
                 install_signed(&self.signer, &systemd_boot, to)
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
-            }
-
-            // After installing the bootloader, rename the pcrlock measurement from "next" to
-            // "current". So that we can install "next" on the next update again.
-            if let Some(pcrlock_paths) = &self.pcrlock_paths {
-                let next = pcrlock_paths.bootloader_measurement("next");
-                let current = pcrlock_paths.bootloader_measurement("current");
-                log::debug!(
-                    "Renaming {} to {} after installing the bootloader.",
-                    next.display(),
-                    current.display()
-                );
-                fs::rename(&next, &current).with_context(|| {
-                    format!(
-                        "Failed to rename {} to {}",
-                        next.display(),
-                        current.display()
-                    )
-                })?;
             }
         }
 

@@ -22,7 +22,7 @@
 
       boot.lanzaboote = {
         allowUnsigned = true;
-        configurationLimit = 8;
+        configurationLimit = 4;
         measuredBoot = {
           enable = true;
           pcrs = [
