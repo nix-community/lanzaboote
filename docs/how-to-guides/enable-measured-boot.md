@@ -22,6 +22,27 @@ If this says anything other than `yes`, you will not be able to use Lanzaboote
 for Measured Boot because the TPM in your system is not supported by
 systemd-pcrlock.
 
+### Check PCR 7 Ordering
+
+If your system has an AMD processor and is using the fTPM, a
+[bug in systemd](https://github.com/systemd/systemd/issues/40381) may prevent
+PCR 7 from being predicted correctly.
+
+```console
+$ sudo /run/current-system/systemd/lib/systemd/systemd-pcrlock cel 2>/dev/null | jq -r '.[] | select(.pcr == 7) | .content.event_type'
+EV_EFI_VARIABLE_DRIVER_CONFIG
+EV_EFI_VARIABLE_DRIVER_CONFIG
+EV_EFI_VARIABLE_DRIVER_CONFIG
+EV_EFI_VARIABLE_DRIVER_CONFIG
+EV_EFI_VARIABLE_DRIVER_CONFIG
+EV_EFI_VARIABLE_AUTHORITY
+EV_SEPARATOR
+EV_EFI_VARIABLE_AUTHORITY
+```
+
+If there is a `EV_EFI_VARIABLE_AUTHORITY` before the `EV_SEPARATOR`,
+you will not be able to use PCR 7 for measured boot.
+
 ## Enable Measured Boot in Your Config
 
 > [!NOTE]
