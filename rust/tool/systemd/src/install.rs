@@ -120,16 +120,37 @@ impl<S: Signer> Installer<S> {
 
         // A configuration limit of 0 means there is no limit.
         if self.configuration_limit > 0 {
-            // Only install the number of generations configured. Reverse the list to only take the
-            // latest generations and then, after taking them, reverse the list again so that the
-            // generations are installed from oldest to newest, i.e. from smallest to largest
-            // generation version.
-            links = links
-                .into_iter()
+            // Only install the number of generations configured.
+            let mut versions_to_keep: BTreeSet<u64> = links
+                .iter()
                 .rev()
                 .take(self.configuration_limit)
-                .rev()
-                .collect()
+                .map(|l| l.version)
+                .collect();
+
+            // When boot counting is enabled, ensure at least one known-good entry
+            // is preserved to avoid an ESP with only unassessed boot entries.
+            // We scan the ESP here because the known-good status (absence of boot
+            // counting suffix) is on-disk state set by systemd-boot, and we need
+            // this information before deciding which generations to keep.
+            if self.bootcounting_initial_tries > 0 {
+                let known_good = self.find_known_good_generation_versions()?;
+                if !known_good.is_empty()
+                    && !versions_to_keep.iter().any(|v| known_good.contains(v))
+                {
+                    if let Some(fallback) =
+                        links.iter().rev().find(|l| known_good.contains(&l.version))
+                    {
+                        log::info!(
+                            "Preserving known-good generation {} as a bootable fallback.",
+                            fallback.version
+                        );
+                        versions_to_keep.insert(fallback.version);
+                    }
+                }
+            }
+
+            links.retain(|l| versions_to_keep.contains(&l.version));
         };
         self.install_generations_from_links(&links)?;
 
@@ -516,6 +537,46 @@ impl<S: Signer> Installer<S> {
         })?;
 
         Ok(())
+    }
+
+    /// Find generation versions with known-good (assessed) boot entries on the ESP.
+    ///
+    /// Known-good entries are boot stubs without a boot counting suffix (`+N` or
+    /// `+N-M` immediately before `.efi`). These are entries that systemd-boot has
+    /// marked as successfully booted by removing the tries counter from the filename.
+    ///
+    /// Both main generation stubs and specialisation stubs are matched, but since
+    /// they share the same generation version number, duplicates are deduplicated.
+    fn find_known_good_generation_versions(&self) -> Result<BTreeSet<u64>> {
+        // Capture group 1: generation version
+        // Capture group 2: boot counting suffix (if present, entry is not yet known-good)
+        // See https://uapi-group.org/specifications/specs/boot_loader_specification/#boot-counting
+        let re = Regex::new(r"^nixos-generation-(\d+)-.*?(\+\d+(-\d+)?)?\.efi$")
+            .context("Failed to compile generation filename regex")?;
+
+        let entries = match fs::read_dir(&self.esp_paths.linux) {
+            Ok(entries) => entries,
+            Err(_) => return Ok(BTreeSet::new()),
+        };
+
+        let mut versions = BTreeSet::new();
+        for entry in entries {
+            let entry = entry?;
+            let Some(name) = entry.file_name().to_str().map(String::from) else {
+                continue;
+            };
+            if let Some(caps) = re.captures(&name) {
+                // Known-good entries have no boot counting suffix before .efi
+                if caps.get(2).is_some() {
+                    continue;
+                }
+                if let Ok(version) = caps[1].parse::<u64>() {
+                    versions.insert(version);
+                }
+            }
+        }
+
+        Ok(versions)
     }
 }
 
