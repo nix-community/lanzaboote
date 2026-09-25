@@ -25,10 +25,11 @@ systemd-pcrlock.
 ## Enable Measured Boot in Your Config
 
 > [!NOTE]
-> If you enable Measured Boot, the maximum allowed `configurationLimit` is 8.
+> If you enable Measured Boot, the maximum allowed `configurationLimit` is 4.
 > This limit is enforced by `systemd-pcrlock` [which currently won't create a
 > policy for more than 8
-> variants](https://github.com/systemd/systemd/issues/41526).
+> variants per PCR](https://github.com/systemd/systemd/issues/41526).
+> (PCR 4 variants ≙ 2 boot loader variants x 4 system generation variants)
 
 ```nix
 boot.initrd.systemd.enable = true;
