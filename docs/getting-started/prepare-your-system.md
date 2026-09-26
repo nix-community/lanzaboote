@@ -35,9 +35,9 @@ secret key so that only root can read it.
 Add `lanzaboote` as a dependency via `lon`, tracking a stable release tag (https://github.com/nix-community/lanzaboote/releases).
 
 ```console
-$ lon add github nix-community/lanzaboote -r v1.1.0 --frozen
+$ lon add github nix-community/lanzaboote -r v1.2.0 --frozen
 Adding lanzaboote...
-Locked revision: v1.1.0
+Locked revision: v1.2.0
 Locked hash: sha256-<some hash>
 ```
 
