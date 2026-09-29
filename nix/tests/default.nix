@@ -29,6 +29,7 @@ in
   boot-counting = runTest ./lanzaboote/boot-counting.nix;
   measured-boot = runTest ./lanzaboote/measured-boot.nix;
   auto-reboot = runTest ./lanzaboote/auto-reboot.nix;
+  protected-system = runTest ./lanzaboote/protected-system.nix;
 
   systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
   systemd-measure = runTest ./lanzaboote/systemd-measure.nix;

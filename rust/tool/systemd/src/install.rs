@@ -33,6 +33,7 @@ pub struct InstallerBuilder {
     configuration_limit: usize,
     bootcounting_initial_tries: u32,
     pcrlock_directory: Option<PathBuf>,
+    protected_system: Option<PathBuf>,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
 }
@@ -47,6 +48,7 @@ impl InstallerBuilder {
         configuration_limit: usize,
         bootcounting_initial_tries: u32,
         pcrlock_directory: Option<PathBuf>,
+        protected_system: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
@@ -58,6 +60,7 @@ impl InstallerBuilder {
             configuration_limit,
             bootcounting_initial_tries,
             pcrlock_directory,
+            protected_system,
             esp,
             generation_links,
         }
@@ -83,6 +86,7 @@ impl InstallerBuilder {
             configuration_limit: self.configuration_limit,
             bootcounting_initial_tries: self.bootcounting_initial_tries,
             pcrlock_paths,
+            protected_system: self.protected_system,
             esp_paths,
             generation_links: self.generation_links,
             arch: self.arch,
@@ -100,6 +104,7 @@ pub struct Installer<S: Signer> {
     configuration_limit: usize,
     bootcounting_initial_tries: u32,
     pcrlock_paths: Option<PcrlockPaths>,
+    protected_system: Option<PathBuf>,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
@@ -113,10 +118,19 @@ impl<S: Signer> Installer<S> {
             .generation_links
             .iter()
             .map(GenerationLink::from_path)
-            .collect::<Result<Vec<GenerationLink>>>()?;
+            .collect::<Result<BTreeSet<GenerationLink>>>()?;
 
-        // Sort the links by version, so that the limit actually skips the oldest generations.
-        links.sort_by_key(|l| l.version);
+        let booted_link = self
+            .protected_system
+            .as_ref()
+            .and_then(|p| fs::canonicalize(p).ok())
+            .and_then(|protected_system| {
+                log::info!("Protecting system {}", protected_system.display());
+                links.iter().find(|link| {
+                    fs::canonicalize(&link.path).is_ok_and(|resolved| resolved == protected_system)
+                })
+            })
+            .cloned();
 
         // A configuration limit of 0 means there is no limit.
         if self.configuration_limit > 0 {
@@ -131,7 +145,15 @@ impl<S: Signer> Installer<S> {
                 .rev()
                 .collect()
         };
-        self.install_generations_from_links(&links)?;
+
+        if let Some(booted_link) = booted_link
+            && !links.contains(&booted_link)
+        {
+            links.pop_first();
+            links.insert(booted_link);
+        }
+
+        self.install_generations_from_links(links.iter())?;
 
         self.install_systemd_boot()?;
 
@@ -174,9 +196,11 @@ impl<S: Signer> Installer<S> {
     }
 
     /// Install all generations from the provided `GenerationLinks`.
-    fn install_generations_from_links(&mut self, links: &[GenerationLink]) -> Result<()> {
+    fn install_generations_from_links<'a>(
+        &mut self,
+        links: impl Iterator<Item = &'a GenerationLink>,
+    ) -> Result<()> {
         let generations = links
-            .iter()
             .filter_map(|link| {
                 let generation_result = Generation::from_link(link)
                     .with_context(|| format!("Failed to build generation from link: {link:?}"));
@@ -480,7 +504,10 @@ impl<S: Signer> Installer<S> {
                 if legacy_path.exists() {
                     log::info!("Found leftover measurement file, removing.");
                     fs::remove_file(&legacy_path).with_context(|| {
-                        format!("Failed to remove leftover measurement file {}", legacy_path.display())
+                        format!(
+                            "Failed to remove leftover measurement file {}",
+                            legacy_path.display()
+                        )
                     })?;
                 };
 

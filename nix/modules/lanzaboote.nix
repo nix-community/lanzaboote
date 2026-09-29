@@ -34,6 +34,9 @@ let
           "--public-key=${toString cfg.publicKeyFile}"
           "--private-key=${toString cfg.privateKeyFile}"
         ]
+        ++ lib.optionals (cfg.protectedSystem != null) [
+          "--protected-system=${cfg.protectedSystem}"
+        ]
         ++ lib.optionals (cfg.measuredBoot.enable && pcr 4) [
           "--pcrlock-directory=${cfg.measuredBoot.pcrlockDirectory}"
         ]
@@ -214,6 +217,16 @@ in
       default = "info";
       description = ''
         Log level of lzbt.
+      '';
+    };
+
+    protectedSystem = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = "/run/booted-system";
+      description = ''
+        The system to be protected (i.e. always kept bootable on the ESP).
+
+        By default this is the system /run/booted-system points to.
       '';
     };
 
