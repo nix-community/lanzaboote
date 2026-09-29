@@ -162,59 +162,96 @@ fn random_string(length: usize) -> String {
         .collect()
 }
 
+pub struct Lanzaboote {
+    config_limit: u64,
+    protected_system: Option<PathBuf>,
+}
+
+impl Lanzaboote {
+    pub fn new() -> Self {
+        Self {
+            config_limit: 0,
+            protected_system: None,
+        }
+    }
+
+    pub fn config_limit(&mut self, config_limit: u64) -> &mut Self {
+        self.config_limit = config_limit;
+        self
+    }
+
+    pub fn protected_system(&mut self, booted_system: PathBuf) -> &mut Self {
+        self.protected_system = Some(booted_system);
+        self
+    }
+
+    pub fn install(
+        &mut self,
+        esp_mountpoint: &Path,
+        generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
+    ) -> Result<Output> {
+        // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
+        // the comment in setup_toplevel for details.
+        let architecture = Architecture::from_nixos_system(SYSTEM)?;
+        let test_systemd = systemd_location_from_env()?;
+        let systemd_stub_filename = systemd_stub_filename(&architecture);
+        let test_systemd_stub = format!(
+            "{test_systemd}/lib/systemd/boot/efi/{systemd_stub_filename}",
+            systemd_stub_filename = systemd_stub_filename.display()
+        );
+
+        let test_loader_config_path = tempfile::NamedTempFile::new()?;
+        let test_loader_config = r"timeout 0\nconsole-mode 1\n";
+        fs::write(test_loader_config_path.path(), test_loader_config)?;
+
+        let mut cmd = Command::new(cargo_bin!("lzbt-systemd"));
+
+        cmd.env("LANZABOOTE_STUB", test_systemd_stub)
+            .arg("-vv")
+            .arg("install")
+            .arg("--system")
+            .arg(SYSTEM)
+            .arg("--systemd")
+            .arg(test_systemd)
+            .arg("--systemd-boot-loader-config")
+            .arg(test_loader_config_path.path())
+            .arg("--public-key")
+            .arg("tests/fixtures/uefi-keys/db.pem")
+            .arg("--private-key")
+            .arg("tests/fixtures/uefi-keys/db.key")
+            .arg("--configuration-limit")
+            .arg(self.config_limit.to_string());
+
+        if let Some(ref protected_system) = self.protected_system {
+            cmd.arg("--protected-system").arg(protected_system);
+        }
+
+        let output = cmd.arg(esp_mountpoint).args(generation_links).output()?;
+
+        // Print debugging output.
+        // This is a weird hack to make cargo test capture the output.
+        // See https://github.com/rust-lang/rust/issues/12309
+        print!("{}", String::from_utf8(output.stdout.clone())?);
+        print!("{}", String::from_utf8(output.stderr.clone())?);
+
+        // Also walk the entire ESP mountpoint and print each path for debugging
+        for entry in walkdir::WalkDir::new(esp_mountpoint) {
+            println!("{}", entry?.path().display());
+        }
+
+        Ok(output)
+    }
+}
+
 /// Call the `lanzaboote install` command.
 pub fn lanzaboote_install(
     config_limit: u64,
     esp_mountpoint: &Path,
     generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
 ) -> Result<Output> {
-    // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
-    // the comment in setup_toplevel for details.
-    let architecture = Architecture::from_nixos_system(SYSTEM)?;
-    let test_systemd = systemd_location_from_env()?;
-    let systemd_stub_filename = systemd_stub_filename(&architecture);
-    let test_systemd_stub = format!(
-        "{test_systemd}/lib/systemd/boot/efi/{systemd_stub_filename}",
-        systemd_stub_filename = systemd_stub_filename.display()
-    );
-
-    let test_loader_config_path = tempfile::NamedTempFile::new()?;
-    let test_loader_config = r"timeout 0\nconsole-mode 1\n";
-    fs::write(test_loader_config_path.path(), test_loader_config)?;
-
-    let mut cmd = Command::new(cargo_bin!("lzbt-systemd"));
-    let output = cmd
-        .env("LANZABOOTE_STUB", test_systemd_stub)
-        .arg("-vv")
-        .arg("install")
-        .arg("--system")
-        .arg(SYSTEM)
-        .arg("--systemd")
-        .arg(test_systemd)
-        .arg("--systemd-boot-loader-config")
-        .arg(test_loader_config_path.path())
-        .arg("--public-key")
-        .arg("tests/fixtures/uefi-keys/db.pem")
-        .arg("--private-key")
-        .arg("tests/fixtures/uefi-keys/db.key")
-        .arg("--configuration-limit")
-        .arg(config_limit.to_string())
-        .arg(esp_mountpoint)
-        .args(generation_links)
-        .output()?;
-
-    // Print debugging output.
-    // This is a weird hack to make cargo test capture the output.
-    // See https://github.com/rust-lang/rust/issues/12309
-    print!("{}", String::from_utf8(output.stdout.clone())?);
-    print!("{}", String::from_utf8(output.stderr.clone())?);
-
-    // Also walk the entire ESP mountpoint and print each path for debugging
-    for entry in walkdir::WalkDir::new(esp_mountpoint) {
-        println!("{}", entry?.path().display());
-    }
-
-    Ok(output)
+    Lanzaboote::new()
+        .config_limit(config_limit)
+        .install(esp_mountpoint, generation_links)
 }
 
 /// Read location of systemd installation from an environment variable.

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -190,7 +191,7 @@ fn read_build_time(path: &Path) -> Result<Date> {
 ///
 /// Can be built from a symlink in /nix/var/nix/profiles/ alone because the name of the
 /// symlink encodes the version number.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenerationLink {
     pub version: u64,
     pub path: PathBuf,
@@ -204,6 +205,18 @@ impl GenerationLink {
             path: PathBuf::from(path.as_ref()),
             build_time: read_build_time(path.as_ref()).ok(),
         })
+    }
+}
+
+impl PartialOrd for GenerationLink {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for GenerationLink {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.version.cmp(&other.version)
     }
 }
 
@@ -226,10 +239,53 @@ fn parse_version(path: impl AsRef<Path>) -> Result<u64> {
 mod tests {
     use super::*;
 
+    use std::collections::BTreeSet;
+
     #[test]
     fn parse_version_correctly() {
         let path = Path::new("system-2-link");
         let parsed_version = parse_version(path).unwrap();
         assert_eq!(parsed_version, 2,);
+    }
+
+    #[test]
+    fn generation_link_ordering() {
+        let gen_0 = GenerationLink {
+            version: 0,
+            path: PathBuf::new(),
+            build_time: None,
+        };
+        let gen_1 = GenerationLink {
+            version: 1,
+            path: PathBuf::new(),
+            build_time: None,
+        };
+        assert!(gen_1 > gen_0)
+    }
+
+    #[test]
+    fn generation_link_set() {
+        let gen_0 = GenerationLink {
+            version: 0,
+            path: PathBuf::new(),
+            build_time: None,
+        };
+        let gen_1 = GenerationLink {
+            version: 1,
+            path: PathBuf::new(),
+            build_time: None,
+        };
+
+        let mut set = BTreeSet::new();
+        set.insert(gen_0);
+        set.insert(gen_1);
+
+        let mut iter = set.iter();
+        assert_eq!(iter.next().unwrap().version, 0);
+        assert_eq!(iter.next().unwrap().version, 1);
+
+        let mut reverse = set.iter().rev();
+        assert_eq!(reverse.next().unwrap().version, 1);
+        assert_eq!(reverse.next().unwrap().version, 0);
     }
 }
