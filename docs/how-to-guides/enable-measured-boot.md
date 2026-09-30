@@ -84,7 +84,7 @@ systemd-cryptenroll \
   --tpm2-device=auto \
   --tpm2-with-pin=true \
   --tpm2-pcrlock=/var/lib/systemd/pcrlock.json \
-  /dev/sdX
+  /dev/nvmeX
 ```
 
 Congratulations! You are now a proud user of Measured Boot. You will not need
