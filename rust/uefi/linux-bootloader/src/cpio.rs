@@ -1,8 +1,14 @@
 use core::convert::Infallible;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use pio::errors::CPIOError;
-use uefi::fs::{Path, PathBuf};
+use uefi::{
+    CString16,
+    fs::{Path, PathBuf},
+};
 
 pub type Cpio = pio::writer::Cpio<Infallible>;
 pub type Result = core::result::Result<Cpio, CPIOError<Infallible>>;
@@ -56,12 +62,13 @@ pub fn pack_cpio(
 
     cpio.pack_prefix(target_dir_prefix, dir_mode)?;
     for file in files {
-        let utf8_filename = String::from(
-            &file
-                .components()
+        let mut cstring_filename = CString16::new();
+        cstring_filename.extend(
+            file.components()
                 .last()
                 .expect("Expected the filename to possess a file name!"),
         );
+        let utf8_filename = cstring_filename.to_string();
         let contents = fs.read(file).expect("failed to read");
         cpio.pack_one(&utf8_filename, &contents, target_dir_prefix, access_mode)?;
     }
