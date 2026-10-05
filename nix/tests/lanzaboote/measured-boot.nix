@@ -106,6 +106,8 @@
       with subtest("TPM2 is setup"):
         machine.wait_for_unit("systemd-tpm2-setup.service")
 
+      assert_variable_string("LoaderInfo", "systemd-boot ${nodes.machine.systemd.package.version}")
+
       with subtest("vendor pcrlock components are present in /etc"):
         print(machine.succeed("tree /etc/pcrlock.d"))
 
@@ -141,7 +143,7 @@
         machine.wait_for_unit("auto-cryptenroll.service")
 
         print(machine.succeed("tree /var/lib/pcrlock.d"))
-        print(machine.succeed("stat /var/lib/pcrlock.d/630-bootloader.pcrlock.d/current.pcrlock"))
+        print(machine.succeed("stat /var/lib/pcrlock.d/630-bootloader.pcrlock.d/${nodes.machine.systemd.package.version}.pcrlock"))
         print(machine.succeed("stat /var/lib/pcrlock.d/635-lanzaboote.pcrlock.d/1.pcrlock"))
         print(machine.succeed("stat /var/lib/pcrlock.d/635-lanzaboote.pcrlock.d/1-new-generation.pcrlock"))
 

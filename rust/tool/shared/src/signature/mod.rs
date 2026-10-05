@@ -1,7 +1,7 @@
 mod empty;
 mod local;
 
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 
 use crate::pe::StubParameters;
@@ -58,5 +58,16 @@ pub trait Signer {
     /// Return true if the signature was verified.
     fn verify_path(&self, from: &Path) -> Result<bool> {
         self.verify(&std::fs::read(from).expect("Failed to read the path to verify"))
+    }
+
+    /// Verify the signature of a PE binary, provided by its path.
+    /// Return the content if the signature successfully verified, error otherwise.
+    fn read_verified(&self, from: &Path) -> Result<Vec<u8>> {
+        let buf = std::fs::read(from)
+            .with_context(|| format!("Failed to read the path to verify: {}", from.display()))?;
+        if !self.verify(&buf)? {
+            bail!("Failed to verify the signature of {}", from.display());
+        }
+        Ok(buf)
     }
 }
