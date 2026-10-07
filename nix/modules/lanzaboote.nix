@@ -45,12 +45,13 @@ let
           "--pcrlock-directory=${cfg.measuredBoot.pcrlockDirectory}"
         ]
         ++ [
+          # lzbt discovers the generations of all system profiles in here.
+          "--profiles-directory=/nix/var/nix/profiles"
           efiSysMountPoint
         ]
       )
       # NixOS passes the toplevel of the system to switch to as first argument.
       + lib.optionalString setDefaultEntry " \${1:+--default-system=\"$1\"}"
-      + " /nix/var/nix/profiles/system-*-link"
     );
 
   installHook = pkgs.writeShellScriptBin "lzbt" (
@@ -199,7 +200,8 @@ in
         As long as `default` is `"nixos-*"` and `preferred` is unset, the
         system that is being switched to becomes the default boot entry (or
         the preferred one if boot counting is enabled), like with
-        `boot.loader.systemd-boot`.
+        `boot.loader.systemd-boot`. This includes generations of other system
+        profiles, such as those created by `nixos-rebuild --profile-name`.
 
         Note that `preferred` requires systemd-boot 260 or newer and, unlike
         `default`, takes precedence over the default entry chosen with

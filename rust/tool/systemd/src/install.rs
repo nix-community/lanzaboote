@@ -19,7 +19,7 @@ use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
-use lanzaboote_tool::generation::{Generation, GenerationLink};
+use lanzaboote_tool::generation::{Generation, GenerationLink, discover_generation_links};
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
 use lanzaboote_tool::signature::Signer;
@@ -35,6 +35,7 @@ pub struct InstallerBuilder {
     pcrlock_directory: Option<PathBuf>,
     protected_system: Option<PathBuf>,
     default_system: Option<PathBuf>,
+    profiles_directory: Option<PathBuf>,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
 }
@@ -51,6 +52,7 @@ impl InstallerBuilder {
         pcrlock_directory: Option<PathBuf>,
         protected_system: Option<PathBuf>,
         default_system: Option<PathBuf>,
+        profiles_directory: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
@@ -64,6 +66,7 @@ impl InstallerBuilder {
             pcrlock_directory,
             protected_system,
             default_system,
+            profiles_directory,
             esp,
             generation_links,
         }
@@ -92,6 +95,7 @@ impl InstallerBuilder {
             protected_system: self.protected_system,
             default_system: self.default_system,
             default_entry: None,
+            profiles_directory: self.profiles_directory,
             esp_paths,
             generation_links: self.generation_links,
             arch: self.arch,
@@ -113,6 +117,8 @@ pub struct Installer<S: Signer> {
     default_system: Option<PathBuf>,
     /// Boot entry ID of the default system, if it has been installed
     default_entry: Option<String>,
+    /// Directory to discover the generation links of all profiles in
+    profiles_directory: Option<PathBuf>,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
@@ -127,6 +133,22 @@ impl<S: Signer> Installer<S> {
             .iter()
             .map(GenerationLink::from_path)
             .collect::<Result<BTreeSet<GenerationLink>>>()?;
+
+        if let Some(profiles_directory) = &self.profiles_directory {
+            for path in discover_generation_links(profiles_directory)
+                .context("Failed to discover generation links")?
+            {
+                // Unlike the links passed explicitly, a discovered link that cannot be used (e.g.
+                // because of its profile name) must not prevent the other generations from being
+                // installed. Nothing has ever been installed for it, so it can safely be skipped.
+                match GenerationLink::from_path(&path) {
+                    Ok(link) => {
+                        links.insert(link);
+                    }
+                    Err(e) => log::warn!("Ignoring generation link {}: {e:#}", path.display()),
+                }
+            }
+        }
 
         let booted_link = self
             .protected_system

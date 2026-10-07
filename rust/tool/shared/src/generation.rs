@@ -305,6 +305,54 @@ fn is_safe_profile_name(name: &str) -> bool {
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
+/// Whether a file name looks like a generation link, i.e. "{name}-{version}-link".
+fn is_generation_link_name(name: &str) -> bool {
+    name.strip_suffix("-link")
+        .and_then(|x| x.rsplit_once('-'))
+        .is_some_and(|(_, version)| version.parse::<u64>().is_ok())
+}
+
+/// Find the generation links of all system profiles in a profiles directory.
+///
+/// Like NixOS's systemd-boot-builder.py, this returns the links of the default profile
+/// ("{directory}/system-{version}-link") and of all other profiles
+/// ("{directory}/system-profiles/{profile}-{version}-link"). Other entries, e.g. the profile
+/// symlinks themselves or the profiles of nix-env, are ignored. A missing "system-profiles"
+/// directory is not an error.
+pub fn discover_generation_links(directory: impl AsRef<Path>) -> Result<Vec<PathBuf>> {
+    let directory = directory.as_ref();
+    let mut links = list_generation_links(directory, "system-")?;
+
+    let system_profiles = directory.join("system-profiles");
+    if system_profiles.is_dir() {
+        links.extend(list_generation_links(&system_profiles, "")?);
+    }
+
+    Ok(links)
+}
+
+/// List the entries of a directory that look like generation links and start with the prefix.
+fn list_generation_links(directory: &Path, prefix: &str) -> Result<Vec<PathBuf>> {
+    let mut links = Vec::new();
+    for entry in fs::read_dir(directory)
+        .with_context(|| format!("Failed to read profiles directory {directory:?}"))?
+    {
+        let path = entry
+            .with_context(|| format!("Failed to read profiles directory {directory:?}"))?
+            .path();
+        let is_link = path
+            .file_name()
+            .and_then(|x| x.to_str())
+            .is_some_and(|name| name.starts_with(prefix) && is_generation_link_name(name));
+        if is_link {
+            links.push(path);
+        } else {
+            log::debug!("Ignoring {path:?}, which is not a generation link.");
+        }
+    }
+    Ok(links)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,6 +402,76 @@ mod tests {
             assert!(
                 error.to_string().contains("contains characters"),
                 "{path} should be rejected because of its characters: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn discover_generation_links_of_all_profiles() {
+        let directory = tempfile::tempdir().unwrap();
+        let profiles = directory.path();
+        let system_profiles = profiles.join("system-profiles");
+        fs::create_dir(&system_profiles).unwrap();
+        for name in [
+            // Generation links of the default profile.
+            "system-1-link",
+            "system-12-link",
+            // Everything else in /nix/var/nix/profiles is ignored.
+            "system",
+            "default-3-link",
+            "per-user",
+            // Generation links of other profiles.
+            "system-profiles/custom-1-link",
+            "system-profiles/my-host-profile-7-link",
+            // The profile symlinks themselves and anything else are ignored.
+            "system-profiles/custom",
+            "system-profiles/my-host-profile",
+            "system-profiles/notes.txt",
+        ] {
+            fs::create_dir(profiles.join(name)).unwrap();
+        }
+
+        let mut links = discover_generation_links(profiles).unwrap();
+        links.sort();
+        assert_eq!(
+            links,
+            [
+                "system-1-link",
+                "system-12-link",
+                "system-profiles/custom-1-link",
+                "system-profiles/my-host-profile-7-link",
+            ]
+            .map(|name| profiles.join(name))
+        );
+    }
+
+    #[test]
+    fn discover_generation_links_without_system_profiles() {
+        let directory = tempfile::tempdir().unwrap();
+        let profiles = directory.path();
+        fs::create_dir(profiles.join("system-1-link")).unwrap();
+
+        let links = discover_generation_links(profiles).unwrap();
+        assert_eq!(links, [profiles.join("system-1-link")]);
+
+        assert!(discover_generation_links(profiles.join("missing")).is_err());
+    }
+
+    #[test]
+    fn parse_malformed_links() {
+        for path in [
+            "system-link",
+            "system-2",
+            "system-x-link",
+            "system--link",
+            "system-profiles/custom",
+            "system-profiles/custom-link",
+            "system-profiles/custom-x-link",
+            "system-profiles/-3-link",
+        ] {
+            assert!(
+                parse_profile_and_version(path).is_err(),
+                "{path} should not parse"
             );
         }
     }
