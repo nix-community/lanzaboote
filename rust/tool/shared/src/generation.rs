@@ -153,6 +153,18 @@ impl Generation {
         }
     }
 
+    /// Describe the profile of the generation for humans.
+    ///
+    /// Emulates how NixOS's current systemd-boot-builder.py adds the profile to the title. Empty
+    /// for the default profile.
+    pub fn describe_profile(&self) -> String {
+        if let Some(profile) = &self.profile {
+            format!(" [{profile}]")
+        } else {
+            "".to_string()
+        }
+    }
+
     /// Describe the generation in a single line for humans.
     ///
     /// Emulates how NixOS's current systemd-boot-builder.py describes generations so that the user
@@ -175,8 +187,20 @@ impl Generation {
     }
 
     /// A unique short identifier.
+    ///
+    /// Identifiers of the default profile start with the version number, those of other profiles
+    /// with `profile-`, so that the two can never collide.
     pub fn version_tag(&self) -> String {
-        format!("{}{}", self.version, self.describe_specialisation(),)
+        if let Some(profile) = &self.profile {
+            format!(
+                "profile-{}-{}{}",
+                profile,
+                self.version,
+                self.describe_specialisation()
+            )
+        } else {
+            format!("{}{}", self.version, self.describe_specialisation(),)
+        }
     }
 }
 

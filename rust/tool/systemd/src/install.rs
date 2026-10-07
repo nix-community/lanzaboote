@@ -287,8 +287,9 @@ impl<S: Signer> Installer<S> {
         for generation in generations {
             // The kernels and initrds are content-addressed.
             // Thus, this cannot overwrite files of old generation with different content.
-            self.install_generation(&generation)
-                .with_context(|| format!("Failed to install generation {}", generation.version))?;
+            self.install_generation(&generation).with_context(|| {
+                format!("Failed to install generation {}", generation.version_tag())
+            })?;
 
             for specialisation in generation.specialisations.values() {
                 self.install_generation(specialisation)
@@ -732,15 +733,22 @@ fn stub_prefix<S: Signer>(generation: &Generation, signer: &S) -> Result<String>
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
+    // Stubs of generations from other profiles start with "nixos-profile-" so that they can
+    // never collide with the "nixos-generation-" stubs of the default profile.
+    let profile_prefix = generation
+        .profile
+        .as_ref()
+        .map(|profile| format!("profile-{profile}-"))
+        .unwrap_or_default();
     if let Some(specialisation_name) = &generation.specialisation_name {
         Ok(format!(
-            "nixos-generation-{}-specialisation-{}-{}",
-            generation, specialisation_name, stub_input_hash
+            "nixos-{}generation-{}-specialisation-{}-{}",
+            profile_prefix, generation, specialisation_name, stub_input_hash
         ))
     } else {
         Ok(format!(
-            "nixos-generation-{}-{}",
-            generation, stub_input_hash
+            "nixos-{}generation-{}-{}",
+            profile_prefix, generation, stub_input_hash
         ))
     }
 }
