@@ -113,6 +113,11 @@ in
 
         `null` means no limit i.e. all generations
         that were not garbage collected yet.
+
+        The limit applies to each system profile separately, like with
+        `boot.loader.systemd-boot`. With Measured Boot it applies to the
+        generations of all profiles together, because `systemd-pcrlock` only
+        supports a limited number of variants.
       '';
     };
 

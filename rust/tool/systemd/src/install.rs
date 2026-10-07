@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
@@ -77,7 +77,7 @@ impl InstallerBuilder {
         };
 
         Installer {
-            broken_gens: BTreeSet::new(),
+            broken_gens: BTreeMap::new(),
             gc_roots,
             lanzaboote_stub: self.lanzaboote_stub,
             systemd: self.systemd,
@@ -95,7 +95,7 @@ impl InstallerBuilder {
 }
 
 pub struct Installer<S: Signer> {
-    broken_gens: BTreeSet<u64>,
+    broken_gens: BTreeMap<Option<String>, BTreeSet<u64>>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
@@ -132,24 +132,60 @@ impl<S: Signer> Installer<S> {
             })
             .cloned();
 
+        // With Measured Boot, systemd-pcrlock only supports a limited number of variants, so the
+        // configuration limit applies to the generations of all profiles together. Otherwise it
+        // applies to each profile separately, like in NixOS's systemd-boot-builder.py.
+        let global_limit = self.pcrlock_paths.is_some();
+
         // A configuration limit of 0 means there is no limit.
         if self.configuration_limit > 0 {
-            // Only install the number of generations configured. Reverse the list to only take the
-            // latest generations and then, after taking them, reverse the list again so that the
-            // generations are installed from oldest to newest, i.e. from smallest to largest
-            // generation version.
-            links = links
-                .into_iter()
-                .rev()
-                .take(self.configuration_limit)
-                .rev()
-                .collect()
+            links = if global_limit {
+                // Keep the most recently built generations.
+                let mut sorted = links.into_iter().collect::<Vec<_>>();
+                sorted.sort_by(|a, b| a.age_key().cmp(&b.age_key()));
+                sorted
+                    .into_iter()
+                    .rev()
+                    .take(self.configuration_limit)
+                    .collect()
+            } else {
+                // Reverse the list to only take the latest generations of each profile. The set
+                // orders them from oldest to newest again, i.e. from smallest to largest
+                // generation version.
+                let profiles = links
+                    .iter()
+                    .map(|link| link.profile.clone())
+                    .collect::<BTreeSet<_>>();
+                profiles
+                    .iter()
+                    .flat_map(|profile| {
+                        links
+                            .iter()
+                            .filter(move |link| &link.profile == profile)
+                            .rev()
+                            .take(self.configuration_limit)
+                    })
+                    .cloned()
+                    .collect()
+            }
         };
 
         if let Some(booted_link) = booted_link
             && !links.contains(&booted_link)
         {
-            links.pop_first();
+            // Make room by removing the oldest generation, of the same profile unless the limit
+            // applies to all profiles together.
+            let oldest = if global_limit {
+                links.iter().min_by_key(|link| link.age_key()).cloned()
+            } else {
+                links
+                    .iter()
+                    .find(|link| link.profile == booted_link.profile)
+                    .cloned()
+            };
+            if let Some(oldest) = oldest {
+                links.remove(&oldest);
+            }
             links.insert(booted_link);
         }
 
@@ -181,14 +217,31 @@ impl<S: Signer> Installer<S> {
                 self.gc_roots.collect_garbage(pcrlock_paths.lanzaboote())?;
             }
         } else {
+            let commands = self
+                .broken_gens
+                .iter()
+                .map(|(profile, versions)| {
+                    let profile_arg = profile
+                        .as_ref()
+                        .map(|p| format!("-p /nix/var/nix/profiles/system-profiles/{p} "))
+                        .unwrap_or_default();
+                    let versions = versions
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<String>>()
+                        .join(" ");
+                    format!("`nix-env {profile_arg}--delete-generations {versions}`")
+                })
+                .collect::<Vec<String>>()
+                .join("\n");
             // This might produce a ridiculous message if you have a lot of malformed generations.
             let warning = indoc::formatdoc! {"
                 Garbage collection is disabled because you have malformed NixOS generations that do
                 not contain a readable bootspec document.
 
                 Remove the malformed generations to re-enable garbage collection with
-                `nix-env --delete-generations {}`
-            ", self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" ")};
+                {commands}
+            "};
             log::warn!("{warning}");
         };
 
@@ -214,7 +267,10 @@ impl<S: Signer> Installer<S> {
                     // to manually intervene by getting rid of the old generations to re-enable
                     // garbage collection. This safeguard against catastrophic failure in case of
                     // unhandled upstream changes to NixOS.
-                    self.broken_gens.insert(link.version);
+                    self.broken_gens
+                        .entry(link.profile.clone())
+                        .or_default()
+                        .insert(link.version);
                 }
 
                 generation_result.ok()
