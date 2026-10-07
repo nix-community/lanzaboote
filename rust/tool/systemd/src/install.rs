@@ -34,6 +34,7 @@ pub struct InstallerBuilder {
     bootcounting_initial_tries: u32,
     pcrlock_directory: Option<PathBuf>,
     protected_system: Option<PathBuf>,
+    default_system: Option<PathBuf>,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
 }
@@ -49,6 +50,7 @@ impl InstallerBuilder {
         bootcounting_initial_tries: u32,
         pcrlock_directory: Option<PathBuf>,
         protected_system: Option<PathBuf>,
+        default_system: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
@@ -61,6 +63,7 @@ impl InstallerBuilder {
             bootcounting_initial_tries,
             pcrlock_directory,
             protected_system,
+            default_system,
             esp,
             generation_links,
         }
@@ -87,6 +90,8 @@ impl InstallerBuilder {
             bootcounting_initial_tries: self.bootcounting_initial_tries,
             pcrlock_paths,
             protected_system: self.protected_system,
+            default_system: self.default_system,
+            default_entry: None,
             esp_paths,
             generation_links: self.generation_links,
             arch: self.arch,
@@ -105,6 +110,9 @@ pub struct Installer<S: Signer> {
     bootcounting_initial_tries: u32,
     pcrlock_paths: Option<PcrlockPaths>,
     protected_system: Option<PathBuf>,
+    default_system: Option<PathBuf>,
+    /// Boot entry ID of the default system, if it has been installed
+    default_entry: Option<String>,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
@@ -131,6 +139,14 @@ impl<S: Signer> Installer<S> {
                 })
             })
             .cloned();
+
+        // Resolve the default system once, so that it can be compared with the toplevels of all
+        // generations.
+        self.default_system = self.default_system.take().and_then(|p| {
+            fs::canonicalize(&p)
+                .inspect_err(|e| log::warn!("Failed to resolve default system {p:?}: {e}"))
+                .ok()
+        });
 
         // With Measured Boot, systemd-pcrlock only supports a limited number of variants, so the
         // configuration limit applies to the generations of all profiles together. Otherwise it
@@ -313,6 +329,16 @@ impl<S: Signer> Installer<S> {
     /// All installed files are added as garbage collector roots.
     fn install_generation(&mut self, generation: &Generation) -> Result<()> {
         log::debug!("Installing generation {}", generation.version_tag());
+
+        // Like systemd-boot-builder.py, prefer the last matching generation in case several point
+        // to the same toplevel.
+        if let Some(default_system) = &self.default_system
+            && fs::canonicalize(&generation.spec.bootspec.bootspec.toplevel.0)
+                .is_ok_and(|toplevel| &toplevel == default_system)
+        {
+            // systemd-boot identifies UKIs by their file name without boot counting suffix.
+            self.default_entry = Some(format!("{}.efi", stub_prefix(generation, &self.signer)?));
+        }
 
         // If the generation is already properly installed, don't overwrite it.
         if self.register_installed_generation(generation)? {
@@ -682,11 +708,7 @@ impl<S: Signer> Installer<S> {
             }
         }
 
-        install(
-            &self.systemd_boot_loader_config,
-            &self.esp_paths.systemd_boot_loader_config,
-        )
-        .with_context(|| {
+        self.install_systemd_boot_loader_config().with_context(|| {
             format!(
                 "Failed to install systemd-boot loader.conf to {:?}",
                 self.esp_paths.systemd_boot_loader_config
@@ -694,6 +716,46 @@ impl<S: Signer> Installer<S> {
         })?;
 
         Ok(())
+    }
+
+    /// Install the systemd-boot loader.conf.
+    ///
+    /// If the default system has been installed, its entry is made the default, like NixOS's
+    /// systemd-boot-builder.py does. With boot counting, it is configured as the `preferred`
+    /// entry instead, because systemd-boot skips a preferred entry that has run out of tries and
+    /// falls back to the configured `default`.
+    fn install_systemd_boot_loader_config(&self) -> Result<()> {
+        let Some(default_entry) = &self.default_entry else {
+            if self.default_system.is_some() {
+                log::warn!("Default system is not installed, using configured default entry.");
+            }
+            return install(
+                &self.systemd_boot_loader_config,
+                &self.esp_paths.systemd_boot_loader_config,
+            );
+        };
+
+        let key = if self.bootcounting_initial_tries > 0 {
+            "preferred"
+        } else {
+            "default"
+        };
+        let mut loader_config = fs::read_to_string(&self.systemd_boot_loader_config)
+            .context("Failed to read the systemd-boot loader.conf")?
+            .lines()
+            .filter(|line| line.split_whitespace().next() != Some(key))
+            .map(|line| format!("{line}\n"))
+            .collect::<String>();
+        loader_config.push_str(&format!("{key} {default_entry}\n"));
+
+        let tempdir = TempDir::new().context("Failed to create temporary directory.")?;
+        let loader_config_path = tempdir.path().join("loader.conf");
+        fs::write(&loader_config_path, loader_config)
+            .context("Failed to write the systemd-boot loader.conf")?;
+        install(
+            &loader_config_path,
+            &self.esp_paths.systemd_boot_loader_config,
+        )
     }
 }
 

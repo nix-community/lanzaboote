@@ -71,6 +71,10 @@ struct InstallCommand {
     #[arg(long)]
     protected_system: Option<PathBuf>,
 
+    /// System (toplevel) whose boot entry becomes the default in loader.conf
+    #[arg(long)]
+    default_system: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -119,6 +123,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.bootcounting_initial_tries,
         args.pcrlock_directory,
         args.protected_system,
+        args.default_system,
         args.esp,
         args.generations,
     );
