@@ -1,5 +1,8 @@
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
 
 use anyhow::{Context, Result, bail};
 
@@ -24,6 +27,10 @@ impl PcrlockPaths {
         &self.lanzaboote
     }
 
+    pub fn bootloader(&self) -> &Path {
+        &self.bootloader
+    }
+
     /// Return the path to a pcrlock measurement file inside the pcrlock directory for Lanzaboote.
     pub fn bootloader_measurement(&self, name: impl AsRef<str>) -> PathBuf {
         self.bootloader.join(format!("{}.pcrlock", name.as_ref()))
@@ -37,8 +44,8 @@ impl PcrlockPaths {
     /// Return all pcrlock paths.
     ///
     /// This is useful for including the leading directories in the GC roots.
-    pub fn iter(&self) -> std::array::IntoIter<&PathBuf, 2> {
-        [&self.pcrlock, &self.lanzaboote].into_iter()
+    pub fn iter(&self) -> std::array::IntoIter<&PathBuf, 3> {
+        [&self.pcrlock, &self.lanzaboote, &self.bootloader].into_iter()
     }
 }
 
@@ -60,6 +67,43 @@ pub fn lock_pe(binary_path: impl AsRef<Path>, pcrlock_component: impl AsRef<Path
             pcrlock_component.as_ref().display()
         );
     }
+
+    Ok(())
+}
+
+/// Lock a PE binary with systemd-pcrlock and write the pcrlock component.
+///
+/// Same as [`lock_pe`], except that the PE binary is fed to `systemd-pcrlock lock-pe` on stdin
+/// instead of being read by it from a path.
+pub fn lock_pe_from_bytes(
+    data: impl AsRef<[u8]>,
+    pcrlock_component: impl AsRef<Path>,
+) -> Result<()> {
+    let mut child = Command::new("systemd-pcrlock")
+        .arg("lock-pe")
+        .arg("--pcrlock")
+        .arg(pcrlock_component.as_ref())
+        .stdin(Stdio::piped())
+        .spawn()
+        .context("Failed to run systemd-pcrlock. Most likely, the binary is not on PATH")?;
+
+    let written = child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(data.as_ref());
+
+    let status = child
+        .wait()
+        .context("Failed to wait for systemd-pcrlock to exit")?;
+
+    if !status.success() {
+        bail!(
+            "Failed to lock PE from stdin via systemd-pcrlock and write pcrlock component to {}",
+            pcrlock_component.as_ref().display()
+        );
+    }
+    written.context("Failed to write to stdin of systemd-pcrlock")?;
 
     Ok(())
 }

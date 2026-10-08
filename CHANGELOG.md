@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The Measured Boot integration now supports locking against PCR4 throughout
+  consecutive bootloader updates without rebooting, improving the handling
+  added in `1.2.0`.
+
 ## 1.2.0
 
 ### Changed

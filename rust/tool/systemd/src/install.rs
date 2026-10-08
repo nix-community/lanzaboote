@@ -14,7 +14,7 @@ use tempfile::TempDir;
 
 use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
-use crate::pcrlock::{PcrlockPaths, lock_pe};
+use crate::pcrlock::{PcrlockPaths, lock_pe, lock_pe_from_bytes};
 use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
@@ -173,10 +173,11 @@ impl<S: Signer> Installer<S> {
                         .and_then(|n| n.to_str())
                         .is_some_and(|n| n.starts_with("nixos-"))
                 })?;
-            // Only collect garbage in the Lanzaboote directory because that's the only directory
-            // we fully control. Bootloader measurements are not garbage collected because there is
-            // only a single installed bootloader version without the possibility of rollbacks.
+            // Only collect garbage in the Lanzaboote and the boot loader directory because those
+            // are the only directories we fully control. Of the boot loader measurements, only the
+            // ones for the installed and for the booted boot loader are roots.
             if let Some(pcrlock_paths) = &self.pcrlock_paths {
+                self.gc_roots.collect_garbage(pcrlock_paths.bootloader())?;
                 self.gc_roots.collect_garbage(pcrlock_paths.lanzaboote())?;
             }
         } else {
@@ -458,15 +459,44 @@ impl<S: Signer> Installer<S> {
     /// to the ESP.
     ///
     /// Checking for the version also allows us to skip buggy systemd versions in the future.
-    fn install_systemd_boot(&self) -> Result<()> {
-        let systemd_boot = self
+    fn install_systemd_boot(&mut self) -> Result<()> {
+        let systemd_boot_candidate = self
             .systemd
             .join("lib/systemd/boot/efi")
             .join(self.arch.systemd_filename());
 
-        let newer_systemd_boot_available =
-            newer_systemd_boot(&systemd_boot, &self.esp_paths.efi_fallback)?
-                || newer_systemd_boot(&systemd_boot, &self.esp_paths.systemd_boot)?;
+        // If the version of the source binary cannot be read, something is irrecoverably wrong.
+        let candidate_version = SystemdVersion::from_systemd_boot_binary(&systemd_boot_candidate)
+            .with_context(|| {
+            format!("Failed to read systemd-boot version from {systemd_boot_candidate:?}.")
+        })?;
+
+        let primary = &self.esp_paths.systemd_boot;
+        let primary_version = match SystemdVersion::from_systemd_boot_binary(primary) {
+            Ok(version) => Some(version),
+            Err(_) if !primary.exists() => None,
+            Err(e) => {
+                log::warn!("Failed to read systemd-boot version from {primary:?}: {e:#}");
+                None
+            }
+        };
+
+        let fallback = &self.esp_paths.efi_fallback;
+        let fallback_version = match SystemdVersion::from_systemd_boot_binary(fallback) {
+            Ok(version) => Some(version),
+            Err(_) if !fallback.exists() => None,
+            Err(e) => {
+                log::warn!("Failed to read systemd-boot version from {fallback:?}: {e:#}");
+                None
+            }
+        };
+
+        let newer_systemd_boot_available = match (&primary_version, &fallback_version) {
+            (Some(primary), Some(fallback)) => {
+                candidate_version > *primary || candidate_version > *fallback
+            }
+            _ => true,
+        };
         if newer_systemd_boot_available {
             log::info!("Updating systemd-boot...")
         };
@@ -477,62 +507,120 @@ impl<S: Signer> Installer<S> {
             log::warn!("systemd-boot is not signed. Replacing it with a signed binary...")
         };
 
-        // If Measured Boot is not enabled (i.e. `pcrlock_paths` is `None`), this should be true.
-        // Otherwise we will always re-install systemd-boot if Measured Boot is disabled.
-        let measurement_exists = self
-            .pcrlock_paths
+        // `Some(version)` if the binary that is currently installed on the ESP is kept as it is,
+        // `None` if it is replaced by the candidate.
+        let keep_installed = primary_version
             .as_ref()
-            .is_none_or(|p| p.bootloader_measurement("current").exists());
-        if !measurement_exists {
-            log::warn!(
-                "systemd-boot has not been measured. Creating measurement and re-installing..."
-            )
-        };
+            .filter(|_| !newer_systemd_boot_available && systemd_boot_is_signed);
 
-        if newer_systemd_boot_available || !systemd_boot_is_signed || !measurement_exists {
-            // The following assumes that the "current" measurement before an update
-            // always refers to the bootloader that was used for startup of the system
-            // that performs the bootloader update.
-            // This means that a reboot must happen between two consecutive bootloader
-            // updates, otherwise we cannot produce a policy that covers PCR4 with this
-            // approach.
-            if let Some(pcrlock_paths) = &self.pcrlock_paths {
-                // Path to measurement that was used prior to this implementation during an update,
-                // so the file should not exist *after* an update. In case it is still present, we
-                // simply delete it, because it would otherwise be picked up by pcrlock.
-                let legacy_path = pcrlock_paths.bootloader_measurement("next");
+        // Boot loader measurements are named after their corresponding systemd version. This way
+        // the measurement of the booted boot loader can survive multiple consecutive loader updates
+        // on the ESP, which is required to cover PCR4 in the policy throughout these updates.
+        let mut keep_measurements: Vec<PathBuf> = Vec::new();
+
+        if let Some(pcrlock_paths) = &self.pcrlock_paths {
+            // Measurements that were created before the versioned files are deleted as they would
+            // otherwise be picked up by systemd-pcrlock as alternatives for PCR4.
+            //
+            // It would be non-trivial to identify which ones are relevant to us and in the worst
+            // case, i.e. when a user ignored the instructions to reboot between two boot loader
+            // updates, none of them would match.
+            //
+            // On systems that have both a validly signed loader and are booted with that same
+            // loader, i.e. where users rebooted after the most recent loader update, a versioned
+            // measurement is created for that signed and booted loader (see below).
+            for legacy_name in ["next", "previous", "current"] {
+                let legacy_path = pcrlock_paths.bootloader_measurement(legacy_name);
                 if legacy_path.exists() {
-                    log::info!("Found leftover measurement file, removing.");
+                    log::info!(
+                        "Removing leftover measurement file: {}",
+                        legacy_path.display()
+                    );
                     fs::remove_file(&legacy_path).with_context(|| {
                         format!(
                             "Failed to remove leftover measurement file {}",
                             legacy_path.display()
                         )
                     })?;
-                };
-
-                let previous = pcrlock_paths.bootloader_measurement("previous");
-                // Path to measurement of the new loader PE that will override the current one
-                let current = pcrlock_paths.bootloader_measurement("current");
-
-                if current.exists() {
-                    fs::rename(&current, &previous).with_context(|| {
-                        format!(
-                            "Failed to rename {} to {}",
-                            current.display(),
-                            previous.display()
-                        )
-                    })?;
                 }
+            }
 
-                // Measure the bootloader we are about to install as "current".
-                lock_pe(&systemd_boot, &current)
+            let installed_measurement = pcrlock_paths
+                .bootloader_measurement(keep_installed.unwrap_or(&candidate_version).to_string());
+
+            if keep_installed.is_none() {
+                lock_pe(&systemd_boot_candidate, &installed_measurement)
                     .context("Failed to lock systemd-boot image with systemd-pcrlock")?;
             }
 
+            let booted_version = SystemdVersion::from_efivar();
+
+            // If the loader on the ESP has no measurement, either because it was written before
+            // versioned loader measurements, or because measured boot was not enabled before,
+            // the measurement is recreated from that loader, which has to happen before it is
+            // potentially replaced below.
+            // The measurement is only recreated if the PE passes signature verification.
+            if let Some(primary) = &primary_version
+                && systemd_boot_is_signed
+                && (keep_installed.is_some()
+                    || booted_version
+                        .as_ref()
+                        .is_ok_and(|booted| booted == primary))
+            {
+                let primary_measurement = pcrlock_paths.bootloader_measurement(primary.to_string());
+                if !primary_measurement.exists() {
+                    log::info!("No measurement for the installed boot loader. Recreating...");
+                    let primary_pe = self
+                        .signer
+                        .read_verified(&self.esp_paths.systemd_boot)
+                        .context("Failed to read the installed systemd-boot binary.")?;
+                    lock_pe_from_bytes(&primary_pe, &primary_measurement)
+                        .context("Failed to lock systemd-boot image with systemd-pcrlock")?;
+                }
+            }
+
+            // the measurement for the loader that ends up on the ESP won't be collected
+            keep_measurements.push(installed_measurement);
+
+            // same for the booted boot loader, without it the policy cannot cover PCR4 for the running system
+            match booted_version {
+                Ok(booted_version) => {
+                    let booted_measurement =
+                        pcrlock_paths.bootloader_measurement(booted_version.to_string());
+                    if booted_measurement.exists() {
+                        keep_measurements.push(booted_measurement);
+                    } else if primary_version.as_ref() == Some(&booted_version)
+                        && !systemd_boot_is_signed
+                    {
+                        // if the installed boot loader failed the signature check above, it
+                        // triggers a reinstall. When this installed loader is also happens to be
+                        // the currently booted loader, a measurement is intentionally not recreated
+                        // for it
+                        log::warn!(
+                            "Refusing to recreate measurement for unverified loader, PCR4 expected to drop from protection mask."
+                        )
+                    } else {
+                        // when neither the measurement for the currently installed, nor that for
+                        // the candidate that is about to be installed match the booted version, a
+                        // policy that covers PCR4 cannot be created without extra logic (e.g. by
+                        // reading the event log and synthesizing a .pcrlock file from that)
+                        log::warn!(
+                            "Failed to identify measurement for booted boot loader, PCR4 expected to drop from protection mask."
+                        )
+                    }
+                }
+                Err(e) => log::warn!(
+                    "Failed to read systemd-boot version from EFI variable: {e:#}. PCR4 expected to drop from protection mask."
+                ),
+            }
+        }
+
+        self.gc_roots.extend(keep_measurements.iter());
+
+        if keep_installed.is_none() {
             for to in [&self.esp_paths.efi_fallback, &self.esp_paths.systemd_boot] {
                 log::info!("Installing {}", to.display());
-                install_signed(&self.signer, &systemd_boot, to)
+                install_signed(&self.signer, &systemd_boot_candidate, to)
                     .with_context(|| format!("Failed to install systemd-boot binary to: {to:?}"))?;
             }
         }
@@ -544,7 +632,7 @@ impl<S: Signer> Installer<S> {
         .with_context(|| {
             format!(
                 "Failed to install systemd-boot loader.conf to {:?}",
-                &self.esp_paths.systemd_boot_loader_config
+                self.esp_paths.systemd_boot_loader_config
             )
         })?;
 
@@ -701,30 +789,4 @@ fn ensure_parent_dir(path: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
-}
-
-/// Determine if a newer systemd-boot version is available.
-///
-/// "Newer" can mean
-///   (1) no file exists at the destination,
-///   (2) the file at the destination is malformed,
-///   (3) a binary with a higher version is available.
-fn newer_systemd_boot(from: &Path, to: &Path) -> Result<bool> {
-    // If the file doesn't exists at the destination, it should be installed.
-    if !to.exists() {
-        return Ok(true);
-    }
-
-    // If the version from the source binary cannot be read, something is irrecoverably wrong.
-    let from_version = SystemdVersion::from_systemd_boot_binary(from)
-        .with_context(|| format!("Failed to read systemd-boot version from {from:?}."))?;
-
-    // If the version cannot be read from the destination binary, it is malformed. It should be
-    // forcibly reinstalled.
-    let to_version = match SystemdVersion::from_systemd_boot_binary(to) {
-        Ok(version) => version,
-        _ => return Ok(true),
-    };
-
-    Ok(from_version > to_version)
 }
