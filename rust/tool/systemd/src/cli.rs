@@ -71,10 +71,19 @@ struct InstallCommand {
     #[arg(long)]
     protected_system: Option<PathBuf>,
 
+    /// System (toplevel) whose boot entry becomes the default in loader.conf
+    #[arg(long)]
+    default_system: Option<PathBuf>,
+
+    /// Directory to discover the generation links of all system profiles in (e.g.
+    /// /nix/var/nix/profiles)
+    #[arg(long)]
+    profiles_directory: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
-    /// List of generation links (e.g. /nix/var/nix/profiles/system-*-link)
+    /// List of additional generation links, e.g. for building images
     generations: Vec<PathBuf>,
 }
 
@@ -119,6 +128,8 @@ fn install(args: InstallCommand) -> Result<()> {
         args.bootcounting_initial_tries,
         args.pcrlock_directory,
         args.protected_system,
+        args.default_system,
+        args.profiles_directory,
         args.esp,
         args.generations,
     );

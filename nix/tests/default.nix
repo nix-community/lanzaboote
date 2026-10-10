@@ -30,6 +30,10 @@ in
   measured-boot = runTest ./lanzaboote/measured-boot.nix;
   auto-reboot = runTest ./lanzaboote/auto-reboot.nix;
   protected-system = runTest ./lanzaboote/protected-system.nix;
+  system-profiles = runTest (import ./lanzaboote/system-profiles.nix { bootCounting = false; });
+  system-profiles-boot-counting = runTest (
+    import ./lanzaboote/system-profiles.nix { bootCounting = true; }
+  );
 
   systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
   systemd-measure = runTest ./lanzaboote/systemd-measure.nix;

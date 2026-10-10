@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
@@ -19,7 +19,7 @@ use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
-use lanzaboote_tool::generation::{Generation, GenerationLink};
+use lanzaboote_tool::generation::{Generation, GenerationLink, discover_generation_links};
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
 use lanzaboote_tool::signature::Signer;
@@ -34,6 +34,8 @@ pub struct InstallerBuilder {
     bootcounting_initial_tries: u32,
     pcrlock_directory: Option<PathBuf>,
     protected_system: Option<PathBuf>,
+    default_system: Option<PathBuf>,
+    profiles_directory: Option<PathBuf>,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
 }
@@ -49,6 +51,8 @@ impl InstallerBuilder {
         bootcounting_initial_tries: u32,
         pcrlock_directory: Option<PathBuf>,
         protected_system: Option<PathBuf>,
+        default_system: Option<PathBuf>,
+        profiles_directory: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
     ) -> Self {
@@ -61,6 +65,8 @@ impl InstallerBuilder {
             bootcounting_initial_tries,
             pcrlock_directory,
             protected_system,
+            default_system,
+            profiles_directory,
             esp,
             generation_links,
         }
@@ -77,7 +83,7 @@ impl InstallerBuilder {
         };
 
         Installer {
-            broken_gens: BTreeSet::new(),
+            broken_gens: BTreeMap::new(),
             gc_roots,
             lanzaboote_stub: self.lanzaboote_stub,
             systemd: self.systemd,
@@ -87,6 +93,9 @@ impl InstallerBuilder {
             bootcounting_initial_tries: self.bootcounting_initial_tries,
             pcrlock_paths,
             protected_system: self.protected_system,
+            default_system: self.default_system,
+            default_entry: None,
+            profiles_directory: self.profiles_directory,
             esp_paths,
             generation_links: self.generation_links,
             arch: self.arch,
@@ -95,7 +104,7 @@ impl InstallerBuilder {
 }
 
 pub struct Installer<S: Signer> {
-    broken_gens: BTreeSet<u64>,
+    broken_gens: BTreeMap<Option<String>, BTreeSet<u64>>,
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
@@ -105,6 +114,11 @@ pub struct Installer<S: Signer> {
     bootcounting_initial_tries: u32,
     pcrlock_paths: Option<PcrlockPaths>,
     protected_system: Option<PathBuf>,
+    default_system: Option<PathBuf>,
+    /// Boot entry ID of the default system, if it has been installed
+    default_entry: Option<String>,
+    /// Directory to discover the generation links of all profiles in
+    profiles_directory: Option<PathBuf>,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
     arch: Architecture,
@@ -120,6 +134,22 @@ impl<S: Signer> Installer<S> {
             .map(GenerationLink::from_path)
             .collect::<Result<BTreeSet<GenerationLink>>>()?;
 
+        if let Some(profiles_directory) = &self.profiles_directory {
+            for path in discover_generation_links(profiles_directory)
+                .context("Failed to discover generation links")?
+            {
+                // Unlike the links passed explicitly, a discovered link that cannot be used (e.g.
+                // because of its profile name) must not prevent the other generations from being
+                // installed. Nothing has ever been installed for it, so it can safely be skipped.
+                match GenerationLink::from_path(&path) {
+                    Ok(link) => {
+                        links.insert(link);
+                    }
+                    Err(e) => log::warn!("Ignoring generation link {}: {e:#}", path.display()),
+                }
+            }
+        }
+
         let booted_link = self
             .protected_system
             .as_ref()
@@ -132,24 +162,68 @@ impl<S: Signer> Installer<S> {
             })
             .cloned();
 
+        // Resolve the default system once, so that it can be compared with the toplevels of all
+        // generations.
+        self.default_system = self.default_system.take().and_then(|p| {
+            fs::canonicalize(&p)
+                .inspect_err(|e| log::warn!("Failed to resolve default system {p:?}: {e}"))
+                .ok()
+        });
+
+        // With Measured Boot, systemd-pcrlock only supports a limited number of variants, so the
+        // configuration limit applies to the generations of all profiles together. Otherwise it
+        // applies to each profile separately, like in NixOS's systemd-boot-builder.py.
+        let global_limit = self.pcrlock_paths.is_some();
+
         // A configuration limit of 0 means there is no limit.
         if self.configuration_limit > 0 {
-            // Only install the number of generations configured. Reverse the list to only take the
-            // latest generations and then, after taking them, reverse the list again so that the
-            // generations are installed from oldest to newest, i.e. from smallest to largest
-            // generation version.
-            links = links
-                .into_iter()
-                .rev()
-                .take(self.configuration_limit)
-                .rev()
-                .collect()
+            links = if global_limit {
+                // Keep the most recently built generations.
+                let mut sorted = links.into_iter().collect::<Vec<_>>();
+                sorted.sort_by(|a, b| a.age_key().cmp(&b.age_key()));
+                sorted
+                    .into_iter()
+                    .rev()
+                    .take(self.configuration_limit)
+                    .collect()
+            } else {
+                // Reverse the list to only take the latest generations of each profile. The set
+                // orders them from oldest to newest again, i.e. from smallest to largest
+                // generation version.
+                let profiles = links
+                    .iter()
+                    .map(|link| link.profile.clone())
+                    .collect::<BTreeSet<_>>();
+                profiles
+                    .iter()
+                    .flat_map(|profile| {
+                        links
+                            .iter()
+                            .filter(move |link| &link.profile == profile)
+                            .rev()
+                            .take(self.configuration_limit)
+                    })
+                    .cloned()
+                    .collect()
+            }
         };
 
         if let Some(booted_link) = booted_link
             && !links.contains(&booted_link)
         {
-            links.pop_first();
+            // Make room by removing the oldest generation, of the same profile unless the limit
+            // applies to all profiles together.
+            let oldest = if global_limit {
+                links.iter().min_by_key(|link| link.age_key()).cloned()
+            } else {
+                links
+                    .iter()
+                    .find(|link| link.profile == booted_link.profile)
+                    .cloned()
+            };
+            if let Some(oldest) = oldest {
+                links.remove(&oldest);
+            }
             links.insert(booted_link);
         }
 
@@ -181,14 +255,31 @@ impl<S: Signer> Installer<S> {
                 self.gc_roots.collect_garbage(pcrlock_paths.lanzaboote())?;
             }
         } else {
+            let commands = self
+                .broken_gens
+                .iter()
+                .map(|(profile, versions)| {
+                    let profile_arg = profile
+                        .as_ref()
+                        .map(|p| format!("-p /nix/var/nix/profiles/system-profiles/{p} "))
+                        .unwrap_or_default();
+                    let versions = versions
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<String>>()
+                        .join(" ");
+                    format!("`nix-env {profile_arg}--delete-generations {versions}`")
+                })
+                .collect::<Vec<String>>()
+                .join("\n");
             // This might produce a ridiculous message if you have a lot of malformed generations.
             let warning = indoc::formatdoc! {"
                 Garbage collection is disabled because you have malformed NixOS generations that do
                 not contain a readable bootspec document.
 
                 Remove the malformed generations to re-enable garbage collection with
-                `nix-env --delete-generations {}`
-            ", self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" ")};
+                {commands}
+            "};
             log::warn!("{warning}");
         };
 
@@ -214,7 +305,10 @@ impl<S: Signer> Installer<S> {
                     // to manually intervene by getting rid of the old generations to re-enable
                     // garbage collection. This safeguard against catastrophic failure in case of
                     // unhandled upstream changes to NixOS.
-                    self.broken_gens.insert(link.version);
+                    self.broken_gens
+                        .entry(link.profile.clone())
+                        .or_default()
+                        .insert(link.version);
                 }
 
                 generation_result.ok()
@@ -231,8 +325,9 @@ impl<S: Signer> Installer<S> {
         for generation in generations {
             // The kernels and initrds are content-addressed.
             // Thus, this cannot overwrite files of old generation with different content.
-            self.install_generation(&generation)
-                .with_context(|| format!("Failed to install generation {}", generation.version))?;
+            self.install_generation(&generation).with_context(|| {
+                format!("Failed to install generation {}", generation.version_tag())
+            })?;
 
             for specialisation in generation.specialisations.values() {
                 self.install_generation(specialisation)
@@ -256,6 +351,16 @@ impl<S: Signer> Installer<S> {
     /// All installed files are added as garbage collector roots.
     fn install_generation(&mut self, generation: &Generation) -> Result<()> {
         log::debug!("Installing generation {}", generation.version_tag());
+
+        // Like systemd-boot-builder.py, prefer the last matching generation in case several point
+        // to the same toplevel.
+        if let Some(default_system) = &self.default_system
+            && fs::canonicalize(&generation.spec.bootspec.bootspec.toplevel.0)
+                .is_ok_and(|toplevel| &toplevel == default_system)
+        {
+            // systemd-boot identifies UKIs by their file name without boot counting suffix.
+            self.default_entry = Some(format!("{}.efi", stub_prefix(generation, &self.signer)?));
+        }
 
         // If the generation is already properly installed, don't overwrite it.
         if self.register_installed_generation(generation)? {
@@ -625,11 +730,7 @@ impl<S: Signer> Installer<S> {
             }
         }
 
-        install(
-            &self.systemd_boot_loader_config,
-            &self.esp_paths.systemd_boot_loader_config,
-        )
-        .with_context(|| {
+        self.install_systemd_boot_loader_config().with_context(|| {
             format!(
                 "Failed to install systemd-boot loader.conf to {:?}",
                 self.esp_paths.systemd_boot_loader_config
@@ -637,6 +738,46 @@ impl<S: Signer> Installer<S> {
         })?;
 
         Ok(())
+    }
+
+    /// Install the systemd-boot loader.conf.
+    ///
+    /// If the default system has been installed, its entry is made the default, like NixOS's
+    /// systemd-boot-builder.py does. With boot counting, it is configured as the `preferred`
+    /// entry instead, because systemd-boot skips a preferred entry that has run out of tries and
+    /// falls back to the configured `default`.
+    fn install_systemd_boot_loader_config(&self) -> Result<()> {
+        let Some(default_entry) = &self.default_entry else {
+            if self.default_system.is_some() {
+                log::warn!("Default system is not installed, using configured default entry.");
+            }
+            return install(
+                &self.systemd_boot_loader_config,
+                &self.esp_paths.systemd_boot_loader_config,
+            );
+        };
+
+        let key = if self.bootcounting_initial_tries > 0 {
+            "preferred"
+        } else {
+            "default"
+        };
+        let mut loader_config = fs::read_to_string(&self.systemd_boot_loader_config)
+            .context("Failed to read the systemd-boot loader.conf")?
+            .lines()
+            .filter(|line| line.split_whitespace().next() != Some(key))
+            .map(|line| format!("{line}\n"))
+            .collect::<String>();
+        loader_config.push_str(&format!("{key} {default_entry}\n"));
+
+        let tempdir = TempDir::new().context("Failed to create temporary directory.")?;
+        let loader_config_path = tempdir.path().join("loader.conf");
+        fs::write(&loader_config_path, loader_config)
+            .context("Failed to write the systemd-boot loader.conf")?;
+        install(
+            &loader_config_path,
+            &self.esp_paths.systemd_boot_loader_config,
+        )
     }
 }
 
@@ -676,15 +817,22 @@ fn stub_prefix<S: Signer>(generation: &Generation, signer: &S) -> Result<String>
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
+    // Stubs of generations from other profiles start with "nixos-profile-" so that they can
+    // never collide with the "nixos-generation-" stubs of the default profile.
+    let profile_prefix = generation
+        .profile
+        .as_ref()
+        .map(|profile| format!("profile-{profile}-"))
+        .unwrap_or_default();
     if let Some(specialisation_name) = &generation.specialisation_name {
         Ok(format!(
-            "nixos-generation-{}-specialisation-{}-{}",
-            generation, specialisation_name, stub_input_hash
+            "nixos-{}generation-{}-specialisation-{}-{}",
+            profile_prefix, generation, specialisation_name, stub_input_hash
         ))
     } else {
         Ok(format!(
-            "nixos-generation-{}-{}",
-            generation, stub_input_hash
+            "nixos-{}generation-{}-{}",
+            profile_prefix, generation, stub_input_hash
         ))
     }
 }

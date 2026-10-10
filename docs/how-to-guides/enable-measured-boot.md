@@ -30,6 +30,10 @@ systemd-pcrlock.
 > policy for more than 8
 > variants per PCR](https://github.com/systemd/systemd/issues/41526).
 > (PCR 4 variants ≙ 2 boot loader variants x 4 system generation variants)
+>
+> With Measured Boot, `configurationLimit` applies to the generations of all
+> system profiles together (see `nixos-rebuild --profile-name`), keeping the
+> most recently built ones. Specialisations add further variants.
 
 ```nix
 boot.initrd.systemd.enable = true;
