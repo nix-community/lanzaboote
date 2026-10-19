@@ -2,11 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- Generations of other system profiles (`nixos-rebuild --profile-name`) are
+  now installed to the ESP, with the profile name in the boot entry title.
+  `configurationLimit` applies per profile, or to all profiles together with
+  Measured Boot. Profiles whose names contain characters other than ASCII
+  letters, digits, `.`, `_` and `-` are skipped with a warning.
+
 ### Changed
 
 - The Measured Boot integration now supports locking against PCR4 throughout
   consecutive bootloader updates without rebooting, improving the handling
   added in `1.2.0`.
+- Like `boot.loader.systemd-boot`, the system being switched to becomes the
+  default boot entry (the `preferred` one with boot counting, which needs
+  systemd-boot 260), unless `boot.lanzaboote.settings.default` or `preferred`
+  were changed from their defaults.
 
 ## 1.2.0
 
