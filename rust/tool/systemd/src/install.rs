@@ -37,6 +37,7 @@ pub struct InstallerBuilder {
     protected_system: Option<PathBuf>,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
+    genlist_path: Option<PathBuf>,
 }
 
 impl InstallerBuilder {
@@ -52,6 +53,7 @@ impl InstallerBuilder {
         protected_system: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
+        genlist_path: Option<PathBuf>,
     ) -> Self {
         Self {
             lanzaboote_stub: lanzaboote_stub.as_ref().to_path_buf(),
@@ -64,6 +66,7 @@ impl InstallerBuilder {
             protected_system,
             esp,
             generation_links,
+            genlist_path,
         }
     }
 
@@ -90,6 +93,7 @@ impl InstallerBuilder {
             protected_system: self.protected_system,
             esp_paths,
             generation_links: self.generation_links,
+            genlist_path: self.genlist_path,
             arch: self.arch,
         }
     }
@@ -108,6 +112,7 @@ pub struct Installer<S: Signer> {
     protected_system: Option<PathBuf>,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
+    genlist_path: Option<PathBuf>,
     arch: Architecture,
 }
 
@@ -115,7 +120,11 @@ impl<S: Signer> Installer<S> {
     pub fn install(&mut self) -> Result<()> {
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 
-        self.install_generations_from_links()?;
+        if let Some(genlist_path) = self.genlist_path.clone() {
+            self.install_generations_from_genlist(genlist_path)?;
+        } else {
+            self.install_generations_from_links()?;
+        }
 
         self.install_systemd_boot()?;
 
@@ -224,7 +233,6 @@ impl<S: Signer> Installer<S> {
     }
 
     /// Install all generations from the provided generations list file.
-    #[allow(dead_code)]
     fn install_generations_from_genlist(&mut self, genlist: impl AsRef<Path>) -> Result<()> {
         let file = File::open(genlist.as_ref()).context("Failed to open generations list file")?;
         let reader = BufReader::new(file);

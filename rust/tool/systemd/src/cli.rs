@@ -71,6 +71,10 @@ struct InstallCommand {
     #[arg(long)]
     protected_system: Option<PathBuf>,
 
+    /// Path to a generations list file (JSONL) describing the generations to install
+    #[arg(long)]
+    genlist_path: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -121,6 +125,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.protected_system,
         args.esp,
         args.generations,
+        args.genlist_path,
     );
 
     if args.allow_unsigned
