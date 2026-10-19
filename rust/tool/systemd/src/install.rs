@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::string::ToString;
@@ -19,7 +20,7 @@ use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
-use lanzaboote_tool::generation::{Generation, GenerationLink};
+use lanzaboote_tool::generation::{Generation, GenerationLink, GenlistEntry};
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
 use lanzaboote_tool::signature::Signer;
@@ -221,6 +222,53 @@ impl<S: Signer> Installer<S> {
             })
             .collect::<Vec<Generation>>();
 
+        self.install_generations(generations)
+    }
+
+    /// Install all generations from the provided generations list file.
+    #[allow(dead_code)]
+    fn install_generations_from_genlist(&mut self, genlist: impl AsRef<Path>) -> Result<()> {
+        let file = File::open(genlist.as_ref()).context("Failed to open generations list file")?;
+        let reader = BufReader::new(file);
+
+        let generations = reader
+            .lines()
+            .filter_map(|line| {
+                let entry = line
+                    .context("Failed to read a line from the generations list file")
+                    .and_then(|line| {
+                        serde_json::from_str::<GenlistEntry>(&line)
+                            .context("Failed to parse a generation from the generations list file")
+                    })
+                    .map_err(|e| log::warn!("{e:#}"))
+                    .ok()?;
+
+                let version = entry.version;
+
+                let generation_result = Generation::from_genlist_entry(entry).with_context(|| {
+                    format!("Failed to build generation from genlist entry: {version}")
+                });
+
+                // Ignore failing to read a generation so that old malformed generations do not stop
+                // lzbt from working.
+                if generation_result.is_err() {
+                    // If there is ANY malformed generation present, completely disable all garbage
+                    // collection to protect the old generations from being deleted. The user has
+                    // to manually intervene by getting rid of the old generations to re-enable
+                    // garbage collection. This safeguard against catastrophic failure in case of
+                    // unhandled upstream changes to NixOS.
+                    self.broken_gens.insert(version);
+                }
+
+                generation_result.ok()
+            })
+            .collect::<Vec<Generation>>();
+
+        self.install_generations(generations)
+    }
+
+    /// Install the given generations.
+    fn install_generations(&mut self, generations: Vec<Generation>) -> Result<()> {
         if generations.is_empty() {
             // We can't continue, because we would remove all boot entries, if we did.
             return Err(anyhow!(
