@@ -115,46 +115,7 @@ impl<S: Signer> Installer<S> {
     pub fn install(&mut self) -> Result<()> {
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 
-        let mut links = self
-            .generation_links
-            .iter()
-            .map(GenerationLink::from_path)
-            .collect::<Result<BTreeSet<GenerationLink>>>()?;
-
-        let booted_link = self
-            .protected_system
-            .as_ref()
-            .and_then(|p| fs::canonicalize(p).ok())
-            .and_then(|protected_system| {
-                log::info!("Protecting system {}", protected_system.display());
-                links.iter().find(|link| {
-                    fs::canonicalize(&link.path).is_ok_and(|resolved| resolved == protected_system)
-                })
-            })
-            .cloned();
-
-        // A configuration limit of 0 means there is no limit.
-        if self.configuration_limit > 0 {
-            // Only install the number of generations configured. Reverse the list to only take the
-            // latest generations and then, after taking them, reverse the list again so that the
-            // generations are installed from oldest to newest, i.e. from smallest to largest
-            // generation version.
-            links = links
-                .into_iter()
-                .rev()
-                .take(self.configuration_limit)
-                .rev()
-                .collect()
-        };
-
-        if let Some(booted_link) = booted_link
-            && !links.contains(&booted_link)
-        {
-            links.pop_first();
-            links.insert(booted_link);
-        }
-
-        self.install_generations_from_links(links.iter())?;
+        self.install_generations_from_links()?;
 
         self.install_systemd_boot()?;
 
@@ -198,11 +159,48 @@ impl<S: Signer> Installer<S> {
     }
 
     /// Install all generations from the provided `GenerationLinks`.
-    fn install_generations_from_links<'a>(
-        &mut self,
-        links: impl Iterator<Item = &'a GenerationLink>,
-    ) -> Result<()> {
+    fn install_generations_from_links(&mut self) -> Result<()> {
+        let mut links = self
+            .generation_links
+            .iter()
+            .map(GenerationLink::from_path)
+            .collect::<Result<BTreeSet<GenerationLink>>>()?;
+
+        let booted_link = self
+            .protected_system
+            .as_ref()
+            .and_then(|p| fs::canonicalize(p).ok())
+            .and_then(|protected_system| {
+                log::info!("Protecting system {}", protected_system.display());
+                links.iter().find(|link| {
+                    fs::canonicalize(&link.path).is_ok_and(|resolved| resolved == protected_system)
+                })
+            })
+            .cloned();
+
+        // A configuration limit of 0 means there is no limit.
+        if self.configuration_limit > 0 {
+            // Only install the number of generations configured. Reverse the list to only take the
+            // latest generations and then, after taking them, reverse the list again so that the
+            // generations are installed from oldest to newest, i.e. from smallest to largest
+            // generation version.
+            links = links
+                .into_iter()
+                .rev()
+                .take(self.configuration_limit)
+                .rev()
+                .collect()
+        };
+
+        if let Some(booted_link) = booted_link
+            && !links.contains(&booted_link)
+        {
+            links.pop_first();
+            links.insert(booted_link);
+        }
+
         let generations = links
+            .iter()
             .filter_map(|link| {
                 let generation_result = Generation::from_link(link)
                     .with_context(|| format!("Failed to build generation from link: {link:?}"));
