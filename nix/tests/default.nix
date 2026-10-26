@@ -34,4 +34,6 @@ in
   systemd-pcrlock = runTest ./lanzaboote/systemd-pcrlock.nix;
   systemd-measure = runTest ./lanzaboote/systemd-measure.nix;
   systemd-measured-uki = runTest ./lanzaboote/systemd-measured-uki.nix;
+
+  genlist = runTest ./lanzaboote/genlist.nix;
 }

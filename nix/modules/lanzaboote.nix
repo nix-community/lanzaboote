@@ -43,8 +43,11 @@ let
         ++ [
           efiSysMountPoint
         ]
+        ++ lib.optionals (cfg.genlistPath != null) [
+          "--genlist-path=${cfg.genlistPath}"
+        ]
       )
-      + " /nix/var/nix/profiles/system-*-link"
+      + (lib.optionalString (cfg.genlistPath == null) " /nix/var/nix/profiles/system-*-link")
     );
 
   installHook = pkgs.writeShellScriptBin "lzbt" (
@@ -140,6 +143,12 @@ in
       default = pkgs.lzbt;
       defaultText = lib.literalExpression "pkgs.lzbt";
       description = "Lanzaboote tool (lzbt) package";
+    };
+
+    genlistPath = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = "The path of a genlist file";
     };
 
     settings = lib.mkOption {
