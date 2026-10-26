@@ -9,7 +9,6 @@
     { nodes, ... }:
     (import ./common/image-helper.nix { inherit (nodes) machine; })
     + ''
-      bootctl_status = machine.succeed("bootctl status")
-      print(bootctl_status)
+      machine.succeed("bootctl status | grep -q 'initial'")
     '';
 }

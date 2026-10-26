@@ -87,6 +87,9 @@ pub struct GenlistEntry {
     pub build_time: i64,
     /// The generation Nix outpath
     pub outpath: PathBuf,
+    /// An arbitrary label added to the boot entry
+    #[serde(default)]
+    pub label: String,
 }
 
 impl Generation {
@@ -105,7 +108,9 @@ impl Generation {
             .context("Failed to parse the generation build time")?
             .date();
 
-        Self::parse_boot_json(entry.version, Some(build_time), None, boot_json)
+        let mut generation = Self::parse_boot_json(entry.version, Some(build_time), None, boot_json)?;
+        generation.label = entry.label;
+        Ok(generation)
     }
 
     /// Read the bootspec of a generation, synthesizing a replacement if it is missing.
@@ -204,11 +209,18 @@ impl Generation {
             .map(|x| x.to_string())
             .unwrap_or_else(|| String::from("Unknown"));
 
+        let label = if self.label.is_empty() {
+            String::new()
+        } else {
+            format!(", {}", self.label)
+        };
+
         format!(
-            "Generation {}{}, {}",
+            "Generation {}{}, {}{}",
             self.version,
             self.describe_specialisation(),
-            build_time
+            build_time,
+            label
         )
     }
 

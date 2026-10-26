@@ -30,9 +30,10 @@ let
 
   genlist = pkgs.writeText "genlist.json" (
     builtins.toJSON {
-      version = 42;
+      version = 1;
       outpath = config.system.build.toplevel;
       build_time = 1;
+      label = "initial";
     }
   );
 
