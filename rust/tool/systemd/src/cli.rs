@@ -57,6 +57,14 @@ struct InstallCommand {
     #[arg(long)]
     private_key: Option<PathBuf>,
 
+    /// Private key used for the encrypted initrd secrets PCR policy
+    #[arg(long)]
+    secrets_private_key: Option<PathBuf>,
+
+    /// Public key used for the encrypted initrd secrets PCR policy
+    #[arg(long)]
+    secrets_public_key: Option<PathBuf>,
+
     /// Configuration limit
     #[arg(long, default_value_t = 1)]
     configuration_limit: usize,
@@ -114,6 +122,8 @@ fn install(args: InstallCommand) -> Result<()> {
         lanzaboote_stub,
         Architecture::from_nixos_system(&args.system)?,
         args.systemd,
+        args.secrets_private_key,
+        args.secrets_public_key,
         args.systemd_boot_loader_config,
         args.configuration_limit,
         args.bootcounting_initial_tries,
