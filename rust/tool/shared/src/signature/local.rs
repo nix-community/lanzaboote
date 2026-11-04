@@ -15,22 +15,22 @@ use super::Signer;
 ///
 /// The security of the private key is the responsibility of the user.
 ///
-/// Currently, signature happens via `sbsign` where the input is temporarily
+/// Signing happens via `systemd-sbsign`, where the input is temporarily
 /// copied in a secure directory and signed over there.
-///
-/// In the future, `sbsign` may be removed to perform signature in-memory
-/// without any temporary directory.
 #[derive(Debug, Clone)]
 pub struct LocalKeyPair {
     pub private_key: PathBuf,
     pub public_key: PathBuf,
+    /// Path to the `systemd-sbsign` binary.
+    pub signing_tool: PathBuf,
 }
 
 impl LocalKeyPair {
-    pub fn new(public_key: &Path, private_key: &Path) -> Self {
+    pub fn new(public_key: &Path, private_key: &Path, signing_tool: &Path) -> Self {
         Self {
             public_key: public_key.into(),
             private_key: private_key.into(),
+            signing_tool: signing_tool.into(),
         }
     }
 }
@@ -47,25 +47,35 @@ impl Signer for LocalKeyPair {
 
     fn sign_and_copy(&self, from: &Path, to: &Path) -> Result<()> {
         let args: Vec<OsString> = vec![
-            OsString::from("--key"),
+            OsString::from("sign"),
+            OsString::from("--private-key"),
             self.private_key.clone().into(),
-            OsString::from("--cert"),
+            OsString::from("--certificate"),
             self.public_key.clone().into(),
             from.as_os_str().to_owned(),
             OsString::from("--output"),
             to.as_os_str().to_owned(),
         ];
 
-        let output = Command::new("sbsign")
+        let output = Command::new(&self.signing_tool)
             .args(&args)
             .output()
-            .context("Failed to run sbsign. Most likely, the binary is not on PATH.")?;
+            .with_context(|| {
+                format!(
+                    "Failed to run {}. Signing needs systemd (>= 257) built with OpenSSL. \
+                     Most likely, the path passed via --systemd does not provide systemd-sbsign.",
+                    self.signing_tool.display()
+                )
+            })?;
 
         if !output.status.success() {
             std::io::stderr()
                 .write_all(&output.stderr)
-                .context("Failed to write output of sbsign to stderr.")?;
-            log::debug!("sbsign failed with args: `{args:?}`.");
+                .context("Failed to write output of systemd-sbsign to stderr.")?;
+            log::debug!(
+                "{} failed with args: `{args:?}`.",
+                self.signing_tool.display()
+            );
             return Err(anyhow::anyhow!("Failed to sign {to:?}."));
         }
 

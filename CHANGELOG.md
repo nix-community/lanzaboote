@@ -4,6 +4,9 @@
 
 ### Changed
 
+- Signing is now done with `systemd-sbsign` instead of `sbsign`. Signature
+  verification still uses `sbverify`, because `systemd-sbsign` can only sign.
+
 - The Measured Boot integration now supports locking against PCR4 throughout
   consecutive bootloader updates without rebooting, improving the handling
   added in `1.2.0`.
