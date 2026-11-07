@@ -188,6 +188,7 @@ impl Lanzaboote {
     pub fn install(
         &mut self,
         esp_mountpoint: &Path,
+        boot_mountpoint: &Path,
         generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
     ) -> Result<Output> {
         // To simplify the test setup, we use the systemd stub here instead of the lanzaboote stub. See
@@ -226,7 +227,7 @@ impl Lanzaboote {
             cmd.arg("--protected-system").arg(protected_system);
         }
 
-        let output = cmd.arg(esp_mountpoint).args(generation_links).output()?;
+        let output = cmd.arg(esp_mountpoint).arg(boot_mountpoint).args(generation_links).output()?;
 
         // Print debugging output.
         // This is a weird hack to make cargo test capture the output.
@@ -247,11 +248,12 @@ impl Lanzaboote {
 pub fn lanzaboote_install(
     config_limit: u64,
     esp_mountpoint: &Path,
+    boot_mountpoint: &Path,
     generation_links: impl IntoIterator<Item = impl AsRef<OsStr>>,
 ) -> Result<Output> {
     Lanzaboote::new()
         .config_limit(config_limit)
-        .install(esp_mountpoint, generation_links)
+        .install(esp_mountpoint, boot_mountpoint, generation_links)
 }
 
 /// Read location of systemd installation from an environment variable.
