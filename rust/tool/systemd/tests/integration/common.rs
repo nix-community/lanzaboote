@@ -51,6 +51,19 @@ pub fn setup_generation_link_from_toplevel(
     profiles_directory: &Path,
     version: u64,
 ) -> Result<PathBuf> {
+    setup_profile_generation_link_from_toplevel(toplevel, profiles_directory, None, version)
+}
+
+/// Create a mock generation link of a profile.
+///
+/// Works like `setup_generation_link_from_toplevel` but creates the link of any profile other
+/// than the default one inside the system-profiles directory.
+pub fn setup_profile_generation_link_from_toplevel(
+    toplevel: &Path,
+    profiles_directory: &Path,
+    profile: Option<&str>,
+    version: u64,
+) -> Result<PathBuf> {
     let bootspec = json!({
         "org.nixos.bootspec.v1": {
           "init": format!("init-v{}", version),
@@ -92,7 +105,7 @@ pub fn setup_generation_link_from_toplevel(
                 "loglevel=4"
               ],
               "label": "LanzaOS",
-              "toplevel": toplevel,
+              "toplevel": toplevel.join("specialisation/rescue"),
               "system": SYSTEM,
             },
             "org.nix-community.lanzaboote": {
@@ -104,7 +117,13 @@ pub fn setup_generation_link_from_toplevel(
         },
     });
 
-    let generation_link_path = profiles_directory.join(format!("system-{}-link", version));
+    let generation_link_path = if let Some(profile) = profile {
+        let system_profiles = profiles_directory.join("system-profiles");
+        fs::create_dir_all(&system_profiles)?;
+        system_profiles.join(format!("{profile}-{version}-link"))
+    } else {
+        profiles_directory.join(format!("system-{}-link", version))
+    };
     fs::create_dir(&generation_link_path)?;
 
     let bootspec_path = generation_link_path.join("boot.json");
@@ -141,6 +160,7 @@ pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     let kernel_path = fake_store_path.join("kernel");
     let nixos_version_path = toplevel.join("nixos-version");
     let kernel_modules_path = toplevel.join("kernel-modules/lib/modules/6.1.1");
+    let specialisation_path = toplevel.join("specialisation/rescue");
 
     // To simplify the test setup, we use the systemd stub for all PE binaries used by lanzatool.
     // Lanzatool doesn't care whether its actually a kernel or initrd but only whether it can
@@ -150,6 +170,7 @@ pub fn setup_toplevel(tmpdir: &Path) -> Result<PathBuf> {
     fs::copy(&test_systemd_stub, kernel_path)?;
     fs::write(nixos_version_path, b"23.05")?;
     fs::create_dir_all(kernel_modules_path)?;
+    fs::create_dir_all(specialisation_path)?;
 
     Ok(toplevel)
 }
@@ -164,15 +185,43 @@ fn random_string(length: usize) -> String {
 
 pub struct Lanzaboote {
     config_limit: u64,
+    bootcounting_initial_tries: u32,
     protected_system: Option<PathBuf>,
+    default_system: Option<PathBuf>,
+    profiles_directory: Option<PathBuf>,
+    pcrlock_directory: Option<PathBuf>,
 }
 
 impl Lanzaboote {
     pub fn new() -> Self {
         Self {
             config_limit: 0,
+            bootcounting_initial_tries: 0,
             protected_system: None,
+            default_system: None,
+            profiles_directory: None,
+            pcrlock_directory: None,
         }
+    }
+
+    pub fn pcrlock_directory(&mut self, pcrlock_directory: PathBuf) -> &mut Self {
+        self.pcrlock_directory = Some(pcrlock_directory);
+        self
+    }
+
+    pub fn profiles_directory(&mut self, profiles_directory: PathBuf) -> &mut Self {
+        self.profiles_directory = Some(profiles_directory);
+        self
+    }
+
+    pub fn bootcounting_initial_tries(&mut self, tries: u32) -> &mut Self {
+        self.bootcounting_initial_tries = tries;
+        self
+    }
+
+    pub fn default_system(&mut self, default_system: PathBuf) -> &mut Self {
+        self.default_system = Some(default_system);
+        self
     }
 
     pub fn config_limit(&mut self, config_limit: u64) -> &mut Self {
@@ -201,7 +250,7 @@ impl Lanzaboote {
         );
 
         let test_loader_config_path = tempfile::NamedTempFile::new()?;
-        let test_loader_config = r"timeout 0\nconsole-mode 1\n";
+        let test_loader_config = "timeout 0\nconsole-mode 1\ndefault nixos-*\n";
         fs::write(test_loader_config_path.path(), test_loader_config)?;
 
         let mut cmd = Command::new(cargo_bin!("lzbt-systemd"));
@@ -212,7 +261,7 @@ impl Lanzaboote {
             .arg("--system")
             .arg(SYSTEM)
             .arg("--systemd")
-            .arg(test_systemd)
+            .arg(&test_systemd)
             .arg("--systemd-boot-loader-config")
             .arg(test_loader_config_path.path())
             .arg("--public-key")
@@ -220,10 +269,27 @@ impl Lanzaboote {
             .arg("--private-key")
             .arg("tests/fixtures/uefi-keys/db.key")
             .arg("--configuration-limit")
-            .arg(self.config_limit.to_string());
+            .arg(self.config_limit.to_string())
+            .arg("--bootcounting-initial-tries")
+            .arg(self.bootcounting_initial_tries.to_string());
 
         if let Some(ref protected_system) = self.protected_system {
             cmd.arg("--protected-system").arg(protected_system);
+        }
+
+        if let Some(ref default_system) = self.default_system {
+            cmd.arg("--default-system").arg(default_system);
+        }
+
+        if let Some(ref profiles_directory) = self.profiles_directory {
+            cmd.arg("--profiles-directory").arg(profiles_directory);
+        }
+
+        if let Some(ref pcrlock_directory) = self.pcrlock_directory {
+            // systemd-pcrlock is looked up on PATH, like the NixOS module arranges it.
+            let path = std::env::var("PATH").unwrap_or_default();
+            cmd.env("PATH", format!("{test_systemd}/lib/systemd:{path}"));
+            cmd.arg("--pcrlock-directory").arg(pcrlock_directory);
         }
 
         let output = cmd.arg(esp_mountpoint).args(generation_links).output()?;
@@ -302,6 +368,15 @@ pub fn count_files(path: &Path) -> Result<usize> {
 }
 
 pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBuf> {
+    profile_image_path(esp, None, version, toplevel)
+}
+
+pub fn profile_image_path(
+    esp: &TempDir,
+    profile: Option<&str>,
+    version: u64,
+    toplevel: &Path,
+) -> Result<PathBuf> {
     let stub_inputs = [
         // Generation numbers can be reused if the latest generation was deleted.
         // To detect this, the stub path depends on the actual toplevel used.
@@ -316,8 +391,11 @@ pub fn image_path(esp: &TempDir, version: u64, toplevel: &Path) -> Result<PathBu
     let stub_input_hash = Base32Unpadded::encode_string(&Sha256::digest(
         serde_json::to_string(&stub_inputs).unwrap(),
     ));
+    let profile_prefix = profile
+        .map(|profile| format!("profile-{profile}-"))
+        .unwrap_or_default();
     Ok(esp.path().join(format!(
-        "EFI/Linux/nixos-generation-{version}-{stub_input_hash}.efi"
+        "EFI/Linux/nixos-{profile_prefix}generation-{version}-{stub_input_hash}.efi"
     )))
 }
 
