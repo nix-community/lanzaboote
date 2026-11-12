@@ -3,6 +3,7 @@
   config,
   options,
   pkgs,
+  utils,
   ...
 }:
 let
@@ -57,6 +58,13 @@ let
     ''
   );
 
+  secretsArgs = lib.optionalString cfg.encryptedSecrets.enable (
+    lib.concatStringsSep " " [
+      "--secrets-private-key=${cfg.encryptedSecrets.privateKeyFile}"
+      "--secrets-public-key=${cfg.encryptedSecrets.publicKeyFile}"
+    ]
+  );
+
   format = pkgs.formats.yaml { };
   sbctlConfigFile = format.generate "sbctl.conf" {
     keydir = "${cfg.pkiBundle}/keys";
@@ -91,6 +99,132 @@ let
     ]
     ++ lib.map (pcr: "--pcr=${toString pcr}") cfg.measuredBoot.pcrs
   );
+
+  encryptSecrets = cfg.encryptedSecrets.enable && config.boot.initrd.secrets != { };
+
+  # Where the ciphertexts live inside the appended initrd archive. This is the
+  # same location the stock appender uses, so the stock copy service copies the
+  # ciphertexts (and the public key) into place before they are decrypted.
+  encryptedSecretsRoot = "/.initrd-secrets";
+  # The public key of the signed PCR policy has to be available inside the initrd
+  # for verification.
+  initrdPublicKeyPath = "/etc/systemd/tpm2-pcr-public-key.pem";
+
+  # The initrd compressor must match the one used for the stock initrd, so that the
+  # appended secrets form a valid, equally compressed cpio archive.
+  compressorMeta = import "${pkgs.path}/pkgs/build-support/kernel/initrd-compressor-meta.nix";
+  compressorExe =
+    if lib.isFunction config.boot.initrd.compressor then
+      config.boot.initrd.compressor pkgs
+    else if
+      !builtins.hasContext config.boot.initrd.compressor
+      && builtins.hasAttr config.boot.initrd.compressor compressorMeta
+    then
+      compressorMeta.${config.boot.initrd.compressor}.executable pkgs
+    else
+      config.boot.initrd.compressor;
+  compressorName = builtins.elemAt (builtins.match "([^ ]*/)?([^ ]+).*" compressorExe) 1;
+  compressorArgs =
+    if config.boot.initrd.compressorArgs == null then
+      compressorMeta.${compressorName}.defaultArgs or [ ]
+    else
+      config.boot.initrd.compressorArgs;
+
+  # Encrypts every `boot.initrd.secrets` entry against a signed PCR 11 policy and
+  # appends only the ciphertext (plus the public key needed for verification) to
+  # the initrd.
+  encryptSecretsScript = pkgs.writeShellApplication {
+    name = "append-encrypted-initrd-secrets";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.cpio
+      pkgs.findutils
+      pkgs.gnugrep
+      pkgs.openssl
+      config.systemd.package
+    ];
+    text = ''
+      if [ $# -ne 1 ]; then
+        echo "USAGE: $0 INITRD_FILE" >&2
+        echo "Appends this configuration's TPM-encrypted secrets to INITRD_FILE" >&2
+        exit 1
+      fi
+
+      tmp=$(mktemp -d "''${TMPDIR:-/tmp}/initrd-secrets.XXXXXXXXXX")
+      trap 'rm -rf "$tmp"' EXIT
+
+      # systemd-creds needs an RSA public key PEM for its signed PCR policy, while
+      # the configured file may be an X.509 certificate (or a private key).
+      mkdir -p "$tmp${encryptedSecretsRoot}${lib.dirOf initrdPublicKeyPath}"
+      public_key="$tmp${encryptedSecretsRoot}${initrdPublicKeyPath}"
+      if grep -q -- "BEGIN CERTIFICATE" ${lib.escapeShellArg (toString cfg.encryptedSecrets.publicKeyFile)}; then
+        openssl x509 -in ${lib.escapeShellArg (toString cfg.encryptedSecrets.publicKeyFile)} -pubkey -noout > "$public_key"
+      elif grep -qE -- "BEGIN (RSA )?PRIVATE KEY" ${lib.escapeShellArg (toString cfg.encryptedSecrets.publicKeyFile)}; then
+        openssl pkey -in ${lib.escapeShellArg (toString cfg.encryptedSecrets.publicKeyFile)} -pubout > "$public_key"
+      else
+        cp ${lib.escapeShellArg (toString cfg.encryptedSecrets.publicKeyFile)} "$public_key"
+      fi
+
+      ${lib.concatStringsSep "\n" (
+        lib.mapAttrsToList (
+          dest: source:
+          let
+            relative = lib.removePrefix "/" dest;
+            source' = if source == null then dest else toString source;
+          in
+          ''
+            mkdir -p "$tmp${encryptedSecretsRoot}/$(dirname ${lib.escapeShellArg relative})"
+            systemd-creds encrypt \
+              --with-key=tpm2-with-public-key \
+              --tpm2-device=auto \
+              --tpm2-public-key="$public_key" \
+              --tpm2-public-key-pcrs=11 \
+              --name=${lib.escapeShellArg (utils.escapeSystemdPath dest)} \
+              ${lib.escapeShellArg source'} \
+              "$tmp"${encryptedSecretsRoot}/${lib.escapeShellArg relative}
+          ''
+        ) config.boot.initrd.secrets
+      )}
+
+      (cd "$tmp" && find . -mindepth 1 -print0 | xargs -0 touch -amt 197001010000 && find . -mindepth 1 -print0 | sort -z | cpio --quiet -o -H newc -R +0:+0 --reproducible --null) | \
+        ${compressorExe} ${lib.escapeShellArgs compressorArgs} >> "$1"
+    '';
+  };
+
+  # Decrypts the ciphertexts copied into the initrd back to their destinations.
+  # Runs as part of the initrd secret copy service, so that units ordered after it
+  # find the plaintext secrets in place.
+  decryptSecretsScript = pkgs.writeShellApplication {
+    name = "decrypt-initrd-secrets";
+    runtimeInputs = [
+      pkgs.coreutils
+      config.systemd.package
+    ];
+    text = ''
+      umask 0077
+
+      [ -d ${encryptedSecretsRoot} ] || exit 0
+
+      ${lib.concatStringsSep "\n" (
+        lib.mapAttrsToList (
+          dest: _:
+          let
+            relative = lib.removePrefix "/" dest;
+          in
+          ''
+            mkdir -p "$(dirname /${lib.escapeShellArg relative})"
+            "systemd-creds" decrypt \
+              --tpm2-device=auto \
+              --tpm2-signature="/.extra/global_credentials/tpm2-pcr-signature.json.cred" \
+              --tpm2-public-key=${lib.escapeShellArg initrdPublicKeyPath} \
+              --name=${lib.escapeShellArg (utils.escapeSystemdPath dest)} \
+              ${encryptedSecretsRoot}/${lib.escapeShellArg relative} \
+              /${lib.escapeShellArg relative}
+          ''
+        ) config.boot.initrd.secrets
+      )}
+    '';
+  };
 in
 {
   imports = [
@@ -247,7 +381,8 @@ in
           --systemd-boot-loader-config ${loaderConfigFile} \
           --configuration-limit ${toString configurationLimit} \
           --allow-unsigned ${lib.boolToString cfg.allowUnsigned} \
-          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ${toString cfg.bootCounting.initialTries} \
+          ${secretsArgs}'';
       defaultText = lib.literalExpression ''
         ''${lib.getExe config.boot.lanzaboote.package} ''${lib.optionalString (config.boot.lanzaboote.logLevel == "debug") "-vv"} install \
           --system ''${config.boot.kernelPackages.stdenv.hostPlatform.system} \
@@ -255,7 +390,8 @@ in
           --systemd-boot-loader-config ''${loaderConfigFile} \
           --configuration-limit ''${toString configurationLimit} \
           --allow-unsigned ''${lib.boolToString config.boot.lanzaboote.allowUnsigned} \
-          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries}'';
+          --bootcounting-initial-tries ''${toString config.boot.lanzaboote.bootCounting.initialTries} \
+          ''${secretsArgs}'';
     };
 
     extraEfiSysMountPoints = lib.mkOption {
@@ -427,6 +563,60 @@ in
         };
       };
     };
+
+    encryptedSecrets = {
+      enable = lib.mkEnableOption "" // {
+        description = ''
+          Encrypt the secrets configured in {option}`boot.initrd.secrets` against the
+          TPM and only append the ciphertext to the initrd.
+
+          Secrets are encrypted at boot loader installation time with
+          `systemd-creds` against a policy signed for PCR 11. The signature for each
+          generation is stored on the ESP, so only images with a matching signature
+          can decrypt the secrets. The initrd decrypts them back to their configured
+          paths before any service that consumes them starts.
+
+          Every entry must resolve to a regular file; directories are not supported.
+
+          The TPM loads the public key to verify the signature, so the key must be
+          RSA and no larger than the TPM's maximum key size (typically 2048 bits).
+          {option}`boot.lanzaboote.encryptedSecrets.privateKeyFile` is generated
+          as a 2048 bit key if it does not exist yet.
+
+          This requires the systemd initrd with TPM2 support
+          ({option}`boot.initrd.systemd.tpm2.enable`) and Secure Boot. If
+          {option}`boot.lanzaboote.autoGenerateKeys.enable` is used, enable this only
+          after the keys have been generated and enrolled, since Secure Boot is not
+          yet active on the first boot.
+        '';
+      };
+
+      privateKeyFile = lib.mkOption {
+        type = lib.types.nonEmptyStr;
+        default = "/var/lib/lanzaboote/secrets-tpm2-pcr-private-key.pem";
+        description = ''
+          Absolute path to the RSA private key used to sign the PCR 11 policy for
+          the encrypted initrd secrets. The key is separate from the Secure Boot
+          signing key.
+
+          If the file does not exist at boot loader installation time, a 2048 bit
+          RSA key is generated there.
+        '';
+      };
+
+      publicKeyFile = lib.mkOption {
+        type = lib.types.nonEmptyStr;
+        default = "/var/lib/lanzaboote/secrets-tpm2-pcr-public-key.pem";
+        description = ''
+          Absolute path to the public key matching
+          {option}`boot.lanzaboote.encryptedSecrets.privateKeyFile`. It is used for
+          encryption.
+
+          It is derived from the private key on every installation, replacing an
+          existing file, so the pair cannot diverge after key rotation.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -451,11 +641,30 @@ in
             Set `boot.lanzaboote.configurationLimit = 4;` to reduce the number of generations you store.
         '';
       }
+    ]
+    ++ lib.optionals cfg.encryptedSecrets.enable [
+      {
+        assertion = config.boot.initrd.systemd.tpm2.enable;
+        message = ''
+          Encrypted initrd secrets require TPM2 support in the initrd
+          (`boot.initrd.systemd.tpm2.enable`).
+        '';
+      }
+      {
+        assertion = config.boot.initrd.systemd.tpm2.pcrphases.enable;
+        message = ''
+          Encrypted initrd secrets require PCR phases to be enabled
+          (`boot.initrd.systemd.tpm2.pcrphases.enable`).
+        '';
+      }
     ];
 
     boot.bootspec = {
       extensions."org.nix-community.lanzaboote" = {
         sort_key = config.boot.lanzaboote.sortKey;
+      }
+      // lib.optionalAttrs encryptSecrets {
+        encrypted_initrd_secrets = lib.getExe encryptSecretsScript;
       };
     };
     boot.loader.supportsInitrdSecrets = true;
@@ -463,6 +672,22 @@ in
       enable = true;
       installHook = "${installHook}/bin/lzbt";
     };
+    boot.initrd.systemd.services.initrd-nixos-copy-secrets = lib.mkIf encryptSecrets {
+      # TPM access must be available before the secrets can be decrypted, and the
+      # PCR 11 boot phase must be final so the signature matches the current PCR
+      # value.
+      after = [
+        "tpm2.target"
+        "systemd-pcrphase-initrd.service"
+      ];
+      # Decrypt as part of the copy service so that units ordered after it see the
+      # plaintext secrets rather than the ciphertext.
+      postStart = lib.getExe decryptSecretsScript;
+    };
+    boot.initrd.systemd.storePaths = lib.mkIf encryptSecrets [
+      "${config.systemd.package}/bin/systemd-creds"
+      decryptSecretsScript
+    ];
     boot.lanzaboote.measuredBoot.upstreamStaticMeasurements =
       lib.optionals (pcr 0 || pcr 1 || pcr 2 || pcr 3 || pcr 4) [
         "500-separator.pcrlock.d/300-0x00000000.pcrlock"

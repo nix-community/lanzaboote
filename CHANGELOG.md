@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Added `boot.lanzaboote.encryptedSecrets.enable`, which encrypts the entries of
+  `boot.initrd.secrets` against the TPM and only appends ciphertext to the
+  initrd. The initrd decrypts them before boot continues.
+
 ### Changed
 
 - The Measured Boot integration now supports locking against PCR4 throughout

@@ -1,8 +1,9 @@
 use std::collections::BTreeSet;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs::{self, File};
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::string::ToString;
 
 use anyhow::{Context, Result, anyhow};
@@ -29,6 +30,8 @@ pub struct InstallerBuilder {
     lanzaboote_stub: PathBuf,
     arch: Architecture,
     systemd: PathBuf,
+    secrets_private_key: Option<PathBuf>,
+    secrets_public_key: Option<PathBuf>,
     systemd_boot_loader_config: PathBuf,
     configuration_limit: usize,
     bootcounting_initial_tries: u32,
@@ -44,6 +47,8 @@ impl InstallerBuilder {
         lanzaboote_stub: impl AsRef<Path>,
         arch: Architecture,
         systemd: PathBuf,
+        secrets_private_key: Option<PathBuf>,
+        secrets_public_key: Option<PathBuf>,
         systemd_boot_loader_config: PathBuf,
         configuration_limit: usize,
         bootcounting_initial_tries: u32,
@@ -56,6 +61,8 @@ impl InstallerBuilder {
             lanzaboote_stub: lanzaboote_stub.as_ref().to_path_buf(),
             arch,
             systemd,
+            secrets_private_key,
+            secrets_public_key,
             systemd_boot_loader_config,
             configuration_limit,
             bootcounting_initial_tries,
@@ -81,6 +88,8 @@ impl InstallerBuilder {
             gc_roots,
             lanzaboote_stub: self.lanzaboote_stub,
             systemd: self.systemd,
+            secrets_private_key: self.secrets_private_key,
+            secrets_public_key: self.secrets_public_key,
             systemd_boot_loader_config: self.systemd_boot_loader_config,
             signer,
             configuration_limit: self.configuration_limit,
@@ -99,6 +108,8 @@ pub struct Installer<S: Signer> {
     gc_roots: Roots,
     lanzaboote_stub: PathBuf,
     systemd: PathBuf,
+    secrets_private_key: Option<PathBuf>,
+    secrets_public_key: Option<PathBuf>,
     systemd_boot_loader_config: PathBuf,
     signer: S,
     configuration_limit: usize,
@@ -153,6 +164,8 @@ impl<S: Signer> Installer<S> {
             links.insert(booted_link);
         }
 
+        self.ensure_secrets_keys()
+            .context("Failed to prepare the encrypted secrets key pair.")?;
         self.install_generations_from_links(links.iter())?;
 
         self.install_systemd_boot()?;
@@ -226,6 +239,18 @@ impl<S: Signer> Installer<S> {
             return Err(anyhow!(
                 "No bootable generations found! Aborting to avoid unbootable system. Please check for Lanzaboote updates!"
             ));
+        }
+
+        if generations.iter().any(|generation| {
+            generation
+                .spec
+                .lanzaboote_extension
+                .encrypted_initrd_secrets
+                .is_some()
+        }) {
+            // Rebuild the global signature file from scratch, so it does not grow
+            // indefinitely and does not keep stale entries.
+            fs::remove_file(self.pcr_signature_path()).ok();
         }
 
         for generation in generations {
@@ -305,7 +330,13 @@ impl<S: Signer> Installer<S> {
                 .expect("Lanzaboote does not support missing initrd yet.")
         };
 
-        if let Some(initrd_secrets_script) = &bootspec.initrd_secrets {
+        if let Some(initrd_secrets_script) = &generation
+            .spec
+            .lanzaboote_extension
+            .encrypted_initrd_secrets
+            .as_deref()
+            .or(bootspec.initrd_secrets.as_deref())
+        {
             append_initrd_secrets(initrd_secrets_script, &initrd_location, generation.version)?;
         }
         let initrd_target = self
@@ -351,7 +382,116 @@ impl<S: Signer> Installer<S> {
         install_signed(&self.signer, &lanzaboote_image_path, &stub_target)
             .context("Failed to install the Lanzaboote stub.")?;
 
+        if generation
+            .spec
+            .lanzaboote_extension
+            .encrypted_initrd_secrets
+            .is_some()
+        {
+            self.install_pcr_signature(&stub_target, &bootspec.kernel, &initrd_location)
+                .context("Failed to sign the PCR 11 policy for encrypted initrd secrets.")?;
+        }
+
         Ok(())
+    }
+
+    /// Create and install the PCR 11 signature that lets the initrd decrypt its encrypted
+    /// secrets for this image.
+    ///
+    /// The signature is added to a global credential file rather than an image-specific
+    /// one, because the image path changes with boot counting while the global credential
+    /// directory stays discoverable. Signatures of other generations remain valid.
+    fn install_pcr_signature(
+        &self,
+        stub_target: &Path,
+        kernel: &Path,
+        initrd: &Path,
+    ) -> Result<()> {
+        let tempdir = TempDir::new().context("Failed to create temporary directory.")?;
+        let image =
+            fs::read(stub_target).context("Failed to read the installed Lanzaboote stub.")?;
+
+        let private_key = self.secrets_private_key.as_ref().context(
+            "Encrypted initrd secrets are enabled but no secrets private key was provided.",
+        )?;
+
+        let mut args = vec![
+            OsString::from("sign"),
+            OsString::from(format!("--linux={}", kernel.display())),
+            OsString::from(format!("--initrd={}", initrd.display())),
+            // Only sign the SHA-256 bank: signing all banks fails on systems where
+            // SHA-1 is disabled.
+            OsString::from("--bank=sha256"),
+            // The signature must cover the initrd boot phase, before and after
+            // systemd-pcrphase-initrd ran.
+            OsString::from("--phase="),
+            OsString::from("--phase=enter-initrd"),
+            OsString::from(format!("--private-key={}", private_key.display())),
+        ];
+
+        for (section_name, option) in [
+            (".osrel", "--osrel"),
+            (".cmdline", "--cmdline"),
+            (".sbat", "--sbat"),
+            (".ucode", "--ucode"),
+            (".splash", "--splash"),
+            (".uname", "--uname"),
+            (".pcrpkey", "--pcrpkey"),
+        ] {
+            if let Some(data) = pe::read_section_data(&image, section_name) {
+                let path = tempdir.write_secure_file(data)?;
+                args.push(OsString::from(format!("{option}={}", path.display())));
+            }
+        }
+
+        let signature_path = self.pcr_signature_path();
+        if signature_path.exists() {
+            args.push(OsString::from(format!(
+                "--append={}",
+                signature_path.display()
+            )));
+        }
+
+        let systemd_measure = self.systemd.join("lib/systemd/systemd-measure");
+        let output = Command::new(&systemd_measure)
+            .args(&args)
+            .output()
+            .with_context(|| format!("Failed to run {systemd_measure:?}"))?;
+        if !output.status.success() {
+            return Err(anyhow!(
+                "Failed to sign the PCR 11 policy with args `{:?}`: {}",
+                args,
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let signature = tempdir.write_secure_file(&output.stdout)?;
+        force_install(&signature, &signature_path)?;
+
+        Ok(())
+    }
+
+    /// Make sure the dedicated encryption key pair exists.
+    ///
+    /// The private key is generated with a TPM-compatible RSA size when it is
+    /// missing. A missing public key is derived from the private key. Existing keys
+    /// are left alone.
+    fn ensure_secrets_keys(&self) -> Result<()> {
+        let (Some(private_key), Some(public_key)) =
+            (&self.secrets_private_key, &self.secrets_public_key)
+        else {
+            return Ok(());
+        };
+
+        ensure_key_pair(private_key, public_key)
+    }
+
+    /// Path of the credential file holding the PCR 11 signatures for all installed images.
+    fn pcr_signature_path(&self) -> PathBuf {
+        self.esp_paths
+            .esp
+            .join("loader/credentials")
+            .join(PCR_SIGNATURE_FILE)
     }
 
     /// Register the files of an already installed generation as garbage collection roots.
@@ -372,13 +512,31 @@ impl<S: Signer> Installer<S> {
         let regex =
             Regex::new(&pattern).context("Failed to construct regex to read stubs from ESP")?;
 
+        let encrypted = generation
+            .spec
+            .lanzaboote_extension
+            .encrypted_initrd_secrets
+            .is_some();
+
         // An Err returned from this function means that we couldn't properly read
         // the different files belonging to this generation, so it should be reinstalled
         if let Ok((stub_target, kernel_path, initrd_path)) = self.read_installed_generation(regex) {
-            self.gc_roots
-                .extend([&stub_target, &kernel_path, &initrd_path]);
-            // Do not return yet, we still need to check the existence of the pcrlock measurements.
+            self.gc_roots.extend([&stub_target, &kernel_path]);
+            // The initrd of an encrypted generation is replaced on every install, so
+            // do not keep the old one as a garbage collection root.
+            if !encrypted {
+                self.gc_roots.extend([&initrd_path]);
+            }
+            // Do not return yet, we still need to check the existence of the pcrlock
+            // measurements.
         } else {
+            return Ok(false);
+        }
+
+        // Encrypted initrd secrets get a freshly encrypted initrd and a fresh PCR
+        // signature on every install, because the global signature file is rebuilt
+        // from the currently installed generations.
+        if encrypted {
             return Ok(false);
         }
 
@@ -640,6 +798,9 @@ impl<S: Signer> Installer<S> {
     }
 }
 
+/// Name of the global credential holding the PCR 11 signatures of installed images.
+const PCR_SIGNATURE_FILE: &str = "tpm2-pcr-signature.json.cred";
+
 /// Translate an EFI path to an absolute path on the mounted ESP.
 fn resolve_efi_path(esp: &Path, efi_path: &[u8]) -> Result<PathBuf> {
     Ok(esp.join(std::str::from_utf8(&efi_path[1..])?.replace('\\', "/")))
@@ -784,9 +945,110 @@ fn set_permission_bits(path: &Path, permission_bits: u32) -> Result<()> {
         .with_context(|| format!("Failed to set permissions on {path:?}"))
 }
 
+/// Make sure a key pair exists at the given paths.
+///
+/// A missing private key is generated as a TPM-compatible 2048 bit RSA key. The
+/// public key is always derived from the private key, so the pair cannot diverge.
+fn ensure_key_pair(private_key: &Path, public_key: &Path) -> Result<()> {
+    if !private_key.exists() {
+        let dir = private_key
+            .parent()
+            .context("Secrets private key has no parent directory.")?;
+        prepare_key_directory(dir)?;
+        let tmp = private_key.with_extension("tmp");
+        let output = Command::new("openssl")
+            .args([
+                "genpkey",
+                "-algorithm",
+                "RSA",
+                "-pkeyopt",
+                "rsa_keygen_bits:2048",
+            ])
+            .arg("-out")
+            .arg(&tmp)
+            .output()
+            .context("Failed to run openssl. Most likely, the binary is not on PATH.")?;
+        if !output.status.success() {
+            return Err(anyhow!(
+                "Failed to generate the secrets private key: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        set_permission_bits(&tmp, 0o600)?;
+        fs::rename(&tmp, private_key)?;
+    }
+
+    {
+        let dir = public_key
+            .parent()
+            .context("Secrets public key has no parent directory.")?;
+        prepare_key_directory(dir)?;
+        let tmp = public_key.with_extension("tmp");
+        let output = Command::new("openssl")
+            .args(["pkey", "-in"])
+            .arg(private_key)
+            .arg("-pubout")
+            .arg("-out")
+            .arg(&tmp)
+            .output()
+            .context("Failed to run openssl. Most likely, the binary is not on PATH.")?;
+        if !output.status.success() {
+            return Err(anyhow!(
+                "Failed to derive the secrets public key: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        set_permission_bits(&tmp, 0o644)?;
+        fs::rename(&tmp, public_key)?;
+    }
+
+    Ok(())
+}
+
 // Ensures the parent directory of an arbitrary path exists
 fn ensure_parent_dir(path: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
+    }
+}
+
+/// Create a key directory, if necessary, and make it only accessible by root.
+fn prepare_key_directory(dir: &Path) -> Result<()> {
+    fs::create_dir_all(dir).with_context(|| format!("Failed to create key directory {dir:?}"))?;
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
+        .with_context(|| format!("Failed to restrict permissions of {dir:?}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn regenerate_public_key_when_private_key_is_missing() -> Result<()> {
+        let tmpdir = tempfile::tempdir()?;
+        let private_key = tmpdir.path().join("private.pem");
+        let public_key = tmpdir.path().join("public.pem");
+        fs::write(&public_key, "stale")?;
+
+        ensure_key_pair(&private_key, &public_key)?;
+
+        assert_eq!(
+            fs::metadata(&private_key)?.permissions().mode() & 0o777,
+            0o600
+        );
+        let derived_public_key = Command::new("openssl")
+            .args(["pkey", "-in"])
+            .arg(&private_key)
+            .args(["-pubout"])
+            .output()?;
+        assert!(derived_public_key.status.success());
+        assert_eq!(fs::read(&public_key)?, derived_public_key.stdout);
+
+        // A second run leaves the existing key pair alone.
+        let private_key_before = fs::read(&private_key)?;
+        ensure_key_pair(&private_key, &public_key)?;
+        assert_eq!(fs::read(&private_key)?, private_key_before);
+
+        Ok(())
     }
 }
