@@ -32,7 +32,6 @@ systemd-pcrlock.
 > (PCR 4 variants ≙ 2 boot loader variants x 4 system generation variants)
 
 ```nix
-boot.initrd.systemd.enable = true;
 boot.lanzaboote = {
   measuredBoot = {
     enable = true;
