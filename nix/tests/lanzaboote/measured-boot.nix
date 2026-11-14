@@ -46,7 +46,6 @@
         };
 
         systemd = {
-          enable = true;
           repart = {
             enable = true;
           };
