@@ -15,6 +15,7 @@ in
   basic = runTest ./lanzaboote/basic.nix;
   initrd-secrets = runTest ./lanzaboote/initrd-secrets.nix;
   initrd-secrets-update = runTest ./lanzaboote/initrd-secrets-update.nix;
+  initrd-secrets-encrypted = runTest ./lanzaboote/initrd-secrets-encrypted.nix;
   hash-mismatch-initrd = runTest ./lanzaboote/hash-mismatch-initrd.nix;
   hash-mismatch-initrd-sb = runTest ./lanzaboote/hash-mismatch-initrd-sb.nix;
   hash-mismatch-kernel = runTest ./lanzaboote/hash-mismatch-kernel.nix;

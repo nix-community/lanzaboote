@@ -65,6 +65,10 @@ impl StubParameters {
 /// Performs the evil operation
 /// of calling the appender script to append
 /// initrd "secrets" (not really) to the initrd.
+///
+/// If `encrypted_initrd_secrets_path` is set, the script encrypts the secrets
+/// against the TPM first, so that only ciphertext ends up in the initrd.
+/// Otherwise the plaintext secrets are appended.
 pub fn append_initrd_secrets(
     append_initrd_secrets_path: &Path,
     initrd_path: &PathBuf,
@@ -262,7 +266,39 @@ pub fn read_section_data<'a>(file_data: &'a [u8], section_name: &str) -> Option<
 
 #[cfg(test)]
 mod tests {
+    use std::os::unix::fs::PermissionsExt;
+
     use super::*;
+
+    /// Create an executable script that appends its first argument to the file
+    /// passed as its second argument.
+    fn secret_appender(dir: &Path, name: &str, contents: &str) -> Result<PathBuf> {
+        let path = dir.join(name);
+        fs::write(&path, format!("#!/bin/sh\necho {contents} >> \"$1\"\n"))?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+        Ok(path)
+    }
+
+    fn append_secrets_to(path: &Path) -> String {
+        let tempdir = tempfile::tempdir().unwrap();
+        let initrd = tempdir.path().join("initrd");
+        fs::write(&initrd, "").unwrap();
+
+        append_initrd_secrets(path, &initrd, 1).unwrap();
+        fs::read_to_string(initrd).unwrap()
+    }
+
+    #[test]
+    fn append_initrd_secrets_selects_appender() -> Result<()> {
+        let tempdir = tempfile::tempdir()?;
+        let plaintext = secret_appender(tempdir.path(), "plain.sh", "plaintext")?;
+        let encrypted = secret_appender(tempdir.path(), "encrypted.sh", "encrypted")?;
+
+        assert_eq!(append_secrets_to(&plaintext), "plaintext\n".to_string());
+        assert_eq!(append_secrets_to(&encrypted), "encrypted\n".to_string());
+
+        Ok(())
+    }
 
     #[test]
     fn convert_to_valid_uefi_path_relative_to_esp() {

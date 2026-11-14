@@ -3,6 +3,7 @@
   buildRustApp,
   makeBinaryWrapper,
   binutils-unwrapped,
+  openssl,
   sbsigntool,
   systemd,
   stub,
@@ -25,6 +26,7 @@ buildRustApp {
 
     nativeCheckInputs = [
       binutils-unwrapped
+      openssl
       sbsigntool
     ];
 
@@ -34,6 +36,7 @@ buildRustApp {
       let
         path = lib.makeBinPath [
           binutils-unwrapped
+          openssl
           sbsigntool
         ];
       in

@@ -13,6 +13,7 @@
 - [Automatically Enroll Keys](how-to-guides/automatically-enroll-keys.md)
 - [Disable Secure Boot](how-to-guides/disable-secure-boot.md)
 - [Enable Measured Boot](how-to-guides/enable-measured-boot.md)
+- [Encrypt Initrd Secrets](how-to-guides/encrypt-initrd-secrets.md)
 - [Install on Multiple ESPs](how-to-guides/install-on-multiple-esps.md)
 - [Disable Measured Boot](how-to-guides/disable-measured-boot.md)
 

@@ -25,12 +25,18 @@ pub struct ExtendedBootJson {
 #[derive(Debug, Clone, Deserialize)]
 pub struct LanzabooteExtension {
     pub sort_key: String,
+    /// Appender script that writes TPM-encrypted initrd secrets instead of plaintext ones.
+    ///
+    /// Only set when `boot.lanzaboote.encryptedSecrets.enable` is enabled.
+    #[serde(default)]
+    pub encrypted_initrd_secrets: Option<PathBuf>,
 }
 
 impl Default for LanzabooteExtension {
     fn default() -> Self {
         Self {
             sort_key: String::from("lanzaboote"),
+            encrypted_initrd_secrets: None,
         }
     }
 }
