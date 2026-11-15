@@ -36,6 +36,45 @@ fn generate_expected_os_release() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn generate_expected_os_release_for_profile() -> Result<()> {
+    let esp_mountpoint = tempdir()?;
+    let tmpdir = tempdir()?;
+    let profiles = tempdir()?;
+    let toplevel = common::setup_toplevel(tmpdir.path())?;
+
+    let generation_link = common::setup_profile_generation_link_from_toplevel(
+        &toplevel,
+        profiles.path(),
+        Some("custom"),
+        1,
+    )
+    .expect("Failed to setup generation link");
+
+    let output0 = common::lanzaboote_install(0, esp_mountpoint.path(), vec![generation_link])?;
+    assert!(output0.status.success());
+
+    let stub_data = fs::read(common::profile_image_path(
+        &esp_mountpoint,
+        Some("custom"),
+        1,
+        &toplevel,
+    )?)?;
+    let os_release_section = pe_section(&stub_data, ".osrel")
+        .context("Failed to read .osrelease PE section.")?
+        .to_owned();
+
+    let expected = expect![[r#"
+        ID=lanzaboote
+        PRETTY_NAME=LanzaOS [custom] (Generation 1, 1970-01-01)
+        VERSION_ID=Generation 1, 1970-01-01
+    "#]];
+
+    expected.assert_eq(&String::from_utf8(os_release_section)?);
+
+    Ok(())
+}
+
 fn pe_section<'a>(file_data: &'a [u8], section_name: &str) -> Option<&'a [u8]> {
     let pe_binary = goblin::pe::PE::parse(file_data).ok()?;
 
