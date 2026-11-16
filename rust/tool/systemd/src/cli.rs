@@ -49,11 +49,11 @@ struct InstallCommand {
     #[arg(long, num_args = 1)]
     allow_unsigned: bool,
 
-    /// sbsign Public Key
+    /// Secure Boot public key (PEM certificate)
     #[arg(long)]
     public_key: Option<PathBuf>,
 
-    /// sbsign Private Key
+    /// Secure Boot private key (PEM)
     #[arg(long)]
     private_key: Option<PathBuf>,
 
@@ -109,6 +109,7 @@ fn install(args: InstallCommand) -> Result<()> {
 
     let public_key = &args.public_key.expect("Failed to obtain public key");
     let private_key = &args.private_key.expect("Failed to obtain private key");
+    let signing_tool = args.systemd.join("lib/systemd/systemd-sbsign");
 
     let installer_builder = install::InstallerBuilder::new(
         lanzaboote_stub,
@@ -131,7 +132,7 @@ fn install(args: InstallCommand) -> Result<()> {
         let signer = EmptyKeyPair;
         installer_builder.build(signer).install()
     } else {
-        let signer = LocalKeyPair::new(public_key, private_key);
+        let signer = LocalKeyPair::new(public_key, private_key, &signing_tool);
         installer_builder.build(signer).install()
     }
 }

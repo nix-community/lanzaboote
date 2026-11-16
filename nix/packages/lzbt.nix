@@ -25,6 +25,8 @@ buildRustApp {
 
     nativeCheckInputs = [
       binutils-unwrapped
+      # `sbverify` and `sbattach` are still used to verify signatures and in the
+      # test fixtures. Signing uses `systemd-sbsign`.
       sbsigntool
     ];
 

@@ -432,6 +432,15 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
+        assertion = lib.versionAtLeast config.systemd.package.version "257";
+        message = ''
+          Lanzaboote signs artifacts with systemd-sbsign, which is part of systemd
+          257 and newer (built with OpenSSL support).
+
+          Your systemd version is ${config.systemd.package.version}.
+        '';
+      }
+      {
         assertion = !cfg.autoEnrollKeys.allowBrickingMyMachine -> cfg.autoEnrollKeys.includeMicrosoftKeys;
         message = ''
           You have set potentially dangerous Secure Boot enrollment settings. This might brick your machine.
@@ -656,8 +665,15 @@ in
       };
       # Place the fwupd efi files in /run and sign them
       script = ''
+        set -e
         ln -sf ${config.services.fwupd.package.fwupd-efi}/libexec/fwupd/efi/fwupd*.efi /run/fwupd-efi/
-        ${lib.getExe' pkgs.sbsigntool "sbsign"} --key '${cfg.privateKeyFile}' --cert '${cfg.publicKeyFile}' /run/fwupd-efi/fwupd*.efi
+        for app in /run/fwupd-efi/fwupd*.efi; do
+          ${config.systemd.package}/lib/systemd/systemd-sbsign sign \
+            --private-key '${cfg.privateKeyFile}' \
+            --certificate '${cfg.publicKeyFile}' \
+            --output "$app.signed" \
+            "$app"
+        done
       '';
     };
 
