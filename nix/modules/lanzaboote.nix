@@ -148,7 +148,11 @@ in
     genlistPath = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
-      description = "The path of a genlist file";
+      description = ''
+        The path of a genlist.json file.
+        Each line is a JSON description of a boot entry.
+        They are ordered from oldest to newest.
+      '';
     };
 
     settings = lib.mkOption {

@@ -232,44 +232,11 @@ impl<S: Signer> Installer<S> {
         self.install_generations(generations)
     }
 
+
     /// Install all generations from the provided generations list file.
     fn install_generations_from_genlist(&mut self, genlist: impl AsRef<Path>) -> Result<()> {
-        let file = File::open(genlist.as_ref()).context("Failed to open generations list file")?;
-        let reader = BufReader::new(file);
-
-        let generations = reader
-            .lines()
-            .filter_map(|line| {
-                let entry = line
-                    .context("Failed to read a line from the generations list file")
-                    .and_then(|line| {
-                        serde_json::from_str::<GenlistEntry>(&line)
-                            .context("Failed to parse a generation from the generations list file")
-                    })
-                    .map_err(|e| log::warn!("{e:#}"))
-                    .ok()?;
-
-                let version = entry.version;
-
-                let generation_result = Generation::from_genlist_entry(entry).with_context(|| {
-                    format!("Failed to build generation from genlist entry: {version}")
-                });
-
-                // Ignore failing to read a generation so that old malformed generations do not stop
-                // lzbt from working.
-                if generation_result.is_err() {
-                    // If there is ANY malformed generation present, completely disable all garbage
-                    // collection to protect the old generations from being deleted. The user has
-                    // to manually intervene by getting rid of the old generations to re-enable
-                    // garbage collection. This safeguard against catastrophic failure in case of
-                    // unhandled upstream changes to NixOS.
-                    self.broken_gens.insert(version);
-                }
-
-                generation_result.ok()
-            })
-            .collect::<Vec<Generation>>();
-
+        let (generations, broken_gens) = collect_generations_from_genlist(genlist, self.configuration_limit, None)?;
+	self.broken_gens = broken_gens;
         self.install_generations(generations)
     }
 
@@ -843,4 +810,81 @@ fn ensure_parent_dir(path: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
+}
+
+pub fn collect_generations_from_genlist(
+    genlist: impl AsRef<Path>,
+    configuration_limit: usize,
+    booted_outpath: Option<PathBuf>,
+) -> Result<(Vec<Generation>, BTreeSet<u64>)> {
+    let file = File::open(genlist.as_ref()).context("Failed to open generations list file")?;
+    let reader = BufReader::new(file);
+    let mut broken_gens = BTreeSet::new();
+
+    // First, collect all entries from the genlist file
+    let entries: Vec<GenlistEntry> = reader
+        .lines()
+        .filter_map(|line| {
+            line
+                .context("Failed to read a line from the generations list file")
+                .and_then(|line| {
+                    serde_json::from_str::<GenlistEntry>(&line)
+                        .context("Failed to parse a generation from the generations list file")
+                })
+                .map_err(|e| log::warn!("{e:#}"))
+                .ok()
+        })
+        .collect();
+
+    // Find the newest booted entry if booted_outpath is provided
+    let booted_entry = booted_outpath.and_then(|booted_outpath| {
+        entries.iter().rev().find(|entry| entry.outpath == booted_outpath).cloned()
+    });
+
+    // A configuration limit of 0 means there is no limit.
+    let mut entries_to_process = entries;
+    if configuration_limit > 0 && entries_to_process.len() > configuration_limit {
+        // Only install the number of generations configured. Reverse the list to only take the
+        // latest generations and then, after taking them, reverse the list again so that the
+        // generations are installed from oldest to newest, i.e. from smallest to largest
+        // generation version.
+        entries_to_process = entries_to_process
+            .into_iter()
+            .rev()
+            .take(configuration_limit)
+            .rev()
+            .collect();
+    }
+
+    // If the booted_outpath is not in the list of entries, it is added in the first position, ie. the oldest generation.
+    if let Some(booted_entry) = booted_entry &&
+	entries_to_process.iter().find(|entry| entry.outpath == booted_entry.outpath).is_none() &&
+	entries_to_process.len() > 0
+    {
+        entries_to_process[0] = booted_entry
+    }
+
+    // Convert entries to generations, tracking broken ones
+    let generations: Vec<Generation> = entries_to_process
+        .into_iter()
+        .filter_map(|entry| {
+            let version = entry.version;
+            let generation_result = Generation::from_genlist_entry(entry)
+                .with_context(|| format!("Failed to build generation from genlist entry: {version}"));
+
+            // Ignore failing to read a generation so that old malformed generations do not stop
+            // lzbt from working.
+            if generation_result.is_err() {
+                // If there is ANY malformed generation present, completely disable all garbage
+                // collection to protect the old generations from being deleted. The user has
+                // to manually intervene by getting rid of the old generations to re-enable
+                // garbage collection. This safeguard against catastrophic failure in case of
+                // unhandled upstream changes to NixOS.
+                broken_gens.insert(version);
+            }
+            generation_result.ok()
+        })
+        .collect();
+
+    Ok((generations, broken_gens))
 }

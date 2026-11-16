@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use bootspec::BootJson;
 use bootspec::BootSpec;
 use bootspec::SpecialisationName;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use time::Date;
 
 /// (Possibly) extended Bootspec.
@@ -79,7 +79,7 @@ pub struct Generation {
 
 /// A single entry of a generations list file.
 /// The generations list file is a JSONL file where each line describes a single generation.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GenlistEntry {
     /// The generation index
     pub version: u64,
