@@ -84,7 +84,7 @@ pub struct GenlistEntry {
     /// The generation index
     pub version: u64,
     /// The generation build time as a Unix timestamp
-    pub build_time: i64,
+    pub build_time: Option<i64>,
     /// The generation Nix outpath
     pub outpath: PathBuf,
     /// An arbitrary label added to the boot entry
@@ -104,11 +104,14 @@ impl Generation {
         let bootspec_path = entry.outpath.join("boot.json");
         let boot_json: BootJson = Self::read_boot_json(&bootspec_path, &entry.outpath)?;
 
-        let build_time = time::OffsetDateTime::from_unix_timestamp(entry.build_time)
-            .context("Failed to parse the generation build time")?
-            .date();
+        let build_time = entry.build_time
+            .map(|ts| time::OffsetDateTime::from_unix_timestamp(ts)
+                .context("Failed to parse the generation build time")
+                .map(|odt| odt.date())
+            )
+            .transpose()?;
 
-        let mut generation = Self::parse_boot_json(entry.version, Some(build_time), None, boot_json)?;
+        let mut generation = Self::parse_boot_json(entry.version, build_time, None, boot_json)?;
         generation.label = entry.label;
         Ok(generation)
     }

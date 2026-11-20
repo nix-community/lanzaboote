@@ -144,13 +144,13 @@ fn test_collect_generations_from_genlist() -> Result<()> {
 
     let entry_1 = GenlistEntry {
         version: 1,
-        build_time: 0,
+        build_time: Some(0),
         outpath: generation_link_1.clone(),
         label: "test-gen-1".to_string(),
     };
     let entry_2 = GenlistEntry {
         version: 2,
-        build_time: 0,
+        build_time: Some(0),
         outpath: generation_link_2,
         label: "test-gen-2".to_string(),
     };

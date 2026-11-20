@@ -523,6 +523,7 @@ dependencies = [
  "sha2",
  "stderrlog",
  "tempfile",
+ "time",
  "walkdir",
 ]
 

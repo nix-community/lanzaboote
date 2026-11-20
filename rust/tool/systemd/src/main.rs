@@ -1,6 +1,7 @@
 mod architecture;
 mod cli;
 mod esp;
+mod genlist;
 mod install;
 mod pcrlock;
 mod version;

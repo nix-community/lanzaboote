@@ -118,12 +118,26 @@ pub struct Installer<S: Signer> {
 
 impl<S: Signer> Installer<S> {
     pub fn install(&mut self) -> Result<()> {
+	let broken_gens_msg;
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 
         if let Some(genlist_path) = self.genlist_path.take() {
             self.install_generations_from_genlist(genlist_path)?;
+	    broken_gens_msg = 
+                "Garbage collection is disabled because you have malformed NixOS generations that do
+                not contain a readable bootspec document.
+                
+                In the genlist.json file, remove the entries with the versions `{}`
+            ".to_string();
         } else {
             self.install_generations_from_links()?;
+	    broken_gens_msg = 
+                "Garbage collection is disabled because you have malformed NixOS generations that do
+                not contain a readable bootspec document.
+
+                Remove the malformed generations to re-enable garbage collection with
+                `nix-env --delete-generations {}`
+            ".to_string();
         }
 
         self.install_systemd_boot()?;
@@ -153,13 +167,7 @@ impl<S: Signer> Installer<S> {
             }
         } else {
             // This might produce a ridiculous message if you have a lot of malformed generations.
-            let warning = indoc::formatdoc! {"
-                Garbage collection is disabled because you have malformed NixOS generations that do
-                not contain a readable bootspec document.
-
-                Remove the malformed generations to re-enable garbage collection with
-                `nix-env --delete-generations {}`
-            ", self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" ")};
+            let warning = broken_gens_msg.replace("{}", &self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" "));
             log::warn!("{warning}");
         };
 
@@ -865,10 +873,18 @@ pub fn collect_generations_from_genlist(
     }
 
     // Convert entries to generations, tracking broken ones
+    let mut seen_versions = std::collections::BTreeSet::new();
     let generations: Vec<Generation> = entries_to_process
         .into_iter()
         .filter_map(|entry| {
             let version = entry.version;
+            // Check if this version already exists (duplicate version)
+            if seen_versions.contains(&version) {
+                broken_gens.insert(version);
+                return None;
+            }
+            seen_versions.insert(version);
+            
             let generation_result = Generation::from_genlist_entry(entry)
                 .with_context(|| format!("Failed to build generation from genlist entry: {version}"));
 
