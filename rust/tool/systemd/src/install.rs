@@ -118,20 +118,20 @@ pub struct Installer<S: Signer> {
 
 impl<S: Signer> Installer<S> {
     pub fn install(&mut self) -> Result<()> {
-	let broken_gens_msg;
+        let broken_gens_msg;
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 
         if let Some(genlist_path) = self.genlist_path.take() {
             self.install_generations_from_genlist(genlist_path)?;
-	    broken_gens_msg = 
-                "Garbage collection is disabled because you have malformed NixOS generations that do
+            broken_gens_msg =
+		"Garbage collection is disabled because you have malformed NixOS generations that do
                 not contain a readable bootspec document.
-                
+
                 In the genlist.json file, remove the entries with the versions `{}`
             ".to_string();
         } else {
             self.install_generations_from_links()?;
-	    broken_gens_msg = 
+            broken_gens_msg =
                 "Garbage collection is disabled because you have malformed NixOS generations that do
                 not contain a readable bootspec document.
 
@@ -167,7 +167,15 @@ impl<S: Signer> Installer<S> {
             }
         } else {
             // This might produce a ridiculous message if you have a lot of malformed generations.
-            let warning = broken_gens_msg.replace("{}", &self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" "));
+            let warning = broken_gens_msg.replace(
+                "{}",
+                &self
+                    .broken_gens
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join(" "),
+            );
             log::warn!("{warning}");
         };
 
@@ -240,11 +248,14 @@ impl<S: Signer> Installer<S> {
         self.install_generations(generations)
     }
 
-
     /// Install all generations from the provided generations list file.
     fn install_generations_from_genlist(&mut self, genlist: impl AsRef<Path>) -> Result<()> {
-        let (generations, broken_gens) = collect_generations_from_genlist(genlist, self.configuration_limit, self.protected_system.clone())?;
-	self.broken_gens.extend(broken_gens);
+        let (generations, broken_gens) = collect_generations_from_genlist(
+            genlist,
+            self.configuration_limit,
+            self.protected_system.clone(),
+        )?;
+        self.broken_gens.extend(broken_gens);
         self.install_generations(generations)
     }
 
@@ -833,7 +844,11 @@ pub fn collect_generations_from_genlist(
 
     // Find the newest booted entry if booted_outpath is provided
     let booted_entry = booted_outpath.and_then(|booted_outpath| {
-        entries.iter().rev().find(|entry| entry.outpath == booted_outpath).cloned()
+        entries
+            .iter()
+            .rev()
+            .find(|entry| entry.outpath == booted_outpath)
+            .cloned()
     });
 
     // A configuration limit of 0 means there is no limit.
@@ -852,9 +867,12 @@ pub fn collect_generations_from_genlist(
     }
 
     // If the booted_outpath is not in the list of entries, it is replaced in the first position, ie. the oldest generation.
-    if let Some(booted_entry) = booted_entry &&
-	entries_to_process.iter().find(|entry| entry.outpath == booted_entry.outpath).is_none() &&
-	entries_to_process.len() > 0
+    if let Some(booted_entry) = booted_entry
+        && entries_to_process
+            .iter()
+            .find(|entry| entry.outpath == booted_entry.outpath)
+            .is_none()
+        && entries_to_process.len() > 0
     {
         entries_to_process[0] = booted_entry
     }
@@ -864,8 +882,9 @@ pub fn collect_generations_from_genlist(
         .into_iter()
         .filter_map(|entry| {
             let version = entry.version;
-            let generation_result = Generation::from_genlist_entry(entry)
-                .with_context(|| format!("Failed to build generation from genlist entry: {version}"));
+            let generation_result = Generation::from_genlist_entry(entry).with_context(|| {
+                format!("Failed to build generation from genlist entry: {version}")
+            });
 
             // Ignore failing to read a generation so that old malformed generations do not stop
             // lzbt from working.

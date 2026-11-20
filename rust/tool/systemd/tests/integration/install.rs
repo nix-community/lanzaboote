@@ -170,8 +170,9 @@ fn test_collect_generations_from_genlist() -> Result<()> {
     assert_eq!(generations[0].version, 2);
 
     // The booted generation is taken into account with a configuration_limit=1
-    let (generations, _broken_gens) = collect_generations_from_genlist(&genlist_path, 1, Some(generation_link_1))
-        .expect("collect_generations_from_genlist should succeed with booted generation");
+    let (generations, _broken_gens) =
+        collect_generations_from_genlist(&genlist_path, 1, Some(generation_link_1))
+            .expect("collect_generations_from_genlist should succeed with booted generation");
     assert_eq!(generations.len(), 1);
     assert_eq!(generations[0].version, 1);
 
@@ -230,7 +231,10 @@ fn test_collect_generations_from_genlist_broken_gens() -> Result<()> {
         .expect("collect_generations_from_genlist should succeed");
     assert_eq!(generations.len(), 2, "Should only have 2 valid generations");
     assert_eq!(broken_gens.len(), 1, "Should have 1 broken generation");
-    assert!(broken_gens.contains(&3), "Broken generation 3 should be in broken_gens");
+    assert!(
+        broken_gens.contains(&3),
+        "Broken generation 3 should be in broken_gens"
+    );
 
     Ok(())
 }
