@@ -158,25 +158,79 @@ fn test_collect_generations_from_genlist() -> Result<()> {
     writeln!(genlist_file, "{}", serde_json::to_string(&entry_2)?)?;
 
     // Ensure all generations are taken into account
-    let result = collect_generations_from_genlist(&genlist_path, 0, None);
-    assert!(result.is_ok());
-    let (generations, broken_gens) = result.unwrap();
+    let (generations, broken_gens) = collect_generations_from_genlist(&genlist_path, 0, None)
+        .expect("collect_generations_from_genlist should succeed");
     assert_eq!(generations.len(), 2);
     assert_eq!(broken_gens.len(), 0);
 
     // Ensure only a single generations is taken into account with a configuration_limit=1
-    let result = collect_generations_from_genlist(&genlist_path, 1, None);
-    assert!(result.is_ok());
-    let (generations, _broken_gens) = result.unwrap();
+    let (generations, _broken_gens) = collect_generations_from_genlist(&genlist_path, 1, None)
+        .expect("collect_generations_from_genlist should succeed with limit=1");
     assert_eq!(generations.len(), 1);
     assert_eq!(generations[0].version, 2);
 
     // The booted generation is taken into account with a configuration_limit=1
-    let result = collect_generations_from_genlist(&genlist_path, 1, Some(generation_link_1));
-    assert!(result.is_ok());
-    let (generations, _broken_gens) = result.unwrap();
+    let (generations, _broken_gens) = collect_generations_from_genlist(&genlist_path, 1, Some(generation_link_1))
+        .expect("collect_generations_from_genlist should succeed with booted generation");
     assert_eq!(generations.len(), 1);
     assert_eq!(generations[0].version, 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_collect_generations_from_genlist_broken_gens() -> Result<()> {
+    use std::fs::File;
+    use std::io::Write;
+
+    use lanzaboote_tool::generation::GenlistEntry;
+    use lzbt_systemd::install::collect_generations_from_genlist;
+
+    let tmpdir = tempdir()?;
+    let profiles = tempdir()?;
+    let toplevel = common::setup_toplevel(tmpdir.path())?;
+
+    let generation_link_1 = setup_generation_link_from_toplevel(&toplevel, profiles.path(), 1)?;
+    let generation_link_2 = setup_generation_link_from_toplevel(&toplevel, profiles.path(), 2)?;
+
+    // Create a broken generation link (without a valid bootspec)
+    let broken_generation_link = profiles.path().join("system-3-link");
+    std::fs::create_dir(&broken_generation_link)?;
+
+    let tmpdir = tempdir()?;
+    // Create a genlist JSONL file with three entries, one of which is broken
+    let genlist_path = tmpdir.path().join("generations.jsonl");
+    let mut genlist_file = File::create(&genlist_path)?;
+
+    let entry_1 = GenlistEntry {
+        version: 1,
+        build_time: Some(0),
+        outpath: generation_link_1.clone(),
+        label: "test-gen-1".to_string(),
+    };
+    let entry_2 = GenlistEntry {
+        version: 2,
+        build_time: Some(0),
+        outpath: generation_link_2,
+        label: "test-gen-2".to_string(),
+    };
+    // This entry points to a non-existent or invalid bootspec
+    let entry_broken = GenlistEntry {
+        version: 3,
+        build_time: Some(0),
+        outpath: broken_generation_link,
+        label: "broken-gen".to_string(),
+    };
+    writeln!(genlist_file, "{}", serde_json::to_string(&entry_1)?)?;
+    writeln!(genlist_file, "{}", serde_json::to_string(&entry_2)?)?;
+    writeln!(genlist_file, "{}", serde_json::to_string(&entry_broken)?)?;
+
+    // Ensure broken generations are tracked in broken_gens
+    let (generations, broken_gens) = collect_generations_from_genlist(&genlist_path, 0, None)
+        .expect("collect_generations_from_genlist should succeed");
+    assert_eq!(generations.len(), 2, "Should only have 2 valid generations");
+    assert_eq!(broken_gens.len(), 1, "Should have 1 broken generation");
+    assert!(broken_gens.contains(&3), "Broken generation 3 should be in broken_gens");
 
     Ok(())
 }

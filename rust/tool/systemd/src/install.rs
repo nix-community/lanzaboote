@@ -860,18 +860,10 @@ pub fn collect_generations_from_genlist(
     }
 
     // Convert entries to generations, tracking broken ones
-    let mut seen_versions = std::collections::BTreeSet::new();
     let generations: Vec<Generation> = entries_to_process
         .into_iter()
         .filter_map(|entry| {
             let version = entry.version;
-            // Check if this version already exists (duplicate version)
-            if seen_versions.contains(&version) {
-                broken_gens.insert(version);
-                return None;
-            }
-            seen_versions.insert(version);
-            
             let generation_result = Generation::from_genlist_entry(entry)
                 .with_context(|| format!("Failed to build generation from genlist entry: {version}"));
 
