@@ -4,6 +4,9 @@
 
   nodes.machine = {
     imports = [ ./common/lanzaboote.nix ];
+    config = {
+      lanzabooteTest.genlistMode = true;
+    };
   };
   testScript =
     { nodes, ... }:

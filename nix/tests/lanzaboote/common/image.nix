@@ -40,6 +40,11 @@ let
   espFiles = pkgs.runCommand "esp-files" { } (
     ''
       mkdir -p $out
+    ''
+    + lib.optionalString (!config.lanzabooteTest.genlistMode) ''
+      ln -s ${config.system.build.toplevel} system-1-link \
+    ''
+    + ''
       ${cfg.installCommand} \
     ''
     + (
@@ -58,8 +63,8 @@ let
     )
     + ''
       $out \
-      --genlist-path ${genlist}
     ''
+    + (if config.lanzabooteTest.genlistMode then "--genlist-path ${genlist}" else "system-1-link")
   );
 
   closureInfo = pkgs.closureInfo {

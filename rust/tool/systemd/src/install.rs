@@ -120,7 +120,7 @@ impl<S: Signer> Installer<S> {
     pub fn install(&mut self) -> Result<()> {
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 
-        if let Some(genlist_path) = self.genlist_path.clone() {
+        if let Some(genlist_path) = self.genlist_path.take() {
             self.install_generations_from_genlist(genlist_path)?;
         } else {
             self.install_generations_from_links()?;
@@ -235,8 +235,8 @@ impl<S: Signer> Installer<S> {
 
     /// Install all generations from the provided generations list file.
     fn install_generations_from_genlist(&mut self, genlist: impl AsRef<Path>) -> Result<()> {
-        let (generations, broken_gens) = collect_generations_from_genlist(genlist, self.configuration_limit, None)?;
-	self.broken_gens = broken_gens;
+        let (generations, broken_gens) = collect_generations_from_genlist(genlist, self.configuration_limit, self.protected_system.clone())?;
+	self.broken_gens.extend(broken_gens);
         self.install_generations(generations)
     }
 
@@ -856,7 +856,7 @@ pub fn collect_generations_from_genlist(
             .collect();
     }
 
-    // If the booted_outpath is not in the list of entries, it is added in the first position, ie. the oldest generation.
+    // If the booted_outpath is not in the list of entries, it is replaced in the first position, ie. the oldest generation.
     if let Some(booted_entry) = booted_entry &&
 	entries_to_process.iter().find(|entry| entry.outpath == booted_entry.outpath).is_none() &&
 	entries_to_process.len() > 0

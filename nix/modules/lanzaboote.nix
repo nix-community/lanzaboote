@@ -146,7 +146,7 @@ in
     };
 
     genlistPath = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
+      type = lib.types.nullOr lib.types.externalPath;
       default = null;
       description = ''
         The path of a genlist.json file.
@@ -677,5 +677,13 @@ in
     services.fwupd.uefiCapsuleSettings = lib.mkIf config.services.fwupd.enable {
       DisableShimForSecureBoot = true;
     };
+
+    system.preSwitchChecks.checkGenlist = lib.mkIf (cfg.genlistPath != null) ''
+      if [ ! -f "${cfg.genlistPath}" ]; then
+        echo "Error: genlist.json not found at ${cfg.genlistPath}"
+        echo "Please ensure the genlist.json file exists before activating this Lanzaboote configuration."
+        exit 1
+      fi
+    '';
   };
 }

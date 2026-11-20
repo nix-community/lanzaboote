@@ -72,7 +72,7 @@ struct InstallCommand {
     protected_system: Option<PathBuf>,
 
     /// Path to a generations list file (JSONL) describing the generations to install
-    #[arg(long)]
+    #[arg(long, conflicts_with = "generations")]
     genlist_path: Option<PathBuf>,
 
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
