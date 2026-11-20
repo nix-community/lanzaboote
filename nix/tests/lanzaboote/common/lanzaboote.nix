@@ -12,6 +12,7 @@ in
     };
 
     persistentRoot = lib.mkEnableOption "a persistent root filesystem";
+    genlistMode = lib.mkEnableOption "the genlist.json mode";
   };
 
   config = {

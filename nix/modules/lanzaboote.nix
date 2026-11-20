@@ -43,8 +43,11 @@ let
         ++ [
           efiSysMountPoint
         ]
+        ++ lib.optionals (cfg.genlistPath != null) [
+          "--genlist-path=${cfg.genlistPath}"
+        ]
       )
-      + " /nix/var/nix/profiles/system-*-link"
+      + (lib.optionalString (cfg.genlistPath == null) " /nix/var/nix/profiles/system-*-link")
     );
 
   installHook = pkgs.writeShellScriptBin "lzbt" (
@@ -140,6 +143,16 @@ in
       default = pkgs.lzbt;
       defaultText = lib.literalExpression "pkgs.lzbt";
       description = "Lanzaboote tool (lzbt) package";
+    };
+
+    genlistPath = lib.mkOption {
+      type = lib.types.nullOr lib.types.externalPath;
+      default = null;
+      description = ''
+        The path of a genlist.json file.
+        Each line is a JSON description of a boot entry.
+        They are ordered from oldest to newest.
+      '';
     };
 
     settings = lib.mkOption {
@@ -664,5 +677,9 @@ in
     services.fwupd.uefiCapsuleSettings = lib.mkIf config.services.fwupd.enable {
       DisableShimForSecureBoot = true;
     };
+
+    system.preSwitchChecks.checkGenlist = lib.mkIf (cfg.genlistPath != null) ''
+      ${cfg.package}/bin/lzbt-systemd validate-genlist "${cfg.genlistPath}"
+    '';
   };
 }

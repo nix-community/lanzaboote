@@ -14,6 +14,7 @@ use tempfile::TempDir;
 
 use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
+use crate::genlist;
 use crate::pcrlock::{PcrlockPaths, lock_pe, lock_pe_from_bytes};
 use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
@@ -36,6 +37,7 @@ pub struct InstallerBuilder {
     protected_system: Option<PathBuf>,
     esp: PathBuf,
     generation_links: Vec<PathBuf>,
+    genlist_path: Option<PathBuf>,
 }
 
 impl InstallerBuilder {
@@ -51,6 +53,7 @@ impl InstallerBuilder {
         protected_system: Option<PathBuf>,
         esp: PathBuf,
         generation_links: Vec<PathBuf>,
+        genlist_path: Option<PathBuf>,
     ) -> Self {
         Self {
             lanzaboote_stub: lanzaboote_stub.as_ref().to_path_buf(),
@@ -63,6 +66,7 @@ impl InstallerBuilder {
             protected_system,
             esp,
             generation_links,
+            genlist_path,
         }
     }
 
@@ -89,6 +93,7 @@ impl InstallerBuilder {
             protected_system: self.protected_system,
             esp_paths,
             generation_links: self.generation_links,
+            genlist_path: self.genlist_path,
             arch: self.arch,
         }
     }
@@ -107,13 +112,79 @@ pub struct Installer<S: Signer> {
     protected_system: Option<PathBuf>,
     esp_paths: SystemdEspPaths,
     generation_links: Vec<PathBuf>,
+    genlist_path: Option<PathBuf>,
     arch: Architecture,
 }
 
 impl<S: Signer> Installer<S> {
     pub fn install(&mut self) -> Result<()> {
+        let broken_gens_msg;
         log::info!("Installing Lanzaboote to {:?}...", self.esp_paths.esp);
 
+        if let Some(genlist_path) = self.genlist_path.take() {
+            self.install_generations_from_genlist(genlist_path)?;
+            broken_gens_msg =
+		"Garbage collection is disabled because you have malformed NixOS generations that do
+                not contain a readable bootspec document.
+
+                In the genlist.json file, remove the entries with the versions `{}`
+            ".to_string();
+        } else {
+            self.install_generations_from_links()?;
+            broken_gens_msg =
+                "Garbage collection is disabled because you have malformed NixOS generations that do
+                not contain a readable bootspec document.
+
+                Remove the malformed generations to re-enable garbage collection with
+                `nix-env --delete-generations {}`
+            ".to_string();
+        }
+
+        self.install_systemd_boot()?;
+
+        if self.broken_gens.is_empty() {
+            log::info!("Collecting garbage...");
+            // Only collect garbage in these two directories on the ESP. This way, no files that do
+            // not belong to the NixOS installation are deleted. Lanzatool takes full control over
+            // the esp/EFI/nixos directory and deletes ALL files that it doesn't know about. Dual-
+            // or multiboot setups that need files in this directory will NOT work.
+            self.gc_roots.collect_garbage(&self.esp_paths.nixos)?;
+            // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
+            // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
+            // deleted).
+            self.gc_roots
+                .collect_garbage_with_filter(&self.esp_paths.linux, |p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| n.starts_with("nixos-"))
+                })?;
+            // Only collect garbage in the Lanzaboote and the boot loader directory because those
+            // are the only directories we fully control. Of the boot loader measurements, only the
+            // ones for the installed and for the booted boot loader are roots.
+            if let Some(pcrlock_paths) = &self.pcrlock_paths {
+                self.gc_roots.collect_garbage(pcrlock_paths.bootloader())?;
+                self.gc_roots.collect_garbage(pcrlock_paths.lanzaboote())?;
+            }
+        } else {
+            // This might produce a ridiculous message if you have a lot of malformed generations.
+            let warning = broken_gens_msg.replace(
+                "{}",
+                &self
+                    .broken_gens
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join(" "),
+            );
+            log::warn!("{warning}");
+        };
+
+        log::info!("Successfully installed Lanzaboote.");
+        Ok(())
+    }
+
+    /// Install all generations from the provided `GenerationLinks`.
+    fn install_generations_from_links(&mut self) -> Result<()> {
         let mut links = self
             .generation_links
             .iter()
@@ -153,55 +224,8 @@ impl<S: Signer> Installer<S> {
             links.insert(booted_link);
         }
 
-        self.install_generations_from_links(links.iter())?;
-
-        self.install_systemd_boot()?;
-
-        if self.broken_gens.is_empty() {
-            log::info!("Collecting garbage...");
-            // Only collect garbage in these two directories on the ESP. This way, no files that do
-            // not belong to the NixOS installation are deleted. Lanzatool takes full control over
-            // the esp/EFI/nixos directory and deletes ALL files that it doesn't know about. Dual-
-            // or multiboot setups that need files in this directory will NOT work.
-            self.gc_roots.collect_garbage(&self.esp_paths.nixos)?;
-            // The esp/EFI/Linux directory is assumed to be potentially shared with other distros.
-            // Thus, only files that start with "nixos-" are garbage collected (i.e. potentially
-            // deleted).
-            self.gc_roots
-                .collect_garbage_with_filter(&self.esp_paths.linux, |p| {
-                    p.file_name()
-                        .and_then(|n| n.to_str())
-                        .is_some_and(|n| n.starts_with("nixos-"))
-                })?;
-            // Only collect garbage in the Lanzaboote and the boot loader directory because those
-            // are the only directories we fully control. Of the boot loader measurements, only the
-            // ones for the installed and for the booted boot loader are roots.
-            if let Some(pcrlock_paths) = &self.pcrlock_paths {
-                self.gc_roots.collect_garbage(pcrlock_paths.bootloader())?;
-                self.gc_roots.collect_garbage(pcrlock_paths.lanzaboote())?;
-            }
-        } else {
-            // This might produce a ridiculous message if you have a lot of malformed generations.
-            let warning = indoc::formatdoc! {"
-                Garbage collection is disabled because you have malformed NixOS generations that do
-                not contain a readable bootspec document.
-
-                Remove the malformed generations to re-enable garbage collection with
-                `nix-env --delete-generations {}`
-            ", self.broken_gens.iter().map(ToString::to_string).collect::<Vec<String>>().join(" ")};
-            log::warn!("{warning}");
-        };
-
-        log::info!("Successfully installed Lanzaboote.");
-        Ok(())
-    }
-
-    /// Install all generations from the provided `GenerationLinks`.
-    fn install_generations_from_links<'a>(
-        &mut self,
-        links: impl Iterator<Item = &'a GenerationLink>,
-    ) -> Result<()> {
         let generations = links
+            .iter()
             .filter_map(|link| {
                 let generation_result = Generation::from_link(link)
                     .with_context(|| format!("Failed to build generation from link: {link:?}"));
@@ -221,6 +245,22 @@ impl<S: Signer> Installer<S> {
             })
             .collect::<Vec<Generation>>();
 
+        self.install_generations(generations)
+    }
+
+    /// Install all generations from the provided generations list file.
+    fn install_generations_from_genlist(&mut self, genlist: impl AsRef<Path>) -> Result<()> {
+        let (generations, broken_gens) = collect_generations_from_genlist(
+            genlist,
+            self.configuration_limit,
+            self.protected_system.clone(),
+        )?;
+        self.broken_gens.extend(broken_gens);
+        self.install_generations(generations)
+    }
+
+    /// Install the given generations.
+    fn install_generations(&mut self, generations: Vec<Generation>) -> Result<()> {
         if generations.is_empty() {
             // We can't continue, because we would remove all boot entries, if we did.
             return Err(anyhow!(
@@ -789,4 +829,76 @@ fn ensure_parent_dir(path: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
+}
+
+pub fn collect_generations_from_genlist(
+    genlist: impl AsRef<Path>,
+    configuration_limit: usize,
+    booted_outpath: Option<PathBuf>,
+) -> Result<(Vec<Generation>, BTreeSet<u64>)> {
+    let mut broken_gens = BTreeSet::new();
+
+    // The file can be validate with the validate-genlist as a activation prescript check.
+    // At this point, we should then alwaays get a valid genlist.json file.
+    let entries = genlist::read(&genlist)?;
+
+    // Find the newest booted entry if booted_outpath is provided
+    let booted_entry = booted_outpath.and_then(|booted_outpath| {
+        entries
+            .iter()
+            .rev()
+            .find(|entry| entry.outpath == booted_outpath)
+            .cloned()
+    });
+
+    // A configuration limit of 0 means there is no limit.
+    let mut entries_to_process = entries;
+    if configuration_limit > 0 && entries_to_process.len() > configuration_limit {
+        // Only install the number of generations configured. Reverse the list to only take the
+        // latest generations and then, after taking them, reverse the list again so that the
+        // generations are installed from oldest to newest, i.e. from smallest to largest
+        // generation version.
+        entries_to_process = entries_to_process
+            .into_iter()
+            .rev()
+            .take(configuration_limit)
+            .rev()
+            .collect();
+    }
+
+    // If the booted_outpath is not in the list of entries, it is replaced in the first position, ie. the oldest generation.
+    if let Some(booted_entry) = booted_entry
+        && entries_to_process
+            .iter()
+            .find(|entry| entry.outpath == booted_entry.outpath)
+            .is_none()
+        && entries_to_process.len() > 0
+    {
+        entries_to_process[0] = booted_entry
+    }
+
+    // Convert entries to generations, tracking broken ones
+    let generations: Vec<Generation> = entries_to_process
+        .into_iter()
+        .filter_map(|entry| {
+            let version = entry.version;
+            let generation_result = Generation::from_genlist_entry(entry).with_context(|| {
+                format!("Failed to build generation from genlist entry: {version}")
+            });
+
+            // Ignore failing to read a generation so that old malformed generations do not stop
+            // lzbt from working.
+            if generation_result.is_err() {
+                // If there is ANY malformed generation present, completely disable all garbage
+                // collection to protect the old generations from being deleted. The user has
+                // to manually intervene by getting rid of the old generations to re-enable
+                // garbage collection. This safeguard against catastrophic failure in case of
+                // unhandled upstream changes to NixOS.
+                broken_gens.insert(version);
+            }
+            generation_result.ok()
+        })
+        .collect();
+
+    Ok((generations, broken_gens))
 }

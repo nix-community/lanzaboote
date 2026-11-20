@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use bootspec::BootJson;
 use bootspec::BootSpec;
 use bootspec::SpecialisationName;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use time::Date;
 
 /// (Possibly) extended Bootspec.
@@ -73,69 +73,120 @@ pub struct Generation {
     pub spec: ExtendedBootJson,
     /// The set of specialisations of this generation
     pub specialisations: HashMap<SpecialisationName, Generation>,
+    /// Label of the generation
+    pub label: String,
+}
+
+/// A single entry of a generations list file.
+/// The generations list file is a JSONL file where each line describes a single generation.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GenlistEntry {
+    /// The generation index
+    pub version: u64,
+    /// The generation build time as a Unix timestamp
+    pub build_time: Option<i64>,
+    /// The generation Nix outpath
+    pub outpath: PathBuf,
+    /// An arbitrary label added to the boot entry
+    #[serde(default)]
+    pub label: String,
 }
 
 impl Generation {
     pub fn from_link(link: &GenerationLink) -> Result<Self> {
         let bootspec_path = link.path.join("boot.json");
-        let boot_json: BootJson = fs::read(bootspec_path)
+        let boot_json: BootJson = Self::read_boot_json(&bootspec_path, &link.path)?;
+
+        Self::parse_boot_json(link.version, link.build_time, None, boot_json)
+    }
+
+    pub fn from_genlist_entry(entry: GenlistEntry) -> Result<Self> {
+        let bootspec_path = entry.outpath.join("boot.json");
+        let boot_json: BootJson = Self::read_boot_json(&bootspec_path, &entry.outpath)?;
+
+        let build_time = entry.build_time
+            .map(|ts| time::OffsetDateTime::from_unix_timestamp(ts)
+                .context("Failed to parse the generation build time")
+                .map(|odt| odt.date())
+            )
+            .transpose()?;
+
+        let mut generation = Self::parse_boot_json(entry.version, build_time, None, boot_json)?;
+        generation.label = entry.label;
+        Ok(generation)
+    }
+
+    /// Read the bootspec of a generation, synthesizing a replacement if it is missing.
+    fn read_boot_json(bootspec_path: &Path, outpath: &Path) -> Result<BootJson> {
+        fs::read(bootspec_path)
             .context("Failed to read bootspec file")
             .and_then(|raw| serde_json::from_slice(&raw).context("Failed to read bootspec JSON"))
-            .or_else(|_err| BootJson::synthesize_latest(&link.path)
-                    .context("Failed to read a bootspec (missing bootspec?) and failed to synthesize a valid replacement bootspec."))?;
-
-        Self::parse_boot_json(link, None, boot_json)
+            .or_else(|_err| {
+                BootJson::synthesize_latest(outpath).context(
+                    "Failed to read a bootspec (missing bootspec?) and failed to synthesize a valid replacement bootspec.",
+                )
+            })
     }
 
     fn parse_specialisation(
-        link: &GenerationLink,
+        version: u64,
+        build_time: Option<Date>,
         specialisation_name: SpecialisationName,
         specialisation: bootspec::Specialisation,
     ) -> Result<Self> {
         Ok(Self {
-            version: link.version,
-            build_time: link.build_time,
+            version,
+            build_time,
             specialisation_name: Some(specialisation_name),
             spec: ExtendedBootJson {
                 bootspec: specialisation.clone().generation,
                 lanzaboote_extension: specialisation.clone().into(),
             },
             specialisations: Self::parse_specialisations(
-                link,
+                version,
+                build_time,
                 specialisation.generation.specialisations,
             )?,
+            label: String::new(),
         })
     }
 
     fn parse_specialisations(
-        link: &GenerationLink,
+        version: u64,
+        build_time: Option<Date>,
         specialisations: bootspec::Specialisations,
     ) -> Result<HashMap<SpecialisationName, Generation>> {
         specialisations
             .into_iter()
             .map(|(name, json)| {
-                Self::parse_specialisation(link, name.clone(), json)
+                Self::parse_specialisation(version, build_time, name.clone(), json)
                     .map(|generation| (name, generation))
             })
             .collect::<Result<HashMap<SpecialisationName, Generation>>>()
     }
 
     fn parse_boot_json(
-        link: &GenerationLink,
+        version: u64,
+        build_time: Option<Date>,
         specialisation_name: Option<SpecialisationName>,
         boot_json: BootJson,
     ) -> Result<Self> {
         let bootspec: BootSpec = boot_json.clone().generation.try_into()?;
 
         Ok(Self {
-            version: link.version,
-            build_time: link.build_time,
+            version,
+            build_time,
             specialisation_name,
             spec: ExtendedBootJson {
                 bootspec: bootspec.clone(),
                 lanzaboote_extension: boot_json.into(),
             },
-            specialisations: Self::parse_specialisations(link, bootspec.specialisations)?,
+            specialisations: Self::parse_specialisations(
+                version,
+                build_time,
+                bootspec.specialisations,
+            )?,
+            label: String::new(),
         })
     }
 
@@ -161,11 +212,18 @@ impl Generation {
             .map(|x| x.to_string())
             .unwrap_or_else(|| String::from("Unknown"));
 
+        let label = if self.label.is_empty() {
+            String::new()
+        } else {
+            format!(", {}", self.label)
+        };
+
         format!(
-            "Generation {}{}, {}",
+            "Generation {}{}, {}{}",
             self.version,
             self.describe_specialisation(),
-            build_time
+            build_time,
+            label
         )
     }
 

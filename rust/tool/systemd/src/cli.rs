@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-use crate::install;
+use crate::{genlist, install};
 use lanzaboote_tool::{
     architecture::Architecture,
     signature::{EmptyKeyPair, LocalKeyPair},
@@ -29,6 +29,13 @@ pub struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Install(InstallCommand),
+    ValidateGenlist(ValidateGenlistCommand),
+}
+
+#[derive(Parser)]
+struct ValidateGenlistCommand {
+    /// Path to a generations list file (JSONL) to validate
+    genlist_path: PathBuf,
 }
 
 #[derive(Parser)]
@@ -71,6 +78,10 @@ struct InstallCommand {
     #[arg(long)]
     protected_system: Option<PathBuf>,
 
+    /// Path to a generations list file (JSONL) describing the generations to install
+    #[arg(long, conflicts_with = "generations")]
+    genlist_path: Option<PathBuf>,
+
     /// EFI system partition mountpoint (e.g. efiSysMountPoint)
     esp: PathBuf,
 
@@ -99,8 +110,14 @@ impl Commands {
     pub fn call(self) -> Result<()> {
         match self {
             Commands::Install(args) => install(args),
+            Commands::ValidateGenlist(args) => validate_genlist(args),
         }
     }
+}
+
+fn validate_genlist(args: ValidateGenlistCommand) -> Result<()> {
+    let _ = genlist::read(&args.genlist_path)?;
+    Ok(())
 }
 
 fn install(args: InstallCommand) -> Result<()> {
@@ -121,6 +138,7 @@ fn install(args: InstallCommand) -> Result<()> {
         args.protected_system,
         args.esp,
         args.generations,
+        args.genlist_path,
     );
 
     if args.allow_unsigned

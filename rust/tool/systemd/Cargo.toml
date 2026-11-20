@@ -11,6 +11,7 @@ log = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
 tempfile = { workspace = true, features = ["default"]}
 sha2 = { workspace = true }
+time = "0.3"
 
 base32ct = { version = "0.3.0", features = ["alloc"] }
 clap = { version = "4.5.51", features = ["derive"] }

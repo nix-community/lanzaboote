@@ -28,10 +28,23 @@ let
         --config ${sbctlConfig} --export auth
     '';
 
+  genlist = pkgs.writeText "genlist.json" (
+    builtins.toJSON {
+      version = 1;
+      outpath = config.system.build.toplevel;
+      build_time = 1;
+      label = "initial";
+    }
+  );
+
   espFiles = pkgs.runCommand "esp-files" { } (
     ''
       mkdir -p $out
-      ln -s ${config.system.build.toplevel} system-1-link
+    ''
+    + lib.optionalString (!config.lanzabooteTest.genlistMode) ''
+      ln -s ${config.system.build.toplevel} system-1-link \
+    ''
+    + ''
       ${cfg.installCommand} \
     ''
     + (
@@ -50,8 +63,8 @@ let
     )
     + ''
       $out \
-      system-1-link
     ''
+    + (if config.lanzabooteTest.genlistMode then "--genlist-path ${genlist}" else "system-1-link")
   );
 
   closureInfo = pkgs.closureInfo {

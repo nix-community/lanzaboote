@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Added the option `lzbt install --genlist-path genlist.json`.
+  Instead of getting the list of generations from `/nix/var/nix/profiles/`, 
+  lanzaboote gets them from this JSON file.
+- Added the NixOS module option `lanzaboote.genlistPath` defaulting to `null`, 
+  in order to preserve the existing behavior.
+- Added the subcommand `lzbt validate-genlist genlist.json` to validate a `genlist.json` file.
+
 ### Changed
 
 - The Measured Boot integration now supports locking against PCR4 throughout
