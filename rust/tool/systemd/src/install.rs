@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
 use std::os::unix::prelude::{OsStrExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::string::ToString;
@@ -15,12 +14,13 @@ use tempfile::TempDir;
 
 use crate::architecture::SystemdArchitectureExt;
 use crate::esp::SystemdEspPaths;
+use crate::genlist;
 use crate::pcrlock::{PcrlockPaths, lock_pe, lock_pe_from_bytes};
 use crate::version::SystemdVersion;
 use lanzaboote_tool::architecture::Architecture;
 use lanzaboote_tool::esp::EspPaths;
 use lanzaboote_tool::gc::Roots;
-use lanzaboote_tool::generation::{Generation, GenerationLink, GenlistEntry};
+use lanzaboote_tool::generation::{Generation, GenerationLink};
 use lanzaboote_tool::os_release::OsRelease;
 use lanzaboote_tool::pe::{self, append_initrd_secrets, lanzaboote_image};
 use lanzaboote_tool::signature::Signer;
@@ -825,24 +825,11 @@ pub fn collect_generations_from_genlist(
     configuration_limit: usize,
     booted_outpath: Option<PathBuf>,
 ) -> Result<(Vec<Generation>, BTreeSet<u64>)> {
-    let file = File::open(genlist.as_ref()).context("Failed to open generations list file")?;
-    let reader = BufReader::new(file);
     let mut broken_gens = BTreeSet::new();
 
-    // First, collect all entries from the genlist file
-    let entries: Vec<GenlistEntry> = reader
-        .lines()
-        .filter_map(|line| {
-            line
-                .context("Failed to read a line from the generations list file")
-                .and_then(|line| {
-                    serde_json::from_str::<GenlistEntry>(&line)
-                        .context("Failed to parse a generation from the generations list file")
-                })
-                .map_err(|e| log::warn!("{e:#}"))
-                .ok()
-        })
-        .collect();
+    // The file can be validate with the validate-genlist as a activation prescript check.
+    // At this point, we should then alwaays get a valid genlist.json file.
+    let entries = genlist::read(&genlist)?;
 
     // Find the newest booted entry if booted_outpath is provided
     let booted_entry = booted_outpath.and_then(|booted_outpath| {

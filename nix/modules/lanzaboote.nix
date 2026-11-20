@@ -679,11 +679,7 @@ in
     };
 
     system.preSwitchChecks.checkGenlist = lib.mkIf (cfg.genlistPath != null) ''
-      if [ ! -f "${cfg.genlistPath}" ]; then
-        echo "Error: genlist.json not found at ${cfg.genlistPath}"
-        echo "Please ensure the genlist.json file exists before activating this Lanzaboote configuration."
-        exit 1
-      fi
+      ${cfg.package}/bin/lzbt-systemd validate-genlist "${cfg.genlistPath}"
     '';
   };
 }
